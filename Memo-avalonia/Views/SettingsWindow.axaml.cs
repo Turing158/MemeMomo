@@ -32,13 +32,15 @@ public partial class SettingsWindow : Window
     private bool _isApplyingSelectorState;
     private bool _isApplyingDockSizeState;
     private bool _isApplyingDockEnabledState;
+    private bool _isApplyingTaskbarIconState;
 
-    internal enum HotkeyField { ToggleTopmost, Minimize, ShowWindow, QuickMemo }
+    internal enum HotkeyField { ToggleTopmost, ToggleMemoTaskbar, Minimize, ShowWindow, QuickMemo }
 
     internal readonly record struct HotkeyConflict(HotkeyField Field, Button ConflictingButton);
 
     internal readonly record struct HotkeySettingsSnapshot(
         HotkeySetting? ToggleTopmost, Button ToggleTopmostButton,
+        HotkeySetting? ToggleMemoTaskbar, Button ToggleMemoTaskbarButton,
         HotkeySetting? Minimize, Button MinimizeButton,
         HotkeySetting? ShowWindow, Button ShowWindowButton,
         HotkeySetting? QuickMemo, Button QuickMemoButton);
@@ -72,10 +74,12 @@ public partial class SettingsWindow : Window
         }
 
         var tt = this.FindControl<Button>("_toggleTopmostHotkeyButton")!;
+        var mt = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!;
         var mn = this.FindControl<Button>("_minimizeHotkeyButton")!;
         var sw = this.FindControl<Button>("_showWindowHotkeyButton")!;
         var qm = this.FindControl<Button>("_quickMemoHotkeyButton")!;
         tt.PointerPressed += OnHotkeyButtonPointerPressed;
+        mt.PointerPressed += OnHotkeyButtonPointerPressed;
         mn.PointerPressed += OnHotkeyButtonPointerPressed;
         sw.PointerPressed += OnHotkeyButtonPointerPressed;
         qm.PointerPressed += OnHotkeyButtonPointerPressed;
@@ -122,6 +126,28 @@ public partial class SettingsWindow : Window
             duplicateCheckBox.IsChecked = _settings.DuplicateMemoEnabled;
         }
 
+        _isApplyingTaskbarIconState = true;
+        try
+        {
+            var showMainWindowTaskbarIconCheckBox =
+                this.FindControl<AnimatedCheckBox>("_showMainWindowTaskbarIconCheckBox");
+            if (showMainWindowTaskbarIconCheckBox != null)
+            {
+                showMainWindowTaskbarIconCheckBox.IsChecked = _settings.ShowMainWindowTaskbarIcon;
+            }
+
+            var showMemoWindowTaskbarIconCheckBox =
+                this.FindControl<AnimatedCheckBox>("_showMemoWindowTaskbarIconCheckBox");
+            if (showMemoWindowTaskbarIconCheckBox != null)
+            {
+                showMemoWindowTaskbarIconCheckBox.IsChecked = _settings.ShowMemoWindowTaskbarIcon;
+            }
+        }
+        finally
+        {
+            _isApplyingTaskbarIconState = false;
+        }
+
         var showPopoutCheckBox = this.FindControl<AnimatedCheckBox>("_quickMemoShowPopoutAfterAddCheckBox");
         if (showPopoutCheckBox != null)
         {
@@ -161,6 +187,7 @@ public partial class SettingsWindow : Window
         }
 
         UpdateHotkeyButtons();
+        UpdateMemoTaskbarHotkeyUi();
         UpdateQuickMemoDependentUi();
         UpdateMotionUi();
     }
@@ -308,12 +335,31 @@ public partial class SettingsWindow : Window
     private void UpdateHotkeyButtons()
     {
         this.FindControl<Button>("_toggleTopmostHotkeyButton")!.Content = _settings.ToggleTopmostHotkey.ToString();
+        this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!.Content = _settings.ToggleMemoTaskbarHotkey.ToString();
         this.FindControl<Button>("_minimizeHotkeyButton")!.Content = _settings.MinimizeHotkey.ToString();
         this.FindControl<Button>("_showWindowHotkeyButton")!.Content = _settings.ShowWindowHotkey.ToString();
         var quickMemoButton = this.FindControl<Button>("_quickMemoHotkeyButton");
         if (quickMemoButton != null)
         {
             quickMemoButton.Content = _settings.QuickMemoHotkey.ToString();
+        }
+    }
+
+    private void UpdateMemoTaskbarHotkeyUi()
+    {
+        var section = this.FindControl<CollapsibleSection>("_memoTaskbarHotkeySection");
+        if (section != null)
+        {
+            section.IsExpanded = _settings.ShowMemoWindowTaskbarIcon;
+        }
+
+        var button = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton");
+        if (!_settings.ShowMemoWindowTaskbarIcon
+            && ReferenceEquals(_capturingButton, button))
+        {
+            ClearHotkeyValidation();
+            ClearConflict();
+            EndCapture();
         }
     }
 
@@ -470,11 +516,14 @@ public partial class SettingsWindow : Window
     private HotkeySettingsSnapshot BuildSiblings(HotkeySetting? capturing)
     {
         var tt = this.FindControl<Button>("_toggleTopmostHotkeyButton")!;
+        var mt = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!;
         var mn = this.FindControl<Button>("_minimizeHotkeyButton")!;
         var sw = this.FindControl<Button>("_showWindowHotkeyButton")!;
         var qm = this.FindControl<Button>("_quickMemoHotkeyButton")!;
         return new HotkeySettingsSnapshot(
             capturing != _settings.ToggleTopmostHotkey ? _settings.ToggleTopmostHotkey : null, tt,
+            (_settings.ShowMemoWindowTaskbarIcon && capturing != _settings.ToggleMemoTaskbarHotkey)
+                ? _settings.ToggleMemoTaskbarHotkey : null, mt,
             capturing != _settings.MinimizeHotkey ? _settings.MinimizeHotkey : null, mn,
             capturing != _settings.ShowWindowHotkey ? _settings.ShowWindowHotkey : null, sw,
             (_settings.QuickMemoEnabled && capturing != _settings.QuickMemoHotkey) ? _settings.QuickMemoHotkey : null, qm);
@@ -568,6 +617,7 @@ public partial class SettingsWindow : Window
     private static string ActionName(HotkeyField f) => f switch
     {
         HotkeyField.ToggleTopmost => "置顶",
+        HotkeyField.ToggleMemoTaskbar => "切换便签任务栏图标",
         HotkeyField.Minimize => "最小化",
         HotkeyField.ShowWindow => "显示软件",
         HotkeyField.QuickMemo => "快速添加（剪贴板）",
@@ -582,6 +632,7 @@ public partial class SettingsWindow : Window
     {
         if (candidate.IsEmpty) return null;
         if (s.ToggleTopmost is { } toggle && HotkeySettingEquals(candidate, toggle)) return new(HotkeyField.ToggleTopmost, s.ToggleTopmostButton);
+        if (s.ToggleMemoTaskbar is { } taskbar && HotkeySettingEquals(candidate, taskbar)) return new(HotkeyField.ToggleMemoTaskbar, s.ToggleMemoTaskbarButton);
         if (s.Minimize is { } minimize && HotkeySettingEquals(candidate, minimize)) return new(HotkeyField.Minimize, s.MinimizeButton);
         if (s.ShowWindow is { } showWindow && HotkeySettingEquals(candidate, showWindow)) return new(HotkeyField.ShowWindow, s.ShowWindowButton);
         if (s.QuickMemo is { } quickMemo && HotkeySettingEquals(candidate, quickMemo)) return new(HotkeyField.QuickMemo, s.QuickMemoButton);
@@ -595,6 +646,7 @@ public partial class SettingsWindow : Window
             ("最小化", settings.MinimizeHotkey),
             ("显示软件", settings.ShowWindowHotkey),
         };
+        if (settings.ShowMemoWindowTaskbarIcon) list.Add(("切换便签任务栏图标", settings.ToggleMemoTaskbarHotkey));
         if (settings.QuickMemoEnabled) list.Add(("快速添加（剪贴板）", settings.QuickMemoHotkey));
         var present = list.Where(e => !e.H.IsEmpty).ToList();
         for (int i = 0; i < present.Count; i++)
@@ -653,6 +705,11 @@ public partial class SettingsWindow : Window
     private void OnToggleTopmostHotkeyClick(object? sender, RoutedEventArgs e)
     {
         StartCapture(_settings.ToggleTopmostHotkey, (Button)sender!);
+    }
+
+    private void OnToggleMemoTaskbarHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.ToggleMemoTaskbarHotkey, (Button)sender!);
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -756,6 +813,40 @@ public partial class SettingsWindow : Window
         AutoSave();
     }
 
+    private void OnShowMainWindowTaskbarIconChecked(object? sender, RoutedEventArgs e) =>
+        SetShowMainWindowTaskbarIcon(true);
+
+    private void OnShowMainWindowTaskbarIconUnchecked(object? sender, RoutedEventArgs e) =>
+        SetShowMainWindowTaskbarIcon(false);
+
+    private void SetShowMainWindowTaskbarIcon(bool show)
+    {
+        if (_isApplyingTaskbarIconState || _settings.ShowMainWindowTaskbarIcon == show) return;
+        _settings.ShowMainWindowTaskbarIcon = show;
+        _previewSettings(_settings.Clone());
+        AutoSave();
+    }
+
+    private void OnShowMemoWindowTaskbarIconChecked(object? sender, RoutedEventArgs e) =>
+        SetShowMemoWindowTaskbarIcon(true);
+
+    private void OnShowMemoWindowTaskbarIconUnchecked(object? sender, RoutedEventArgs e) =>
+        SetShowMemoWindowTaskbarIcon(false);
+
+    private void SetShowMemoWindowTaskbarIcon(bool show)
+    {
+        if (_isApplyingTaskbarIconState) return;
+        if (_settings.ShowMemoWindowTaskbarIcon == show)
+        {
+            UpdateMemoTaskbarHotkeyUi();
+            return;
+        }
+        _settings.ShowMemoWindowTaskbarIcon = show;
+        UpdateMemoTaskbarHotkeyUi();
+        _previewSettings(_settings.Clone());
+        AutoSave();
+    }
+
     private async void OnResetClick(object? sender, RoutedEventArgs e)
     {
         var confirm = new ConfirmDialog("重置设置", "确定要恢复默认设置吗？");
@@ -766,12 +857,15 @@ public partial class SettingsWindow : Window
         _settings.CloseButtonAction = defaults.CloseButtonAction;
         _settings.HasAskedCloseButtonAction = defaults.HasAskedCloseButtonAction;
         _settings.ToggleTopmostHotkey = defaults.ToggleTopmostHotkey.Clone();
+        _settings.ToggleMemoTaskbarHotkey = defaults.ToggleMemoTaskbarHotkey.Clone();
         _settings.MinimizeHotkey = defaults.MinimizeHotkey.Clone();
         _settings.ShowWindowHotkey = defaults.ShowWindowHotkey.Clone();
         _settings.QuickMemoHotkey = defaults.QuickMemoHotkey.Clone();
         _settings.QuickMemoEnabled = defaults.QuickMemoEnabled;
         _settings.DuplicateMemoEnabled = defaults.DuplicateMemoEnabled;
         _settings.TraySingleClickToShow = defaults.TraySingleClickToShow;
+        _settings.ShowMainWindowTaskbarIcon = defaults.ShowMainWindowTaskbarIcon;
+        _settings.ShowMemoWindowTaskbarIcon = defaults.ShowMemoWindowTaskbarIcon;
         _settings.QuickMemoShowPopoutAfterAdd = defaults.QuickMemoShowPopoutAfterAdd;
         _settings.ThemeMode = defaults.ThemeMode;
         _settings.MotionMode = defaults.MotionMode;

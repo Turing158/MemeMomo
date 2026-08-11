@@ -359,8 +359,11 @@
         <Border x:Name="_dockIconSurface"
                 Width="44" Height="44"
                 Background="Transparent"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top">
+          <Border.RenderTransform>
+            <TranslateTransform/>
+          </Border.RenderTransform>
           <Image Source="/Assets/appicon.png"
                  Width="18" Height="18"
                  HorizontalAlignment="Center"
@@ -371,13 +374,17 @@
       <Border x:Name="_dockContent"
               Width="44" Height="44"
               Background="Transparent"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top"
               AutomationProperties.Name="Memo dock handle"
               PointerPressed="OnDockPointerPressed"
               PointerMoved="OnDockPointerMoved"
               PointerReleased="OnDockPointerReleased"
-              PointerCaptureLost="OnDockPointerCaptureLost"/>
+              PointerCaptureLost="OnDockPointerCaptureLost">
+        <Border.RenderTransform>
+          <TranslateTransform/>
+        </Border.RenderTransform>
+      </Border>
     </Grid>
     </Grid>
   </Border>

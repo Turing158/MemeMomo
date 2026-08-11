@@ -62,6 +62,15 @@
     <Color x:Key="IconHover">#1E1A16</Color>        <!-- 图标悬停 -->
     <Color x:Key="IconAccent">#C06A48</Color>       <!-- 图标强调 -->
 
+    <!-- ── Markdown 内容层次（亮色背景下保持清晰） ── -->
+    <Color x:Key="MarkdownCodeBlockBackground">#E2E7EA</Color> <!-- 代码块：冷灰面 -->
+    <Color x:Key="MarkdownCodeBlockBorder">#818E98</Color>     <!-- 代码块轮廓 -->
+    <Color x:Key="MarkdownQuoteBackground">#F0DFD4</Color>     <!-- 引用块：浅陶色面 -->
+    <Color x:Key="MarkdownQuoteBorder">#D2AA92</Color>         <!-- 引用块柔和轮廓 -->
+    <Color x:Key="MarkdownTableBorder">#8B7D6A</Color>         <!-- 表格外框 -->
+    <Color x:Key="MarkdownTableDivider">#978A79</Color>        <!-- 单元格分割线 -->
+    <Color x:Key="MarkdownTableHeader">#14000000</Color>       <!-- 表头：透明黑色 -->
+
     <!-- ══════════ 画刷 ══════════ -->
 
     <!-- 背景 -->
@@ -69,8 +78,8 @@
     <SolidColorBrush x:Key="BgSecondaryBrush" Color="{StaticResource BgSecondary}"/>
     <SolidColorBrush x:Key="BgTertiaryBrush" Color="{StaticResource BgTertiary}"/>
     <SolidColorBrush x:Key="BgHoverBrush" Color="{StaticResource BgHover}"/>
-    <!-- Avalonia's named Transparent is #00FFFFFF; use transparent black for animated dark surfaces. -->
-    <SolidColorBrush x:Key="TransparentBrush" Color="#00000000"/>
+    <!-- Match the transparent animation endpoint to the active theme to avoid inverse-color flashes. -->
+    <SolidColorBrush x:Key="TransparentBrush" Color="#00FFFFFF"/>
 
     <!-- 表面 -->
     <SolidColorBrush x:Key="SurfacePrimaryBrush" Color="{StaticResource SurfacePrimary}"/>
@@ -91,6 +100,8 @@
     <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentSubtle}"/>
     <SolidColorBrush x:Key="AccentSubtlePressedBrush" Color="{StaticResource AccentSubtlePressed}"/>
     <SolidColorBrush x:Key="AccentPressedBrush" Color="{StaticResource AccentPressed}"/>
+    <!-- 编辑器正文、表格单元格及所有文本输入框共用的选区背景 -->
+    <SolidColorBrush x:Key="TextSelectionBrush" Color="{StaticResource AccentSubtlePressed}"/>
 
     <!-- 语义 -->
     <SolidColorBrush x:Key="DangerPrimaryBrush" Color="{StaticResource DangerPrimary}"/>
@@ -112,6 +123,15 @@
     <SolidColorBrush x:Key="IconHoverBrush" Color="{StaticResource IconHover}"/>
     <SolidColorBrush x:Key="IconAccentBrush" Color="{StaticResource IconAccent}"/>
     <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF"/>
+
+    <!-- Markdown 内容 -->
+    <SolidColorBrush x:Key="MarkdownCodeBlockBackgroundBrush" Color="{StaticResource MarkdownCodeBlockBackground}"/>
+    <SolidColorBrush x:Key="MarkdownCodeBlockBorderBrush" Color="{StaticResource MarkdownCodeBlockBorder}"/>
+    <SolidColorBrush x:Key="MarkdownQuoteBackgroundBrush" Color="{StaticResource MarkdownQuoteBackground}"/>
+    <SolidColorBrush x:Key="MarkdownQuoteBorderBrush" Color="{StaticResource MarkdownQuoteBorder}"/>
+    <SolidColorBrush x:Key="MarkdownTableBorderBrush" Color="{StaticResource MarkdownTableBorder}"/>
+    <SolidColorBrush x:Key="MarkdownTableDividerBrush" Color="{StaticResource MarkdownTableDivider}"/>
+    <SolidColorBrush x:Key="MarkdownTableHeaderBrush" Color="{StaticResource MarkdownTableHeader}"/>
 
     <!-- ══════════ 圆角 ══════════ -->
     <CornerRadius x:Key="RadiusSm">6</CornerRadius>
@@ -261,6 +281,29 @@
         </ControlTemplate>
       </Setter>
     </ControlTheme>
+    <ControlTheme x:Key="MarkdownTablePickerPresenterTheme" TargetType="FlyoutPresenter">
+      <Setter Property="MinWidth" Value="205"/>
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderEmphasisBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="8"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}"
+                  Padding="{TemplateBinding Padding}"
+                  ClipToBounds="True">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="Stretch"
+                              VerticalContentAlignment="Stretch"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
     <ControlTheme x:Key="MarkdownToolbarMenuItemTheme" TargetType="MenuItem">
       <Setter Property="Height" Value="34"/>
       <Setter Property="Margin" Value="0"/>
@@ -350,6 +393,11 @@
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml"/>
     <StyleInclude Source="avares://Memo/Components/AnimatedCheckBox.axaml"/>
 
+    <Style Selector="TextBox">
+      <Setter Property="SelectionBrush" Value="{StaticResource TextSelectionBrush}"/>
+      <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}"/>
+    </Style>
+
     <!-- Keep Fluent's internal state layer bound to the app-themed button properties. -->
     <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}}"/>
@@ -423,20 +471,24 @@
     </Style>
 
     <!-- 置顶激活态：浅暖橙底 + 暖橙图标 · 轻量提示感 · 带过渡动画 -->
-    <Style Selector="Button.PinActive /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.TitleBarBtn.PinActive /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="Button.PinActive">
+    <Style Selector="Button.TitleBarBtn.PinActive">
       <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
     </Style>
-    <Style Selector="Button.PinActive:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.TitleBarBtn.PinActive:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{StaticResource AccentMutedBrush}"/>
     </Style>
-    <Style Selector="Button.PinActive PathIcon">
+    <Style Selector="Button.TitleBarBtn.PinActive:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentSubtlePressedBrush}"/>
+    </Style>
+    <Style Selector="Button.TitleBarBtn.PinActive PathIcon">
       <Setter Property="Foreground" Value="{StaticResource AccentPrimaryBrush}"/>
     </Style>
     <!-- 关闭按钮悬停：变红警示 -->
@@ -602,7 +654,7 @@
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-      <Setter Property="SelectionBrush" Value="{StaticResource AccentSubtleBrush}"/>
+      <Setter Property="SelectionBrush" Value="{StaticResource TextSelectionBrush}"/>
       <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}"/>
       <Setter Property="CaretBrush" Value="{StaticResource AccentPrimaryBrush}"/>
       <Setter Property="FontSize" Value="14"/>

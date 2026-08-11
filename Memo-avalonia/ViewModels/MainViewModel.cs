@@ -16,6 +16,10 @@ public class MainViewModel {
 
     public ObservableCollection<MemoItem> Memos { get; } = new();
     public event Action<Guid>? MemoDeleted;
+    public event Action<MemoItem>? MemoUpdated;
+    public event Action? MemosLoaded;
+
+    public bool IsLoaded { get; private set; }
 
     /// <summary>当前正在编辑的备忘录 Id；null 表示非编辑态（提交会视为新增）。</summary>
     public Guid? EditingId { get; private set; }
@@ -25,11 +29,14 @@ public class MainViewModel {
     internal MainViewModel(JsonMemoStorage storage) => _storage = storage;
 
     public async Task LoadAsync() {
+        if (IsLoaded) return;
         var items = await _storage.LoadAsync();
         foreach (var item in items)
         {
             Memos.Add(item);
         }
+        IsLoaded = true;
+        MemosLoaded?.Invoke();
     }
 
     /// <summary>
@@ -71,6 +78,7 @@ public class MainViewModel {
         if (item == null) return;
         item.Content = content;
         item.UpdatedAt = DateTimeUtils.Now;
+        MemoUpdated?.Invoke(item);
     }
 
     public void UpdateItemAndSave(Guid id, string content) {
@@ -111,7 +119,7 @@ public class MainViewModel {
 
     /// <summary>
     /// 通用重排：把指定 id 的项移动到新索引位置，并异步持久化。
-    /// 由长按拖拽交互调用。
+    /// 由鼠标拖拽交互调用。
     /// </summary>
     public void MoveItem(Guid id, int newIndex) {
         if (newIndex < 0 || newIndex >= Memos.Count) return;

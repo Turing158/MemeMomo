@@ -1,11 +1,13 @@
 using Avalonia;
 using Avalonia.Animation.Easings;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Memo.Components;
 using Memo.Models;
+using Memo.Platform.Windows;
 using Memo.Services;
 using Memo.UI;
 using Memo.Utils;
@@ -21,12 +23,15 @@ public partial class MemoPopoutWindow : Window {
     private MemoItem? _memo;
     private bool _isClosingAfterTransition;
     private bool _isPinned;
+    private bool _isTaskbarButtonEnabled;
+    private bool _showTaskbarIcon = true;
     private bool _showPreviewToolbar;
     private bool _showFullTime;
     private bool _sourceDeleted;
 
     /// <summary>当前窗体关联的备忘录项。</summary>
     public MemoItem Memo => _memo!;
+    public event Action<MemoPopoutWindow, MemoItem>? ReminderRequested;
 
     public MemoPopoutWindow() {
         InitializeComponent();
@@ -52,11 +57,23 @@ public partial class MemoPopoutWindow : Window {
         Position = position;
         _markdownEditor.ShowExistingPreview(memo.Content);
         memo.PropertyChanged += OnMemoPropertyChanged;
+        UpdateReminderButtonVisual();
     }
 
     public bool IsPinned => _isPinned;
 
+    internal void ApplySettings(AppSettings settings) {
+        _isTaskbarButtonEnabled = settings.ShowMemoWindowTaskbarIcon;
+        UpdateTaskbarButtonVisual();
+    }
+
     public void TogglePinned() => SetPinned(!_isPinned);
+
+    public void ToggleTaskbarIcon() {
+        if (!_isTaskbarButtonEnabled) return;
+        _showTaskbarIcon = !_showTaskbarIcon;
+        UpdateTaskbarButtonVisual();
+    }
 
     public void SetPinned(bool isPinned) {
         _isPinned = isPinned;
@@ -87,6 +104,12 @@ public partial class MemoPopoutWindow : Window {
     }
 
     private void OnPinToggle(object? sender, RoutedEventArgs e) => TogglePinned();
+
+    private void OnTaskbarToggle(object? sender, RoutedEventArgs e) => ToggleTaskbarIcon();
+
+    private void OnReminderClick(object? sender, RoutedEventArgs e) {
+        if (_memo != null) ReminderRequested?.Invoke(this, _memo);
+    }
 
     private void OnToolbarToggle(object? sender, RoutedEventArgs e) {
         _showPreviewToolbar = !_showPreviewToolbar;
@@ -134,6 +157,7 @@ public partial class MemoPopoutWindow : Window {
             UpdateTitle(_memo);
             _markdownEditor.SetExternalMarkdown(_memo.Content);
         }
+        if (e.PropertyName == nameof(MemoItem.ReminderAt)) UpdateReminderButtonVisual();
     }
 
     private void UpdateTitle(MemoItem memo) {
@@ -157,6 +181,36 @@ public partial class MemoPopoutWindow : Window {
             var target = _isPinned ? -45 : 0;
             MotionAnimations.AnimateRotation(pi, this, target, animate: IsVisible);
         }
+    }
+
+    private void UpdateTaskbarButtonVisual() {
+        var button = this.FindControl<Button>("_taskbarButton");
+        if (button == null) return;
+
+        button.IsVisible = _isTaskbarButtonEnabled;
+        var taskbarIconVisible = _isTaskbarButtonEnabled && _showTaskbarIcon;
+        TaskbarIconVisibility.SetVisible(this, taskbarIconVisible);
+        button.Classes.Set("PinActive", taskbarIconVisible);
+
+        var description = taskbarIconVisible
+            ? "从任务栏隐藏此便签"
+            : "在任务栏显示此便签";
+        ToolTip.SetTip(button, description);
+        AutomationProperties.SetName(button, description);
+    }
+
+    private void UpdateReminderButtonVisual() {
+        var button = this.FindControl<Button>("_reminderButton");
+        if (button == null) return;
+
+        var reminderAt = _memo?.ReminderAt;
+        var isActive = reminderAt > DateTimeUtils.Now;
+        button.Classes.Set("PinActive", isActive);
+        var description = isActive
+            ? $"提醒：{reminderAt:yyyy-MM-dd HH:mm:ss}"
+            : "设置提醒";
+        ToolTip.SetTip(button, description);
+        AutomationProperties.SetName(button, description);
     }
 
     internal void CloseBecauseSourceDeleted() {

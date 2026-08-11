@@ -25,7 +25,7 @@ using System.Linq;
 namespace Memo.Behaviors;
 
 /// <summary>
-/// 长按拖拽重排管理器。
+/// 鼠标拖动重排管理器。
 ///
 /// 核心设计：拖拽期间不修改集合（被拖项 Opacity=0 保持布局空间），
 /// 悬浮项用 Popup 渲染在弹出层（ZIndex 高于窗口内容），
@@ -35,9 +35,8 @@ namespace Memo.Behaviors;
 /// 教训（来自 drag_debug.log 的前次失败尝试）：绝不在拖拽期间从集合移除项。
 /// </summary>
 public sealed class DragReorderManager : IDisposable {
-    // ── 时间 / 阈值常量 ──
-    private const double LongPressMs = 500;
-    private const double MoveThreshold = 8;
+    // ── 拖动 / 边缘滚动阈值 ──
+    private const double DragThreshold = 8;
     private const double EdgeThreshold = 40;
     private const double MaxScrollSpeedPerSecond = 750;
     private const double PlaceholderOpacity = 0.35;
@@ -54,7 +53,6 @@ public sealed class DragReorderManager : IDisposable {
     private Control? _dragContainer;
     private int _dragIndex;
     private int _insertIndex;
-    private Point _grabOffset;
     private Point _downPos;
     private IPointer? _pressedPointer;
     private IPointer? _capturedPointer;
@@ -80,8 +78,6 @@ public sealed class DragReorderManager : IDisposable {
     private readonly List<Control> _dragContainers = new();
     private readonly Dictionary<Control, double> _containerLayoutYs = new();
 
-    // ── 计时器 ──
-    private readonly DispatcherTimer _longPressTimer;
     private ScrollContext? _scrollContext;
     private TopLevel? _frameTopLevel;
     private bool _frameRequested;
@@ -100,12 +96,6 @@ public sealed class DragReorderManager : IDisposable {
         _layer = layer;
         _vm = vm;
         _requestPopout = requestPopout;
-
-        _longPressTimer = new DispatcherTimer(
-            TimeSpan.FromMilliseconds(LongPressMs),
-            DispatcherPriority.Normal,
-            (_, _) => OnLongPressElapsed());
-
     }
 
     public bool IsDragging => _isDragging;
@@ -133,7 +123,6 @@ public sealed class DragReorderManager : IDisposable {
         _items.RemoveHandler(InputElement.PointerMovedEvent, OnPointerMoved);
         _items.RemoveHandler(InputElement.PointerReleasedEvent, OnPointerReleased);
         _items.RemoveHandler(InputElement.PointerCaptureLostEvent, OnPointerCaptureLost);
-        _longPressTimer.Stop();
         _scrollContext = null;
         CleanupDragState();
     }
@@ -180,10 +169,7 @@ public sealed class DragReorderManager : IDisposable {
         _dragIndex = _vm.Memos.IndexOf(item);
         _insertIndex = _dragIndex;
         _downPos = pos;
-        _grabOffset = e.GetPosition(container);
         _pressedPointer = e.Pointer;
-
-        _longPressTimer.Start();
     }
 
     // ═══════════════════════════════════════════════
@@ -195,11 +181,17 @@ public sealed class DragReorderManager : IDisposable {
         var pos = e.GetPosition(_items);
 
         if (!_isDragging) {
-            if (Math.Abs(pos.X - _downPos.X) > MoveThreshold ||
-                Math.Abs(pos.Y - _downPos.Y) > MoveThreshold) {
-                CancelLongPress();
+            if (!e.GetCurrentPoint(_items).Properties.IsLeftButtonPressed) {
+                CancelPendingDrag();
+                return;
             }
-            return;
+
+            if (Math.Abs(pos.X - _downPos.X) <= DragThreshold &&
+                Math.Abs(pos.Y - _downPos.Y) <= DragThreshold)
+                return;
+
+            BeginDrag();
+            if (!_isDragging) return;
         }
 
         UpdateFloatingPosition(e);
@@ -221,7 +213,7 @@ public sealed class DragReorderManager : IDisposable {
         if (_dragItem == null) return;
 
         if (!_isDragging) {
-            CancelLongPress();
+            CancelPendingDrag();
             return;
         }
 
@@ -231,7 +223,7 @@ public sealed class DragReorderManager : IDisposable {
 
     private void OnPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e) {
         if (!_isDragging) {
-            CancelLongPress();
+            CancelPendingDrag();
             return;
         }
 
@@ -239,10 +231,9 @@ public sealed class DragReorderManager : IDisposable {
     }
 
     // ═══════════════════════════════════════════════
-    //  长按到时 → 进入拖拽态
+    //  达到拖动阈值 → 进入拖拽态
     // ═══════════════════════════════════════════════
-    private void OnLongPressElapsed() {
-        _longPressTimer.Stop();
+    private void BeginDrag() {
         if (_dragItem == null || _dragContainer == null) return;
 
         _isDragging = true;
@@ -302,7 +293,6 @@ public sealed class DragReorderManager : IDisposable {
     //  落位
     // ═══════════════════════════════════════════════
     private void EndDrag(PixelPoint? releasePoint, bool requestPopout) {
-        _longPressTimer.Stop();
         _scrollContext = null;
 
         var dragged = _dragItem;
@@ -342,8 +332,7 @@ public sealed class DragReorderManager : IDisposable {
         _lastFrameTimestamp = null;
     }
 
-    private void CancelLongPress() {
-        _longPressTimer.Stop();
+    private void CancelPendingDrag() {
         ReleaseDragPointer();
         _dragItem = null;
         _dragContainer = null;

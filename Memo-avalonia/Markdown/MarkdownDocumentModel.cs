@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 
 namespace Memo.Markdown;
 
-internal enum MarkdownVisualKind { Normal, Heading1, Heading2, Heading3, Heading4, Bold, Italic, Strike, Underline, Mark, Code, Link, Quote, Image, Rule, Table, Task, OrderedListMarker }
+internal enum MarkdownVisualKind { Normal, Heading1, Heading2, Heading3, Heading4, Bold, Italic, Strike, Underline, Mark, Code, CodeBlock, Link, Quote, Image, Rule, Table, Task, OrderedListMarker }
 
 internal readonly record struct MarkdownVisualSpan(
     int Start,
@@ -18,7 +18,11 @@ internal readonly record struct MarkdownVisualSpan(
     int SourceLength,
     string? LinkTarget = null,
     string? ImageUri = null,
-    string? AltText = null) {
+    string? AltText = null,
+    string? CodeLabel = null,
+    string? CodeContent = null,
+    int? CodeContentSourceStart = null,
+    int? CodeContentSourceEnd = null) {
     public int End => Start + Length;
 }
 
@@ -101,7 +105,20 @@ internal sealed partial class MarkdownDocumentModel {
         var inserted = next[prefix..newSuffix];
         if (oldSuffix == prefix) {
             var sourceStart = SourceOffsetForInsertion(prefix);
-            Markdown = Markdown.Insert(sourceStart, inserted);
+            var emptyClosedFence = Spans
+                .Where(span => span.Kind == MarkdownVisualKind.CodeBlock &&
+                    span.CodeLabel is not null &&
+                    span.Length == 0 &&
+                    span.Start == prefix &&
+                    span.CodeContentSourceStart is { } contentStart &&
+                    span.CodeContentSourceEnd is { } contentEnd &&
+                    contentStart == contentEnd &&
+                    contentEnd < span.SourceStart + span.SourceLength)
+                .Select(span => (MarkdownVisualSpan?)span)
+                .FirstOrDefault();
+            Markdown = emptyClosedFence is not null
+                ? Markdown.Insert(sourceStart, inserted + "\n")
+                : Markdown.Insert(sourceStart, inserted);
         }
         else {
             var visibleRanges = _visibleCharacters.Skip(prefix).Take(oldSuffix - prefix)
@@ -132,6 +149,21 @@ internal sealed partial class MarkdownDocumentModel {
     }
 
     internal int SourceOffsetForInsertion(int visibleOffset) {
+        var fencedBoundary = Spans
+            .Where(span => span.Kind == MarkdownVisualKind.CodeBlock &&
+                span.CodeLabel is not null &&
+                span.CodeContentSourceStart is not null &&
+                span.CodeContentSourceEnd is not null &&
+                (visibleOffset == span.Start || visibleOffset == span.End))
+            .OrderBy(span => span.SourceStart)
+            .Select(span => (MarkdownVisualSpan?)span)
+            .FirstOrDefault();
+        if (fencedBoundary is { } codeBlock) {
+            return visibleOffset == codeBlock.Start
+                ? codeBlock.CodeContentSourceStart!.Value
+                : codeBlock.CodeContentSourceEnd!.Value;
+        }
+
         if (visibleOffset == 0 || visibleOffset >= VisibleText.Length)
             return SourceOffsetFromVisible(visibleOffset, trailingAffinity: true);
 
@@ -222,8 +254,9 @@ internal sealed partial class MarkdownDocumentModel {
         var sourceStyles = new List<SourceStyle>();
 
         AnalyzeBlocks(hidden, replacements, sourceStyles);
-        AnalyzeInline(hidden, replacements, sourceStyles);
-        AnalyzeSafeHtml(hidden, replacements, sourceStyles);
+        var inlineExclusions = InlineExcludedRanges();
+        AnalyzeInline(hidden, replacements, sourceStyles, inlineExclusions);
+        AnalyzeSafeHtml(hidden, replacements, sourceStyles, inlineExclusions);
 
         var visible = new StringBuilder(Markdown.Length);
         var visibleToSource = new List<int>(Markdown.Length + 1) { 0 };
@@ -255,9 +288,13 @@ internal sealed partial class MarkdownDocumentModel {
         foreach (var style in sourceStyles) {
             var start = sourceToVisible[Math.Clamp(style.Start, 0, Markdown.Length)];
             var end = sourceToVisible[Math.Clamp(style.End, 0, Markdown.Length)];
-            if (end > start || style.Kind == MarkdownVisualKind.Quote)
+            if (end > start || style.Kind is MarkdownVisualKind.Quote or MarkdownVisualKind.CodeBlock)
                 generatedSpans.Add(new MarkdownVisualSpan(start, end - start, style.Kind,
-                    style.Start, style.End - style.Start, style.LinkTarget));
+                    style.Start, style.End - style.Start, style.LinkTarget,
+                    CodeLabel: style.CodeLabel,
+                    CodeContent: style.CodeContent,
+                    CodeContentSourceStart: style.CodeContentSourceStart,
+                    CodeContentSourceEnd: style.CodeContentSourceEnd));
         }
 
         VisibleText = visible.ToString();
@@ -396,11 +433,19 @@ internal sealed partial class MarkdownDocumentModel {
                     RewriteListPrefixes(hidden, replacements, start, end);
                     break;
                 case FencedCodeBlock:
-                    HideFenceLines(hidden, start, end);
-                    styles.Add(new SourceStyle(start, end, MarkdownVisualKind.Code));
+                    var fencedCode = ReadFencedCodeBlock(start, end);
+                    Hide(hidden, start, fencedCode.ContentStart);
+                    if (fencedCode.ClosingLineStart is not null)
+                        Hide(hidden, fencedCode.ContentEnd, end);
+                    styles.Add(new SourceStyle(start, end, MarkdownVisualKind.CodeBlock,
+                        CodeLabel: fencedCode.Label,
+                        CodeContent: fencedCode.Content,
+                        CodeContentSourceStart: fencedCode.ContentStart,
+                        CodeContentSourceEnd: fencedCode.ContentEnd));
                     break;
                 case CodeBlock:
-                    styles.Add(new SourceStyle(start, end, MarkdownVisualKind.Code));
+                    styles.Add(new SourceStyle(start, end, MarkdownVisualKind.CodeBlock,
+                        CodeContent: Markdown[start..end]));
                     break;
                 case ThematicBreakBlock:
                     replacements[start] = new Replacement(end, "────────────────", MarkdownVisualKind.Rule);
@@ -438,41 +483,43 @@ internal sealed partial class MarkdownDocumentModel {
         }
     }
 
-    private void AnalyzeInline(bool[] hidden, Dictionary<int, Replacement> replacements, List<SourceStyle> styles) {
-        var dangerousRanges = DangerousHtmlRanges();
+    private void AnalyzeInline(bool[] hidden, Dictionary<int, Replacement> replacements,
+        List<SourceStyle> styles, IReadOnlyList<SourceRange> excludedRanges) {
         foreach (Match match in ImageSyntax().Matches(Markdown)) {
-            if (IsInside(match.Index, dangerousRanges) || OverlapsReplacement(replacements, match.Index)) continue;
+            if (Overlaps(match.Index, match.Index + match.Length, excludedRanges) ||
+                OverlapsReplacement(replacements, match.Index)) continue;
             replacements[match.Index] = new Replacement(match.Index + match.Length, "\uFFFC", MarkdownVisualKind.Image,
                 ImageUri: match.Groups[2].Value,
                 AltText: match.Groups[1].Value.Replace("\\]", "]").Replace("\\[", "["));
         }
         foreach (Match match in LinkSyntax().Matches(Markdown)) {
-            if (IsInside(match.Index, dangerousRanges) || OverlapsReplacement(replacements, match.Index)) continue;
+            if (Overlaps(match.Index, match.Index + match.Length, excludedRanges) ||
+                OverlapsReplacement(replacements, match.Index)) continue;
             Hide(hidden, match.Index, match.Groups[1].Index);
             Hide(hidden, match.Groups[1].Index + match.Groups[1].Length, match.Index + match.Length);
             styles.Add(new SourceStyle(match.Groups[1].Index, match.Groups[1].Index + match.Groups[1].Length,
                 MarkdownVisualKind.Link, match.Groups[2].Value));
         }
         foreach (Match match in BoldItalicSyntax().Matches(Markdown)) {
-            if (IsInside(match.Index, dangerousRanges)) continue;
+            if (Overlaps(match.Index, match.Index + match.Length, excludedRanges)) continue;
             Hide(hidden, match.Index, match.Index + 3);
             Hide(hidden, match.Index + match.Length - 3, match.Index + match.Length);
             styles.Add(new SourceStyle(match.Index + 2, match.Index + match.Length - 2, MarkdownVisualKind.Bold));
             styles.Add(new SourceStyle(match.Index + 3, match.Index + match.Length - 3, MarkdownVisualKind.Italic));
         }
-        AnalyzeDelimited(hidden, styles, BoldSyntax(), 2, MarkdownVisualKind.Bold, dangerousRanges);
-        AnalyzeDelimited(hidden, styles, BoldUnderscoreSyntax(), 2, MarkdownVisualKind.Bold, dangerousRanges);
-        AnalyzeDelimited(hidden, styles, StrikeSyntax(), 2, MarkdownVisualKind.Strike, dangerousRanges);
-        AnalyzeDelimited(hidden, styles, CodeSyntax(), 1, MarkdownVisualKind.Code, dangerousRanges);
-        AnalyzeDelimited(hidden, styles, ItalicSyntax(), 1, MarkdownVisualKind.Italic, dangerousRanges);
-        AnalyzeDelimited(hidden, styles, ItalicUnderscoreSyntax(), 1, MarkdownVisualKind.Italic, dangerousRanges);
+        AnalyzeDelimited(hidden, styles, BoldSyntax(), 2, MarkdownVisualKind.Bold, excludedRanges);
+        AnalyzeDelimited(hidden, styles, BoldUnderscoreSyntax(), 2, MarkdownVisualKind.Bold, excludedRanges);
+        AnalyzeDelimited(hidden, styles, StrikeSyntax(), 2, MarkdownVisualKind.Strike, excludedRanges);
+        AnalyzeDelimited(hidden, styles, CodeSyntax(), 1, MarkdownVisualKind.Code, excludedRanges);
+        AnalyzeDelimited(hidden, styles, ItalicSyntax(), 1, MarkdownVisualKind.Italic, excludedRanges);
+        AnalyzeDelimited(hidden, styles, ItalicUnderscoreSyntax(), 1, MarkdownVisualKind.Italic, excludedRanges);
     }
 
-    private void AnalyzeSafeHtml(bool[] hidden, Dictionary<int, Replacement> replacements, List<SourceStyle> styles) {
+    private void AnalyzeSafeHtml(bool[] hidden, Dictionary<int, Replacement> replacements,
+        List<SourceStyle> styles, IReadOnlyList<SourceRange> excludedRanges) {
         var stacks = new Dictionary<string, Stack<HtmlOpen>>(StringComparer.OrdinalIgnoreCase);
-        var dangerousRanges = DangerousHtmlRanges();
         foreach (Match match in HtmlTagSyntax().Matches(Markdown)) {
-            if (dangerousRanges.Any(range => match.Index >= range.Start && match.Index < range.End)) continue;
+            if (Overlaps(match.Index, match.Index + match.Length, excludedRanges)) continue;
             var tag = match.Groups[2].Value.ToLowerInvariant();
             var closing = match.Groups[1].Success;
             var attributes = match.Groups[3].Value;
@@ -515,8 +562,24 @@ internal sealed partial class MarkdownDocumentModel {
     private SourceRange[] DangerousHtmlRanges() => DangerousHtmlContainerSyntax().Matches(Markdown).Cast<Match>()
         .Select(match => new SourceRange(match.Index, match.Index + match.Length)).ToArray();
 
-    private static bool IsInside(int sourceOffset, IEnumerable<SourceRange> ranges) =>
-        ranges.Any(range => sourceOffset >= range.Start && sourceOffset < range.End);
+    private SourceRange[] InlineExcludedRanges() => DangerousHtmlRanges()
+        .Concat(EnumerateBlocks(Ast)
+            .OfType<CodeBlock>()
+            .Select(block => new SourceRange(
+                Math.Clamp(block.Span.Start, 0, Markdown.Length),
+                Math.Clamp(block.Span.End + 1, 0, Markdown.Length))))
+        .ToArray();
+
+    private static IEnumerable<Block> EnumerateBlocks(ContainerBlock container) {
+        foreach (var block in container) {
+            yield return block;
+            if (block is not ContainerBlock nested) continue;
+            foreach (var descendant in EnumerateBlocks(nested)) yield return descendant;
+        }
+    }
+
+    private static bool Overlaps(int start, int end, IEnumerable<SourceRange> ranges) =>
+        ranges.Any(range => start < range.End && end > range.Start);
 
     private static bool TryReadSafeHtmlTag(
         string tag, bool closing, string attributes, out string? target, out string? alt) {
@@ -560,7 +623,7 @@ internal sealed partial class MarkdownDocumentModel {
     private void AnalyzeDelimited(bool[] hidden, List<SourceStyle> styles, Regex regex, int delimiter,
         MarkdownVisualKind kind, IEnumerable<SourceRange> dangerousRanges) {
         foreach (Match match in regex.Matches(Markdown)) {
-            if (IsInside(match.Index, dangerousRanges)) continue;
+            if (Overlaps(match.Index, match.Index + match.Length, dangerousRanges)) continue;
             Hide(hidden, match.Index, match.Index + delimiter);
             Hide(hidden, match.Index + match.Length - delimiter, match.Index + match.Length);
             styles.Add(new SourceStyle(match.Index + delimiter, match.Index + match.Length - delimiter, kind));
@@ -601,12 +664,50 @@ internal sealed partial class MarkdownDocumentModel {
         }
     }
 
-    private void HideFenceLines(bool[] hidden, int start, int end) {
+    private FencedCodeProjection ReadFencedCodeBlock(int start, int end) {
         var firstEnd = Markdown.IndexOf('\n', start);
         if (firstEnd < 0 || firstEnd > end) firstEnd = end;
-        Hide(hidden, start, firstEnd);
-        var lastStart = Markdown.LastIndexOf('\n', Math.Max(start, end - 1));
-        if (lastStart >= start) Hide(hidden, lastStart + 1, end);
+        var openingLine = Markdown[start..firstEnd];
+        var markerStart = 0;
+        while (markerStart < openingLine.Length && markerStart < 3 && openingLine[markerStart] == ' ')
+            markerStart++;
+        var fenceCharacter = markerStart < openingLine.Length ? openingLine[markerStart] : '`';
+        var fenceLength = 0;
+        while (markerStart + fenceLength < openingLine.Length &&
+               openingLine[markerStart + fenceLength] == fenceCharacter)
+            fenceLength++;
+        var labelStart = Math.Min(markerStart + fenceLength, openingLine.Length);
+        var label = openingLine[labelStart..].Trim();
+
+        int? closingLineStart = null;
+        if (firstEnd < end) {
+            var candidateBreak = Markdown.LastIndexOf('\n', Math.Max(start, end - 1));
+            var candidateStart = candidateBreak >= start ? candidateBreak + 1 : start;
+            if (candidateStart > firstEnd &&
+                IsClosingFence(Markdown[candidateStart..end], fenceCharacter, fenceLength))
+                closingLineStart = candidateStart;
+        }
+
+        var contentStart = Math.Min(firstEnd + 1, end);
+        var contentEnd = closingLineStart is { } closing
+            ? Math.Max(contentStart, closing - 1)
+            : end;
+        return new FencedCodeProjection(
+            contentStart,
+            contentEnd,
+            closingLineStart,
+            label,
+            Markdown[contentStart..contentEnd]);
+    }
+
+    private static bool IsClosingFence(string line, char fenceCharacter, int openingFenceLength) {
+        var index = 0;
+        while (index < line.Length && index < 3 && line[index] == ' ') index++;
+        var runStart = index;
+        while (index < line.Length && line[index] == fenceCharacter) index++;
+        if (index - runStart < Math.Max(3, openingFenceLength)) return false;
+        while (index < line.Length && line[index] is ' ' or '\t') index++;
+        return index == line.Length;
     }
 
     private int FindContentStart(int start, int end) {
@@ -638,9 +739,23 @@ internal sealed partial class MarkdownDocumentModel {
     private readonly record struct Replacement(int SourceEnd, string Text, MarkdownVisualKind Kind,
         string? LinkTarget = null, string? ImageUri = null, string? AltText = null);
     private readonly record struct VisibleTextChange(int Offset, int RemovalLength, int InsertionLength);
-    private readonly record struct SourceStyle(int Start, int End, MarkdownVisualKind Kind, string? LinkTarget = null);
+    private readonly record struct SourceStyle(
+        int Start,
+        int End,
+        MarkdownVisualKind Kind,
+        string? LinkTarget = null,
+        string? CodeLabel = null,
+        string? CodeContent = null,
+        int? CodeContentSourceStart = null,
+        int? CodeContentSourceEnd = null);
     private readonly record struct SourceRange(int Start, int End) { public int Length => End - Start; }
     private readonly record struct HtmlOpen(int TagStart, int ContentStart, string? Target);
+    private readonly record struct FencedCodeProjection(
+        int ContentStart,
+        int ContentEnd,
+        int? ClosingLineStart,
+        string Label,
+        string Content);
 
     [GeneratedRegex(@"!\[((?:\\.|[^\]\n])*)\]\(([^)\n]+)\)")] private static partial Regex ImageSyntax();
     [GeneratedRegex(@"(?<!!)\[((?:\\.|[^\]\n])+)]\(([^)\n]+)\)")] private static partial Regex LinkSyntax();

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Memo.Models;
 
 public class AppSettings {
@@ -10,6 +12,7 @@ public class AppSettings {
     public CloseButtonAction CloseButtonAction { get; set; } = CloseButtonAction.MinimizeToTray;
     public bool HasAskedCloseButtonAction { get; set; }
     public HotkeySetting ToggleTopmostHotkey { get; set; } = new() { Key = "T", Ctrl = true, Alt = true };
+    public HotkeySetting ToggleMemoTaskbarHotkey { get; set; } = new() { Key = "B", Ctrl = true, Alt = true };
     public HotkeySetting MinimizeHotkey { get; set; } = new() { Key = "M", Ctrl = true, Alt = true };
     public HotkeySetting ShowWindowHotkey { get; set; } = new() { Key = "N", Ctrl = true, Alt = true };
     public HotkeySetting QuickMemoHotkey { get; set; } = new() { Key = "C", Ctrl = true, Alt = true };
@@ -18,6 +21,11 @@ public class AppSettings {
     public bool DuplicateMemoEnabled { get; set; }
     /// <summary>托盘图标单击显示主界面。默认 false，使用双击显示（与旧版行为一致）。</summary>
     public bool TraySingleClickToShow { get; set; }
+    /// <summary>主界面窗口显示时是否在 Windows 任务栏中显示图标。沿用旧 JSON 键以兼容已有设置。</summary>
+    [JsonPropertyName("showTaskbarIcon")]
+    public bool ShowMainWindowTaskbarIcon { get; set; }
+    /// <summary>是否在独立便签标题栏显示任务栏图标开关。开启后每个窗口默认显示图标。</summary>
+    public bool ShowMemoWindowTaskbarIcon { get; set; }
     /// <summary>快速添加后自动显示便签：依赖 QuickMemoEnabled，仅在启用快速粘贴时才生效。</summary>
     public bool QuickMemoShowPopoutAfterAdd { get; set; }
 
@@ -45,12 +53,15 @@ public class AppSettings {
         CloseButtonAction = CloseButtonAction,
         HasAskedCloseButtonAction = HasAskedCloseButtonAction,
         ToggleTopmostHotkey = ToggleTopmostHotkey.Clone(),
+        ToggleMemoTaskbarHotkey = ToggleMemoTaskbarHotkey.Clone(),
         MinimizeHotkey = MinimizeHotkey.Clone(),
         ShowWindowHotkey = ShowWindowHotkey.Clone(),
         QuickMemoHotkey = QuickMemoHotkey.Clone(),
         QuickMemoEnabled = QuickMemoEnabled,
         DuplicateMemoEnabled = DuplicateMemoEnabled,
         TraySingleClickToShow = TraySingleClickToShow,
+        ShowMainWindowTaskbarIcon = ShowMainWindowTaskbarIcon,
+        ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarIcon,
         QuickMemoShowPopoutAfterAdd = QuickMemoShowPopoutAfterAdd,
         MainWindowDockEnabled = MainWindowDockEnabled,
         MainWindowDocked = MainWindowDocked,

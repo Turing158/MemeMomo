@@ -115,7 +115,7 @@ public partial class TutorialWindow : Window {
             "可粘贴、拖入或选择本地图片，也可从更多菜单插入 HTTPS 网络图片。",
             "",
             "四、分离便签",
-            "长按拖拽卡片可拉出独立窗口；关闭「重复便签」时，拖出已弹出的备忘录会移动其现有便签位置，开启后总是新建。",
+            "按住并拖动卡片可拉出独立窗口；关闭「重复便签」时，拖出已弹出的备忘录会移动其现有便签位置，开启后总是新建。",
             "便签右上角可切换「显示 Markdown 工具栏」，此设置与正文编辑状态无关。",
             "点击便签时间戳可在「相对时间」和「完整时间」之间切换。",
             "",
@@ -138,6 +138,9 @@ public partial class TutorialWindow : Window {
 
         if (s.QuickMemoEnabled) {
             lines.Add($"快速添加（剪贴板）：{s.QuickMemoHotkey}");
+        }
+        if (s.ShowMemoWindowTaskbarIcon) {
+            lines.Add($"切换最近便签任务栏图标：{s.ToggleMemoTaskbarHotkey}");
         }
 
         lines.Add("");

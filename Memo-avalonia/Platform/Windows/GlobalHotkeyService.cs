@@ -22,13 +22,21 @@ public sealed class GlobalHotkeyService : IDisposable {
         _window.RestoreRequested += () => RestoreRequested?.Invoke();
     }
 
-    public void Apply(AppSettings settings, MainWindow mainWindow, Action toggleTopmostTarget, Action quickMemoFromClipboard) {
+    public void Apply(
+        AppSettings settings,
+        MainWindow mainWindow,
+        Action toggleTopmostTarget,
+        Action toggleMemoTaskbarTarget,
+        Action quickMemoFromClipboard) {
         UnregisterAll();
         TryRegister(settings.ToggleTopmostHotkey, toggleTopmostTarget);
         TryRegister(settings.MinimizeHotkey, () => mainWindow.HideToTrayWithTransition());
         TryRegister(settings.ShowWindowHotkey, () => mainWindow.ShowWithTransition());
         if (settings.QuickMemoEnabled) {
             TryRegister(settings.QuickMemoHotkey, quickMemoFromClipboard);
+        }
+        if (settings.ShowMemoWindowTaskbarIcon) {
+            TryRegister(settings.ToggleMemoTaskbarHotkey, toggleMemoTaskbarTarget);
         }
     }
 

@@ -16,6 +16,7 @@ class Program {
 
         try
         {
+            WindowsReminderService.InitializeActivation();
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         finally

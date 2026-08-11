@@ -36,6 +36,8 @@ using WinFormsClipboard = System.Windows.Forms.Clipboard;
 namespace Memo.Components;
 
 public partial class MarkdownEditor : UserControl {
+    private readonly record struct TableSize(int Columns, int Rows);
+
     public static readonly StyledProperty<bool> UseBorderlessChromeProperty =
         AvaloniaProperty.Register<MarkdownEditor, bool>(nameof(UseBorderlessChrome));
 
@@ -47,9 +49,11 @@ public partial class MarkdownEditor : UserControl {
     private readonly Stack<EditorState> _redo = new();
     private readonly MarkdownProjectionSnapshot _projectionSnapshot = new();
     private readonly MarkdownQuoteRenderer _quoteRenderer;
+    private readonly MarkdownCodeBlockRenderer _codeBlockRenderer;
     private readonly MarkdownInlineGenerator _inlineGenerator;
     private readonly MarkdownEditorImeClient _imeClient;
     private readonly IReadOnlyList<(Button Button, MenuItem MenuItem)> _responsiveToolbarItems;
+    private readonly List<Button> _tablePickerCells = [];
     private static readonly TimeSpan ToolbarMenuCloseDelay = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan ToolbarMenuPointerCheckInterval = TimeSpan.FromMilliseconds(50);
     private const double ToolbarMenuHiddenOffset = -4;
@@ -77,20 +81,23 @@ public partial class MarkdownEditor : UserControl {
     private bool _updatingSelection;
     private bool _tableDeleteConfirmationPending;
     private (int Offset, int RemovalLength, int InsertionLength)? _pendingVisibleTextChange;
+    private MarkdownVisualSpan? _hoveredCodeBlock;
+    private Button? _tablePickerAnchorButton;
 
     public MarkdownEditor() : this(null) { }
 
     internal MarkdownEditor(string? imageRoot) {
         _imageStore = new MarkdownImageStore(imageRoot);
         InitializeComponent();
+        BuildTableSizePicker();
         _responsiveToolbarItems = [
+            (_tableButton, _tableMenuItem),
             (_bulletListButton, _bulletListMenuItem),
             (_orderedListButton, _orderedListMenuItem),
             (_taskListButton, _taskListMenuItem),
             (_quoteButton, _quoteMenuItem),
             (_codeButton, _codeMenuItem),
             (_codeBlockButton, _codeBlockMenuItem),
-            (_tableButton, _tableMenuItem),
             (_horizontalRuleButton, _horizontalRuleMenuItem),
             (_linkButton, _linkMenuItem),
             (_localImageButton, _localImageMenuItem),
@@ -101,9 +108,8 @@ public partial class MarkdownEditor : UserControl {
         _toolbarMenuCloseTimer = new DispatcherTimer { Interval = ToolbarMenuPointerCheckInterval };
         _toolbarMenuCloseTimer.Tick += OnToolbarMenuCloseTimerTick;
         var resources = Application.Current!.Resources;
-        // The custom selection renderer draws both normal text and quote blocks.
-        // Keep AvaloniaEdit's built-in selection layer transparent so it cannot
-        // cover the quote-specific selection color in narrower popout editors.
+        // The custom renderer keeps projected blocks aligned while using one shared selection color.
+        // Keep AvaloniaEdit's built-in selection layer transparent so the layers do not overlap.
         _editor.TextArea.SelectionBrush = Brushes.Transparent;
         _editor.TextArea.SelectionForeground = (IBrush)Application.Current.Resources["TextPrimaryBrush"]!;
         _editor.TextArea.Caret.CaretBrush = (IBrush)Application.Current.Resources["AccentPrimaryBrush"]!;
@@ -111,18 +117,27 @@ public partial class MarkdownEditor : UserControl {
         _quoteRenderer = new MarkdownQuoteRenderer(
             _model,
             _projectionSnapshot,
-            (IBrush)resources["SurfaceActiveBrush"]!,
-            (IBrush)resources["BorderSubtleBrush"]!);
+            (IBrush)resources["MarkdownQuoteBackgroundBrush"]!,
+            (IBrush)resources["MarkdownQuoteBorderBrush"]!,
+            (IBrush)resources["AccentPrimaryBrush"]!);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_quoteRenderer);
+        _codeBlockRenderer = new MarkdownCodeBlockRenderer(
+            _model,
+            _projectionSnapshot,
+            (IBrush)resources["MarkdownCodeBlockBackgroundBrush"]!,
+            (IBrush)resources["MarkdownCodeBlockBorderBrush"]!,
+            (IBrush)resources["TextSecondaryBrush"]!);
+        _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(new MarkdownInlineCodeRenderer(
             _model,
             _projectionSnapshot,
             (IBrush)resources["AccentSubtleBrush"]!));
         _editor.TextArea.TextView.BackgroundRenderers.Add(new MarkdownSelectionRenderer(
             _editor.TextArea,
-            (IBrush)resources["BgHoverBrush"]!,
-            (IBrush)resources["AccentSubtlePressedBrush"]!));
+            (IBrush)resources["TextSelectionBrush"]!));
         _editor.TextArea.TextView.ElementGenerators.Add(new MarkdownQuotePaddingGenerator(
+            _model, _projectionSnapshot));
+        _editor.TextArea.TextView.ElementGenerators.Add(new MarkdownCodeBlockPaddingGenerator(
             _model, _projectionSnapshot));
         _editor.TextArea.TextView.ElementGenerators.Add(new MarkdownInlineCodePaddingGenerator(
             _model, _projectionSnapshot));
@@ -136,6 +151,8 @@ public partial class MarkdownEditor : UserControl {
         _editor.TextArea.TextView.ElementGenerators.Add(_inlineGenerator);
         _editor.Document.Changing += OnEditorDocumentChanging;
         _editor.AddHandler(InputElement.PointerPressedEvent, OnEditorPointerPressed,
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        _editor.AddHandler(InputElement.PointerWheelChangedEvent, OnEditorPointerWheelChanged,
             RoutingStrategies.Tunnel, handledEventsToo: true);
         _editor.TextArea.SelectionChanged += (_, _) => {
             OnEditorSelectionChanged();
@@ -152,12 +169,17 @@ public partial class MarkdownEditor : UserControl {
             RoutingStrategies.Bubble);
         _editor.TextArea.TextView.ScrollOffsetChanged += (_, _) => {
             UpdateImePreeditLayout();
+            UpdateCodeBlockCopyButtonLayout();
             _imeClient.NotifyCursorRectangleChanged();
         };
+        _editor.TextArea.TextView.VisualLinesChanged += (_, _) => UpdateCodeBlockCopyButtonLayout();
         _editor.AddHandler(InputElement.KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Tunnel);
         _editor.AddHandler(InputElement.TextInputEvent, OnEditorTextInput, RoutingStrategies.Tunnel);
         Loaded += OnLoaded;
+        AttachedToVisualTree += (_, _) =>
+            ThemePreferences.PaletteChanged += OnThemePaletteChanged;
         DetachedFromVisualTree += (_, _) => {
+            ThemePreferences.PaletteChanged -= OnThemePaletteChanged;
             _projectionRefreshTicket++;
             _projectionRefreshQueued = false;
             _projectionSnapshot.Invalidate();
@@ -176,6 +198,9 @@ public partial class MarkdownEditor : UserControl {
         AddHandler(DragDrop.DropEvent, OnDrop);
         BeginNew();
     }
+
+    private void OnThemePaletteChanged(object? sender, EventArgs e) =>
+        _editor.TextArea.TextView.Redraw();
 
     public Func<MarkdownSaveRequest, Task<bool>>? SaveRequestedAsync { get; set; }
     public Func<string, Task>? CancelRequestedAsync { get; set; }
@@ -200,6 +225,7 @@ public partial class MarkdownEditor : UserControl {
     internal int SuccessfulImageLoadCount => _inlineGenerator.SuccessfulImageLoadCount;
     internal int FailedImageLoadCount => _inlineGenerator.FailedImageLoadCount;
     internal Action<Uri>? LinkLauncher { get; set; }
+    internal Func<string, Task>? CodeClipboardWriter { get; set; }
     internal Func<Task<bool>>? TableDeleteConfirmationAsync { get; set; }
 
     public void BeginNew(string? draft = null) {
@@ -394,6 +420,69 @@ public partial class MarkdownEditor : UserControl {
         Canvas.SetTop(_imePreedit, position.Y);
     }
 
+    private void OnEditorHostPointerMoved(object? sender, PointerEventArgs e) {
+        if (!_editor.TextArea.TextView.VisualLinesValid ||
+            _editorHost.TranslatePoint(e.GetPosition(_editorHost), _editor.TextArea.TextView) is not { } viewPoint) {
+            HideCodeBlockCopyButton();
+            return;
+        }
+
+        _hoveredCodeBlock = _codeBlockRenderer.HitTest(
+            _editor.TextArea.TextView,
+            viewPoint);
+        UpdateCodeBlockCopyButtonLayout();
+    }
+
+    private void OnEditorHostPointerExited(object? sender, PointerEventArgs e) {
+        HideCodeBlockCopyButton();
+    }
+
+    private async void OnCodeBlockCopyClick(object? sender, RoutedEventArgs e) {
+        var content = _hoveredCodeBlock?.CodeContent;
+        if (content == null) return;
+
+        try {
+            if (CodeClipboardWriter is { } writer) await writer(content);
+            else {
+                var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+                if (clipboard == null) throw new InvalidOperationException("剪贴板不可用");
+                await clipboard.SetTextAsync(content);
+            }
+            ShowStatus("已复制代码", false, true);
+        }
+        catch {
+            ShowStatus("复制失败", true, true);
+        }
+    }
+
+    private void UpdateCodeBlockCopyButtonLayout() {
+        if (_hoveredCodeBlock is not { } span ||
+            !_codeBlockRenderer.TryGetCardBounds(_editor.TextArea.TextView, span, out var cardBounds)) {
+            HideCodeBlockCopyButton();
+            return;
+        }
+
+        var topLeft = _editor.TextArea.TextView.TranslatePoint(cardBounds.Position, _codeBlockOverlay);
+        if (topLeft is not { } position) {
+            HideCodeBlockCopyButton();
+            return;
+        }
+
+        var buttonSize = _codeBlockCopyButton.Bounds.Size;
+        var width = buttonSize.Width > 0 ? buttonSize.Width : 32;
+        var height = buttonSize.Height > 0 ? buttonSize.Height : 32;
+        Canvas.SetLeft(_codeBlockCopyButton,
+            position.X + Math.Max(0, cardBounds.Width - width - MarkdownCodeBlockStyle.ButtonInset));
+        Canvas.SetTop(_codeBlockCopyButton,
+            position.Y + Math.Max(0, cardBounds.Height - height - MarkdownCodeBlockStyle.ButtonInset));
+        _codeBlockCopyButton.IsVisible = true;
+    }
+
+    private void HideCodeBlockCopyButton() {
+        _hoveredCodeBlock = null;
+        _codeBlockCopyButton.IsVisible = false;
+    }
+
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e) {
         var control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (_imeClient.IsComposing && !control) return;
@@ -410,6 +499,11 @@ public partial class MarkdownEditor : UserControl {
         if (control && e.Key == Key.K) { e.Handled = true; await EditLinkAsync(); return; }
         if (control && e.Key == Key.Enter) { e.Handled = true; await RequestSaveAsync(completeEditing: true); return; }
         if (e.Key == Key.Escape) { _imeClient.ClearPreedit(); e.Handled = true; await CancelEditingAsync(); return; }
+        if ((e.Key == Key.Back || e.Key == Key.Delete) && TryProtectFencedCodeBoundary(e.Key)) {
+            ResetPendingFormats();
+            e.Handled = true;
+            return;
+        }
         if ((e.Key == Key.Back || e.Key == Key.Delete) && TableBeforeEmptyTrailingLine() is { } table) {
             e.Handled = true;
             ResetPendingFormats();
@@ -437,8 +531,51 @@ public partial class MarkdownEditor : UserControl {
         if (e.Key == Key.Enter) ResetPendingFormats();
         else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
             ResetPendingFormats();
-        if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && TryContinueQuote()) { e.Handled = true; }
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift && TryExitFencedCodeBlock()) { e.Handled = true; }
+        else if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && TryContinueQuote()) { e.Handled = true; }
         else if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && TryContinueList()) { e.Handled = true; }
+    }
+
+    private bool TryExitFencedCodeBlock() {
+        if (_editor.SelectionLength != 0 ||
+            !_projectionSnapshot.IsCurrent(_editor.Document, _model)) return false;
+
+        var caret = _editor.CaretOffset;
+        foreach (var span in _model.Spans.Where(span =>
+                     span.Kind == MarkdownVisualKind.CodeBlock)) {
+            if (span.CodeContentSourceEnd is not { } contentEnd) continue;
+            var sourceEnd = span.SourceStart + span.SourceLength;
+            if (contentEnd >= sourceEnd ||
+                caret < span.Start || caret > span.End) continue;
+
+            var lastLineBreak = span.Length > 0
+                ? _model.VisibleText.LastIndexOf('\n', span.End - 1, span.Length)
+                : -1;
+            var lastLineStart = lastLineBreak >= span.Start ? lastLineBreak + 1 : span.Start;
+            if (caret < lastLineStart) continue;
+
+            ReplaceSource(sourceEnd, sourceEnd, "\n", sourceEnd + 1, sourceEnd + 1);
+            return true;
+        }
+        return false;
+    }
+
+    private bool TryProtectFencedCodeBoundary(Key key) {
+        if (_editor.SelectionLength != 0 ||
+            !_projectionSnapshot.IsCurrent(_editor.Document, _model)) return false;
+
+        var caret = _editor.CaretOffset;
+        foreach (var span in _model.Spans.Where(span =>
+                     span.Kind == MarkdownVisualKind.CodeBlock && span.CodeLabel is not null)) {
+            if (key == Key.Back && caret == span.Start) return true;
+            if (key == Key.Delete && caret == span.End) return true;
+
+            if (key == Key.Back && span.End < _model.VisibleText.Length &&
+                caret == span.End + 1 && _model.VisibleText[span.End] == '\n') return true;
+            if (key == Key.Delete && span.Start > 0 && caret == span.Start - 1 &&
+                _model.VisibleText[span.Start - 1] == '\n') return true;
+        }
+        return false;
     }
 
     private void OnEditorTextInput(object? sender, TextInputEventArgs e) {
@@ -466,6 +603,10 @@ public partial class MarkdownEditor : UserControl {
     }
 
     private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e) {
+        if (IsScrollBarInputSource(e.Source)) {
+            _inlineGenerator.NotifyUserScrollInput();
+            return;
+        }
         if (IsTableInputSource(e.Source)) return;
         if (!_editor.IsKeyboardFocusWithin)
             _editor.Focus();
@@ -488,9 +629,16 @@ public partial class MarkdownEditor : UserControl {
         }, DispatcherPriority.Input);
     }
 
+    private void OnEditorPointerWheelChanged(object? sender, PointerWheelEventArgs e) =>
+        _inlineGenerator.NotifyUserScrollInput();
+
     private static bool IsTableInputSource(object? source) =>
         source is Visual visual &&
         visual.GetVisualAncestors().Append(visual).OfType<MarkdownTableControl>().Any();
+
+    private static bool IsScrollBarInputSource(object? source) =>
+        source is Visual visual &&
+        visual.GetVisualAncestors().Append(visual).OfType<ScrollBar>().Any();
 
     private int? VisibleOffsetFromPoint(Point point) {
         var clicked = _editor.GetPositionFromPoint(point);
@@ -527,8 +675,19 @@ public partial class MarkdownEditor : UserControl {
     private void MoveCaretToVisibleOffset(int offset) {
         var safeOffset = Math.Clamp(offset, 0, _model.VisibleText.Length);
         _editor.Focus();
-        _editor.SelectionStart = safeOffset;
-        _editor.SelectionLength = 0;
+        // Collapse an existing drag selection before moving the caret. Setting SelectionStart
+        // first leaves AvaloniaEdit with a transient range that can still reference the inline
+        // rule's old visual line; a subsequent click on that rule may then crash while the
+        // selection renderer is rebuilding.
+        _updatingSelection = true;
+        try {
+            _editor.SelectionLength = 0;
+            _editor.SelectionStart = safeOffset;
+        }
+        finally {
+            _updatingSelection = false;
+        }
+        OnEditorSelectionChanged();
     }
 
     internal bool TryOpenLinkAtPoint(Point point) =>
@@ -540,6 +699,7 @@ public partial class MarkdownEditor : UserControl {
     private void OnFormatMenuClick(object? sender, RoutedEventArgs e) { if (sender is MenuItem { Tag: string tag } && Enum.TryParse<MarkdownFormatCommand>(tag, out var command)) ApplyFormat(command); }
     private MenuFlyout HeadingMenu => (MenuFlyout)_headingButton.Flyout!;
     private MenuFlyout MoreMenu => (MenuFlyout)_moreButton.Flyout!;
+    private Flyout TablePicker => (Flyout)_tableButton.Flyout!;
     private void OnHeadingPointerEntered(object? sender, PointerEventArgs e) {
         _toolbarMenuPointerOutsideSince = null;
         ShowToolbarMenu(_headingButton, HeadingMenu);
@@ -587,16 +747,21 @@ public partial class MarkdownEditor : UserControl {
     private void OnMoreMenuOpened(object? sender, EventArgs e) => OnToolbarMenuOpened(_moreButton, MoreMenu);
     private void OnMoreMenuClosed(object? sender, EventArgs e) => OnToolbarMenuClosed(_moreButton, MoreMenu);
     private void ShowToolbarMenu(Button button, MenuFlyout menu) {
+        if (TablePicker.IsOpen) TablePicker.Hide();
         if (ReferenceEquals(_activeToolbarMenu, menu) && _toolbarMenuClosing) {
             CancelToolbarMenuClosing(menu);
         }
-        if (_activeToolbarMenu is { IsOpen: true } activeMenu && !ReferenceEquals(activeMenu, menu)) {
-            var presenter = ToolbarMenuPresenter(activeMenu);
-            if (presenter != null) MotionAnimations.Cancel(presenter);
-            _toolbarMenuCloseCommitted = true;
-            activeMenu.Hide();
-        }
+        if (_activeToolbarMenu is { IsOpen: true } activeMenu && !ReferenceEquals(activeMenu, menu))
+            HideActiveToolbarMenuImmediately();
         if (!menu.IsOpen) menu.ShowAt(button);
+    }
+
+    private void HideActiveToolbarMenuImmediately() {
+        if (_activeToolbarMenu is not { IsOpen: true } menu) return;
+        var presenter = ToolbarMenuPresenter(menu);
+        if (presenter != null) MotionAnimations.Cancel(presenter);
+        _toolbarMenuCloseCommitted = true;
+        menu.Hide();
     }
 
     private void CancelToolbarMenuClosing(MenuFlyout menu) {
@@ -649,6 +814,10 @@ public partial class MarkdownEditor : UserControl {
     private void AnimateToolbarMenuIn(MenuFlyout menu) {
         var presenter = ToolbarMenuPresenter(menu);
         if (presenter == null) return;
+        AnimateToolbarPopupIn(presenter);
+    }
+
+    private void AnimateToolbarPopupIn(Control presenter) {
         var transform = EnsureToolbarMenuTransform(presenter);
         presenter.IsHitTestVisible = true;
         presenter.Opacity = 0;
@@ -750,6 +919,85 @@ public partial class MarkdownEditor : UserControl {
             _ => MarkdownFormatCommand.Heading,
         };
         ApplyFormat(command);
+    }
+    private void BuildTableSizePicker() {
+        for (var row = 1; row <= 9; row++) {
+            for (var column = 1; column <= 9; column++) {
+                var size = new TableSize(column, row);
+                var cell = new Button { Tag = size };
+                cell.Classes.Add("MarkdownTablePickerCell");
+                AutomationProperties.SetName(cell, $"插入 {column} 列 {row} 行表格");
+                cell.PointerEntered += OnTablePickerCellPointerEntered;
+                cell.GotFocus += OnTablePickerCellGotFocus;
+                cell.Click += OnTablePickerCellClick;
+                _tablePickerCells.Add(cell);
+                _tableSizeGrid.Children.Add(cell);
+            }
+        }
+    }
+
+    private void OnTableButtonClick(object? sender, RoutedEventArgs e) {
+        HideActiveToolbarMenuImmediately();
+        _tablePickerAnchorButton = _tableButton;
+    }
+
+    private void OnTableMenuItemClick(object? sender, RoutedEventArgs e) {
+        HideActiveToolbarMenuImmediately();
+        _tablePickerAnchorButton = _moreButton;
+        Dispatcher.UIThread.Post(() => TablePicker.ShowAt(_moreButton), DispatcherPriority.Input);
+    }
+
+    private void OnTablePickerOpened(object? sender, EventArgs e) {
+        HideActiveToolbarMenuImmediately();
+        var anchor = _tablePickerAnchorButton ?? _tableButton;
+        _tablePickerAnchorButton = anchor;
+        anchor.Classes.Set("menuOpen", true);
+        ConfigureToolbarPopupRoot(_tablePickerContent);
+        var presenter = TablePickerPresenter();
+        if (presenter != null) AnimateToolbarPopupIn(presenter);
+        UpdateTablePickerSelection(0, 0);
+    }
+
+    private void OnTablePickerClosed(object? sender, EventArgs e) {
+        _tablePickerAnchorButton?.Classes.Set("menuOpen", false);
+        _tablePickerAnchorButton = null;
+        UpdateTablePickerSelection(0, 0);
+    }
+
+    private Control? TablePickerPresenter() =>
+        _tablePickerContent.GetVisualAncestors().OfType<FlyoutPresenter>().FirstOrDefault();
+
+    private void OnTablePickerCellPointerEntered(object? sender, PointerEventArgs e) {
+        if (sender is Button { Tag: TableSize size })
+            UpdateTablePickerSelection(size.Columns, size.Rows);
+    }
+
+    private void OnTablePickerCellGotFocus(object? sender, GotFocusEventArgs e) {
+        if (sender is Button { Tag: TableSize size })
+            UpdateTablePickerSelection(size.Columns, size.Rows);
+    }
+
+    private void OnTableSizeGridPointerExited(object? sender, PointerEventArgs e) =>
+        UpdateTablePickerSelection(0, 0);
+
+    private void UpdateTablePickerSelection(int columns, int rows) {
+        _tableSizeLabel.Text = columns > 0 && rows > 0 ? $"{columns} × {rows} 表格" : "表格";
+        foreach (var cell in _tablePickerCells) {
+            var size = (TableSize)cell.Tag!;
+            cell.Classes.Set("selected", size.Columns <= columns && size.Rows <= rows);
+        }
+    }
+
+    private void OnTablePickerCellClick(object? sender, RoutedEventArgs e) {
+        if (sender is not Button { Tag: TableSize size }) return;
+        TablePicker.Hide();
+        ResetPendingFormats();
+        var start = _model.SourceOffsetFromVisible(_editor.SelectionStart);
+        var end = _model.SourceOffsetFromVisible(
+            _editor.SelectionStart + _editor.SelectionLength,
+            trailingAffinity: false);
+        ApplyResult(MarkdownFormatter.InsertTable(Markdown, start, end, size.Columns, size.Rows));
+        e.Handled = true;
     }
     private async void OnLinkClick(object? sender, RoutedEventArgs e) => await EditLinkAsync();
 
@@ -926,7 +1174,7 @@ public partial class MarkdownEditor : UserControl {
     private int RuleCaretTarget(int caret) {
         var rule = _model.Spans
             .Where(span => span.Kind == MarkdownVisualKind.Rule &&
-                caret >= span.Start && caret <= span.End)
+                caret >= span.Start && caret < span.End)
             .OrderByDescending(span => span.SourceLength)
             .Select(span => (MarkdownVisualSpan?)span)
             .FirstOrDefault();
@@ -1001,7 +1249,7 @@ public partial class MarkdownEditor : UserControl {
         var sourceStart = _model.SourceOffsetFromVisible(_editor.SelectionStart);
         var sourceEnd = _model.SourceOffsetFromVisible(_editor.SelectionStart + _editor.SelectionLength);
         var label = sourceEnd > sourceStart ? Markdown[sourceStart..sourceEnd] : "链接文本";
-        var url = "https://";
+        var url = string.Empty;
         var replaceStart = sourceStart; var replaceEnd = sourceEnd;
         var linkSpan = _model.VisualAt(_editor.CaretOffset, MarkdownVisualKind.Link);
         if (linkSpan is { } span) {
@@ -1350,9 +1598,8 @@ public partial class MarkdownEditor : UserControl {
     }
 
     private void ApplyProjection(int selectionStart, int selectionEnd) {
-        var verticalOffset = _editor.VerticalOffset;
-        var horizontalOffset = _editor.HorizontalOffset;
         _projectionSnapshot.Invalidate();
+        HideCodeBlockCopyButton();
         if (selectionStart == selectionEnd) {
             selectionStart = TaskCaretTarget(selectionStart);
             selectionStart = OrderedListMarkerCaretTarget(selectionStart);
@@ -1363,7 +1610,7 @@ public partial class MarkdownEditor : UserControl {
         _suppressTextChanged = true;
         _updatingSelection = true;
         try {
-            if (_editor.Text != _model.VisibleText) _editor.Text = _model.VisibleText;
+            ApplyProjectionTextDelta(_model.VisibleText);
             _editor.SelectionStart = Math.Clamp(Math.Min(selectionStart, selectionEnd), 0, _model.VisibleText.Length);
             _editor.SelectionLength = Math.Clamp(Math.Abs(selectionEnd - selectionStart), 0, _model.VisibleText.Length - _editor.SelectionStart);
             _watermark.IsVisible = _model.VisibleText.Length == 0;
@@ -1375,10 +1622,29 @@ public partial class MarkdownEditor : UserControl {
             _suppressTextChanged = false;
         }
         UpdateFormatButtonStates();
-        Dispatcher.UIThread.Post(() => {
-            _editor.ScrollToVerticalOffset(verticalOffset);
-            _editor.ScrollToHorizontalOffset(horizontalOffset);
-        }, DispatcherPriority.Render);
+    }
+
+    private void ApplyProjectionTextDelta(string nextText) {
+        var currentText = _editor.Text ?? string.Empty;
+        if (currentText == nextText) return;
+
+        var prefixLength = 0;
+        var sharedLength = Math.Min(currentText.Length, nextText.Length);
+        while (prefixLength < sharedLength && currentText[prefixLength] == nextText[prefixLength])
+            prefixLength++;
+
+        var currentEnd = currentText.Length;
+        var nextEnd = nextText.Length;
+        while (currentEnd > prefixLength && nextEnd > prefixLength &&
+               currentText[currentEnd - 1] == nextText[nextEnd - 1]) {
+            currentEnd--;
+            nextEnd--;
+        }
+
+        _editor.Document.Replace(
+            prefixLength,
+            currentEnd - prefixLength,
+            nextText[prefixLength..nextEnd]);
     }
 
     private void QueueProjectionRefresh(int selectionStart, int selectionEnd) {
@@ -1526,13 +1792,46 @@ internal static class MarkdownQuoteSpacing {
     public const double VerticalMargin = 4;
 }
 
+internal static class MarkdownCardDrawing {
+    internal const double BorderThickness = 1;
+
+    internal static Rect GetHorizontalStrokeBounds(Rect bounds, double strokeThickness) {
+        var inset = Math.Min(Math.Max(0, strokeThickness) / 2, bounds.Width / 2);
+        return new Rect(
+            bounds.X + inset,
+            bounds.Y,
+            Math.Max(0, bounds.Width - inset * 2),
+            bounds.Height);
+    }
+
+    internal static void DrawRoundedCard(
+        DrawingContext drawingContext,
+        IBrush background,
+        Pen borderPen,
+        Rect bounds,
+        double cornerRadius) {
+        drawingContext.DrawRectangle(
+            background, null, bounds, cornerRadius, cornerRadius, default);
+        drawingContext.DrawRectangle(
+            null,
+            borderPen,
+            GetHorizontalStrokeBounds(bounds, borderPen.Thickness),
+            cornerRadius,
+            cornerRadius,
+            default);
+    }
+}
+
 internal sealed class MarkdownQuoteRenderer(
     MarkdownDocumentModel model,
     MarkdownProjectionSnapshot projectionSnapshot,
     IBrush background,
-    IBrush border) : IBackgroundRenderer {
+    IBrush border,
+    IBrush accent) : IBackgroundRenderer {
     private const double CornerRadius = 6;
-    private readonly Pen _borderPen = new(border, 1);
+    private const double AccentWidth = 3;
+    private const double AccentInset = 1;
+    private readonly Pen _borderPen = new(border, MarkdownCardDrawing.BorderThickness);
 
     public KnownLayer Layer => KnownLayer.Background;
 
@@ -1566,10 +1865,247 @@ internal sealed class MarkdownQuoteRenderer(
             if (bottom <= top || width <= 0) continue;
 
             var block = new Rect(0, top, width, bottom - top);
-            drawingContext.DrawRectangle(
-                background, _borderPen, block, CornerRadius, CornerRadius, default);
+            MarkdownCardDrawing.DrawRoundedCard(
+                drawingContext, background, _borderPen, block, CornerRadius);
+            var accentHeight = Math.Max(0, block.Height - AccentInset * 2);
+            if (accentHeight > 0) {
+                var accentBar = new Rect(
+                    block.Left + AccentInset,
+                    block.Top + AccentInset,
+                    AccentWidth,
+                    accentHeight);
+                drawingContext.DrawRectangle(
+                    accent, null, accentBar, AccentWidth / 2, AccentWidth / 2, default);
+            }
         }
     }
+}
+
+internal static class MarkdownCodeBlockStyle {
+    internal const double HorizontalPadding = 10;
+    internal const double VerticalPadding = 3;
+    internal const double VerticalMargin = 2;
+    internal const double CornerRadius = 7;
+    internal const double ButtonInset = 6;
+    internal const double LabelFontSize = 9.5;
+    internal const double LabelLineHeight = 12;
+    internal const double LabelCodeGap = 2;
+}
+
+internal readonly record struct MarkdownCodeBlockLayout(
+    Rect Bounds,
+    bool IncludesFirstLine,
+    bool IncludesLastLine);
+
+internal sealed class MarkdownCodeBlockRenderer(
+    MarkdownDocumentModel model,
+    MarkdownProjectionSnapshot projectionSnapshot,
+    IBrush background,
+    IBrush border,
+    IBrush labelForeground) : IBackgroundRenderer {
+    private readonly Pen _borderPen = new(border, MarkdownCardDrawing.BorderThickness);
+
+    public KnownLayer Layer => KnownLayer.Background;
+
+    public void Draw(TextView textView, DrawingContext drawingContext) {
+        var document = textView.Document;
+        if (document == null || !textView.VisualLinesValid ||
+            !projectionSnapshot.IsCurrent(document, model)) return;
+
+        foreach (var span in model.Spans.Where(span => span.Kind == MarkdownVisualKind.CodeBlock)) {
+            if (!TryGetLayout(textView, document, span, out var layout)) continue;
+            MarkdownCardDrawing.DrawRoundedCard(
+                drawingContext,
+                background,
+                _borderPen,
+                layout.Bounds,
+                MarkdownCodeBlockStyle.CornerRadius);
+
+            if (layout.IncludesFirstLine && !string.IsNullOrWhiteSpace(span.CodeLabel)) {
+                var labelWidth = Math.Max(1, layout.Bounds.Width - MarkdownCodeBlockStyle.HorizontalPadding * 2 - 8);
+                var typeface = new Typeface(
+                    "Cascadia Mono, Consolas, Microsoft YaHei UI",
+                    FontStyle.Normal,
+                    FontWeight.Normal);
+                using var labelLayout = new TextLayout(
+                    span.CodeLabel,
+                    typeface,
+                    MarkdownCodeBlockStyle.LabelFontSize,
+                    labelForeground,
+                    TextAlignment.Left,
+                    TextWrapping.NoWrap,
+                    TextTrimming.CharacterEllipsis,
+                    null,
+                    FlowDirection.LeftToRight,
+                    labelWidth,
+                    MarkdownCodeBlockStyle.LabelLineHeight,
+                    double.NaN,
+                    0,
+                    1,
+                    null);
+                var labelTop = layout.Bounds.Top + MarkdownCodeBlockStyle.VerticalPadding;
+                labelLayout.Draw(drawingContext,
+                    new Point(layout.Bounds.Left + MarkdownCodeBlockStyle.HorizontalPadding, labelTop));
+            }
+        }
+    }
+
+    internal MarkdownVisualSpan? HitTest(TextView textView, Point point) {
+        var document = textView.Document;
+        if (document == null || !textView.VisualLinesValid ||
+            !projectionSnapshot.IsCurrent(document, model)) return null;
+
+        return model.Spans
+            .Where(span => span.Kind == MarkdownVisualKind.CodeBlock)
+            .OrderByDescending(span => span.Length)
+            .FirstOrDefault(span => TryGetCardBounds(textView, span, out var layout) &&
+                layout.Contains(point)) is var found && found.Length > 0
+            ? found
+            : null;
+    }
+
+    internal bool TryGetCardBounds(TextView textView, MarkdownVisualSpan span, out Rect bounds) {
+        var document = textView.Document;
+        if (document == null || !textView.VisualLinesValid ||
+            !projectionSnapshot.IsCurrent(document, model)) {
+            bounds = default;
+            return false;
+        }
+
+        if (!MarkdownCodeBlockLayoutCalculator.TryGet(textView, document, span, out var layout)) {
+            bounds = default;
+            return false;
+        }
+        bounds = layout.Bounds;
+        return bounds.Width > 0;
+    }
+
+    internal static bool TryGetLayout(
+        TextView textView,
+        TextDocument document,
+        MarkdownVisualSpan span,
+        out MarkdownCodeBlockLayout layout) =>
+        MarkdownCodeBlockLayoutCalculator.TryGet(textView, document, span, out layout);
+}
+
+internal static class MarkdownCodeBlockLayoutCalculator {
+    internal static bool TryGet(
+        TextView textView,
+        TextDocument document,
+        MarkdownVisualSpan span,
+        out MarkdownCodeBlockLayout layout) {
+        var startOffset = Math.Clamp(span.Start, 0, document.TextLength);
+        var endOffset = Math.Clamp(span.End, startOffset, document.TextLength);
+        var firstLine = document.GetLineByOffset(startOffset).LineNumber;
+        var lastLine = document.GetLineByOffset(endOffset).LineNumber;
+        var visibleLines = textView.VisualLines.Where(line =>
+            line.LastDocumentLine.LineNumber >= firstLine &&
+            line.FirstDocumentLine.LineNumber <= lastLine).ToArray();
+        if (visibleLines.Length == 0) {
+            layout = default;
+            return false;
+        }
+
+        var includesFirstLine = visibleLines.Any(line =>
+            line.FirstDocumentLine.LineNumber <= firstLine &&
+            line.LastDocumentLine.LineNumber >= firstLine);
+        var includesLastLine = visibleLines.Any(line =>
+            line.FirstDocumentLine.LineNumber <= lastLine &&
+            line.LastDocumentLine.LineNumber >= lastLine);
+        var top = visibleLines.Min(line => line.VisualTop) - textView.ScrollOffset.Y +
+            (includesFirstLine ? MarkdownCodeBlockStyle.VerticalMargin : 0);
+        var bottom = visibleLines.Max(line => line.VisualTop + line.Height) -
+            textView.ScrollOffset.Y -
+            (includesLastLine ? MarkdownCodeBlockStyle.VerticalMargin : 0);
+        var width = textView.Bounds.Width;
+        if (bottom <= top || width <= 0) {
+            layout = default;
+            return false;
+        }
+
+        layout = new MarkdownCodeBlockLayout(
+            new Rect(0, top, width, bottom - top),
+            includesFirstLine,
+            includesLastLine);
+        return true;
+    }
+}
+
+internal sealed class MarkdownCodeBlockPaddingGenerator(
+    MarkdownDocumentModel model,
+    MarkdownProjectionSnapshot projectionSnapshot) : VisualLineElementGenerator {
+    public override int GetFirstInterestedOffset(int startOffset) {
+        var document = CurrentContext.Document;
+        if (!projectionSnapshot.IsCurrent(document, model)) return -1;
+        var line = CurrentContext.VisualLine.FirstDocumentLine;
+        return startOffset <= line.Offset && CodeBlockForLine(line.Offset, line.EndOffset) is not null
+            ? line.Offset
+            : -1;
+    }
+
+    public override VisualLineElement? ConstructElement(int offset) {
+        var document = CurrentContext.Document;
+        if (!projectionSnapshot.IsCurrent(document, model)) return null;
+        var line = CurrentContext.VisualLine.FirstDocumentLine;
+        if (offset != line.Offset || CodeBlockForLine(line.Offset, line.EndOffset) is null) return null;
+
+        var spacer = new Border {
+            Width = MarkdownCodeBlockStyle.HorizontalPadding,
+            Height = 1,
+            IsHitTestVisible = false,
+            Focusable = false,
+        };
+        TextBlock.SetBaselineOffset(spacer, 1);
+        var block = CodeBlockForLine(line.Offset, line.EndOffset);
+        return block is { } codeBlock
+            ? new CodeBlockPaddingElement(
+                spacer,
+                line.Offset <= codeBlock.Start,
+                line.EndOffset >= codeBlock.End,
+                !string.IsNullOrWhiteSpace(codeBlock.CodeLabel))
+            : null;
+    }
+
+    private MarkdownVisualSpan? CodeBlockForLine(int lineStart, int lineEnd) => model.Spans
+        .Where(span => span.Kind == MarkdownVisualKind.CodeBlock &&
+            span.Start <= lineEnd && span.End >= lineStart)
+        .OrderByDescending(span => span.Length)
+        .Select(span => (MarkdownVisualSpan?)span)
+        .FirstOrDefault();
+}
+
+internal sealed class CodeBlockPaddingElement(
+    Control spacer,
+    bool hasTopSpacing,
+    bool hasBottomSpacing,
+    bool hasLabel) : InlineObjectElement(0, spacer) {
+    internal double TopSpacing => hasTopSpacing
+        ? MarkdownCodeBlockStyle.VerticalMargin + MarkdownCodeBlockStyle.VerticalPadding +
+          (hasLabel
+              ? MarkdownCodeBlockStyle.LabelLineHeight + MarkdownCodeBlockStyle.LabelCodeGap
+              : 0)
+        : 0;
+    internal double BottomSpacing => hasBottomSpacing
+        ? MarkdownCodeBlockStyle.VerticalMargin + MarkdownCodeBlockStyle.VerticalPadding
+        : 0;
+
+    public override bool HandlesLineBorders => true;
+
+    public override int GetVisualColumn(int relativeTextOffset) => VisualColumn + VisualLength;
+
+    public override int GetNextCaretPosition(
+        int visualColumn,
+        AvaloniaEdit.Document.LogicalDirection direction,
+        CaretPositioningMode mode) {
+        var end = VisualColumn + VisualLength;
+        if (direction == AvaloniaEdit.Document.LogicalDirection.Forward && visualColumn < end)
+            return end;
+        if (direction == AvaloniaEdit.Document.LogicalDirection.Backward && visualColumn > end)
+            return end;
+        return -1;
+    }
+
+    public override bool IsWhitespace(int visualColumn) => true;
 }
 
 internal static class MarkdownInlineCodeStyle {
@@ -1705,8 +2241,7 @@ internal sealed class InlineCodePaddingElement(
 
 internal sealed class MarkdownSelectionRenderer(
     TextArea textArea,
-    IBrush defaultSelection,
-    IBrush quoteSelection) : IBackgroundRenderer {
+    IBrush selectionBrush) : IBackgroundRenderer {
     public KnownLayer Layer => KnownLayer.Selection;
 
     public void Draw(TextView textView, DrawingContext drawingContext) {
@@ -1717,6 +2252,8 @@ internal sealed class MarkdownSelectionRenderer(
         var normalGeometry = CreateGeometryBuilder(
             textArea, selectionBorder, textArea.SelectionCornerRadius);
         var quoteGeometry = CreateGeometryBuilder(
+            textArea, selectionBorder, textArea.SelectionCornerRadius);
+        var codeBlockGeometry = CreateGeometryBuilder(
             textArea, selectionBorder, textArea.SelectionCornerRadius);
         var quoteBridgeGeometry = CreateGeometryBuilder(
             textArea, selectionBorder: null, cornerRadius: 0);
@@ -1731,7 +2268,10 @@ internal sealed class MarkdownSelectionRenderer(
                         quoteRects.Add(new Rect(
                             selectionLeft, contentTop, rect.Right - selectionLeft, contentHeight));
                 }
-                else normalGeometry.AddRectangle(textView, rect);
+                else if (TryNormalizeCodeBlockSelectionRect(textView, rect, out var codeBlockRect))
+                    codeBlockGeometry.AddRectangle(textView, codeBlockRect);
+                else
+                    normalGeometry.AddRectangle(textView, rect);
             }
         }
 
@@ -1740,9 +2280,10 @@ internal sealed class MarkdownSelectionRenderer(
         AddQuoteSelectionBridges(
             textView, quoteBridgeGeometry, quoteRects, textArea.SelectionCornerRadius);
 
-        DrawGeometry(drawingContext, normalGeometry, defaultSelection, selectionBorder);
-        DrawGeometry(drawingContext, quoteGeometry, quoteSelection, selectionBorder);
-        DrawGeometry(drawingContext, quoteBridgeGeometry, quoteSelection, border: null);
+        DrawGeometry(drawingContext, normalGeometry, selectionBrush, selectionBorder);
+        DrawGeometry(drawingContext, quoteGeometry, selectionBrush, selectionBorder);
+        DrawGeometry(drawingContext, quoteBridgeGeometry, selectionBrush, border: null);
+        DrawGeometry(drawingContext, codeBlockGeometry, selectionBrush, selectionBorder);
     }
 
     private static BackgroundGeometryBuilder CreateGeometryBuilder(
@@ -1792,6 +2333,50 @@ internal sealed class MarkdownSelectionRenderer(
                     cornerRadius * 2));
             }
         }
+    }
+
+    internal static Rect NormalizeCodeBlockSelectionRect(
+        TextView textView,
+        Rect selectionRect) {
+        TryNormalizeCodeBlockSelectionRect(textView, selectionRect, out var normalizedRect);
+        return normalizedRect;
+    }
+
+    private static bool TryNormalizeCodeBlockSelectionRect(
+        TextView textView,
+        Rect selectionRect,
+        out Rect normalizedRect) {
+        // CodeBlockPaddingElement adds card chrome to the line's width and height.
+        // Keep selection paint inside the text content instead of covering that chrome.
+        foreach (var visualLine in textView.VisualLines) {
+            if (!visualLine.Elements.OfType<CodeBlockPaddingElement>().Any()) continue;
+            foreach (var textLine in visualLine.TextLines) {
+                var textTop = visualLine.GetTextLineVisualYPosition(
+                    textLine, VisualYPosition.TextTop) - textView.ScrollOffset.Y;
+                if (Math.Abs(textTop - selectionRect.Y) >= 0.01) continue;
+                var contentLeft = MarkdownCodeBlockStyle.HorizontalPadding -
+                    textView.ScrollOffset.X;
+                var selectionLeft = Math.Max(selectionRect.Left, contentLeft);
+                var selectionWidth = Math.Max(0, selectionRect.Right - selectionLeft);
+                if (textLine is not EmbeddedControlHeightTextLine adjusted) {
+                    normalizedRect = new Rect(
+                        selectionLeft,
+                        selectionRect.Y,
+                        selectionWidth,
+                        selectionRect.Height);
+                    return true;
+                }
+
+                normalizedRect = new Rect(
+                    selectionLeft,
+                    selectionRect.Y,
+                    selectionWidth,
+                    Math.Min(selectionRect.Height, adjusted.ContentHeight));
+                return true;
+            }
+        }
+        normalizedRect = selectionRect;
+        return false;
     }
 
     private static bool TryGetQuoteContentBounds(
@@ -1924,6 +2509,7 @@ internal sealed class MarkdownColorizer(
                             IsCoveredBy(MarkdownVisualKind.Bold, start, end) ? FontWeight.Bold : FontWeight.Normal));
                         break;
                     case MarkdownVisualKind.Code: element.TextRunProperties.SetTypeface(new Typeface("Cascadia Mono, Consolas")); element.TextRunProperties.SetBackgroundBrush((IBrush)Application.Current!.Resources["AccentSubtleBrush"]!); break;
+                    case MarkdownVisualKind.CodeBlock: element.TextRunProperties.SetTypeface(new Typeface("Cascadia Mono, Consolas")); break;
                     case MarkdownVisualKind.Link: element.TextRunProperties.SetForegroundBrush((IBrush)Application.Current!.Resources["AccentPrimaryBrush"]!); element.TextRunProperties.SetTextDecorations(TextDecorations.Underline); break;
                     case MarkdownVisualKind.Quote: element.TextRunProperties.SetForegroundBrush(quoteForeground); break;
                     case MarkdownVisualKind.Strike: element.TextRunProperties.SetTextDecorations(TextDecorations.Strikethrough); break;
@@ -1989,6 +2575,8 @@ internal sealed class MarkdownInlineGenerator(
     private bool _imageRelayoutQueued;
     private bool _embeddedHeightCorrectionQueued;
     private double _requestedVerticalOffset = double.NaN;
+    private bool _userScrollInputActive;
+    private int _userScrollInputTicket;
     private double _lastImageLayoutWidth = double.NaN;
     private int _pendingAnimatedTaskSourceStart = -1;
     private bool _pendingAnimatedTaskChecked;
@@ -2078,7 +2666,7 @@ internal sealed class MarkdownInlineGenerator(
         };
         rule.Classes.Add("MarkdownRule");
         rule.PointerPressed += (_, e) => {
-            moveCaret(span.End + 1);
+            moveCaret(span.End);
             e.Handled = true;
         };
         ResizeRule(rule);
@@ -2168,6 +2756,19 @@ internal sealed class MarkdownInlineGenerator(
 
     internal void EnableEmbeddedControlLayout() => EnsureResizeListener();
 
+    /// <summary>在可视行重建期间也以用户最新的滚动位置为准。</summary>
+    internal void NotifyUserScrollInput() {
+        if (_disposed) return;
+        _requestedVerticalOffset = textView.VerticalOffset;
+        _userScrollInputActive = true;
+        var ticket = ++_userScrollInputTicket;
+        Dispatcher.UIThread.Post(() => {
+            if (_disposed || ticket != _userScrollInputTicket) return;
+            _requestedVerticalOffset = textView.VerticalOffset;
+            _userScrollInputActive = false;
+        }, DispatcherPriority.Background);
+    }
+
     private void EnsureResizeListener() {
         if (_isListeningForResize) return;
         _isListeningForResize = true;
@@ -2185,7 +2786,7 @@ internal sealed class MarkdownInlineGenerator(
     }
 
     private void OnScrollOffsetChanged(object? sender, EventArgs e) {
-        if (!_isBuildingVisualLines)
+        if (!_isBuildingVisualLines || _userScrollInputActive)
             _requestedVerticalOffset = textView.VerticalOffset;
     }
 
@@ -2212,7 +2813,8 @@ internal sealed class MarkdownInlineGenerator(
         foreach (var visualLine in textView.VisualLines) {
             var embeddedControls = visualLine.Elements.OfType<HeightAwareInlineElement>().ToArray();
             var quotePadding = visualLine.Elements.OfType<QuotePaddingElement>().FirstOrDefault();
-            if (embeddedControls.Length == 0 && quotePadding is null) continue;
+            var codeBlockPadding = visualLine.Elements.OfType<CodeBlockPaddingElement>().FirstOrDefault();
+            if (embeddedControls.Length == 0 && quotePadding is null && codeBlockPadding is null) continue;
             var textLines = visualLine.TextLines.ToList();
             var lineChanged = false;
             for (var index = 0; index < textLines.Count; index++) {
@@ -2224,9 +2826,11 @@ internal sealed class MarkdownInlineGenerator(
                     .Select(element => element.DesiredLineHeight)
                     .DefaultIfEmpty(0)
                     .Max();
-                var topSpacing = index == 0 ? quotePadding?.TopSpacing ?? 0 : 0;
+                var topSpacing = index == 0
+                    ? Math.Max(quotePadding?.TopSpacing ?? 0, codeBlockPadding?.TopSpacing ?? 0)
+                    : 0;
                 var bottomSpacing = index == textLines.Count - 1
-                    ? quotePadding?.BottomSpacing ?? 0
+                    ? Math.Max(quotePadding?.BottomSpacing ?? 0, codeBlockPadding?.BottomSpacing ?? 0)
                     : 0;
                 if (desiredHeight <= 0 && topSpacing <= 0 && bottomSpacing <= 0) continue;
 
@@ -2677,6 +3281,8 @@ internal sealed class MarkdownTableControl : Border {
     private readonly List<List<TextBox>> _cells = [];
     private readonly Action<string, bool> _changed;
     private readonly Grid _surface = new() { Background = Brushes.Transparent };
+    private readonly Canvas _headerBackgroundLayer = new() { IsHitTestVisible = false };
+    private readonly Border _headerBackground;
     private readonly Grid _grid = new();
     private readonly Button _rowEdgeButton;
     private readonly Button _columnEdgeButton;
@@ -2700,6 +3306,7 @@ internal sealed class MarkdownTableControl : Border {
     private bool _columnEdgePopupShown;
     private bool _suppressEdgeAnimations;
     private bool _normalizingCellText;
+    private int _navigationScrollTicket;
     private EdgePopupKind _activeEdgePopup;
     private EdgePopupKind _pendingCloseEdgePopup;
     private Rect? _effectiveViewport;
@@ -2712,18 +3319,29 @@ internal sealed class MarkdownTableControl : Border {
     private string _lastPublishedMarkdown;
     private string _sourceMarkdown;
 
-    public MarkdownTableControl(string markdown, Action<string, bool> changed) {
+    public MarkdownTableControl(
+        string markdown,
+        Action<string, bool> changed) {
         _changed = changed;
         _edgePopupCloseTimer = new DispatcherTimer { Interval = EdgePopupCloseDelay };
         _edgePopupCloseTimer.Tick += OnEdgePopupCloseTimerTick;
-        BorderBrush = ThemeBrush("BorderDefaultBrush", Brushes.LightGray);
+        BorderBrush = ThemeBrush("MarkdownTableBorderBrush", Brushes.Gray);
         BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(6);
-        Background = ThemeBrush("SurfacePrimaryBrush", Brushes.White);
+        Background = Brushes.Transparent;
         Padding = new Thickness(5);
         Margin = new Thickness(2, 5);
+        _headerBackground = new Border {
+            Background = ThemeBrush("MarkdownTableHeaderBrush", Brushes.Transparent),
+            CornerRadius = new CornerRadius(5, 5, 0, 0),
+            IsHitTestVisible = false,
+        };
+        _headerBackground.Classes.Add("MarkdownTableHeaderBackground");
+        _headerBackgroundLayer.Children.Add(_headerBackground);
         var rows = Parse(markdown);
+        _surface.Children.Add(_headerBackgroundLayer);
         _surface.Children.Add(_grid);
+        _grid.LayoutUpdated += (_, _) => UpdateHeaderBackgroundBounds();
 
         var insertRowItem = MenuItem("插入行", isDanger: false, () => InsertRow(_rowBoundary));
         _deleteAboveRowItem = MenuItem("删除上行", isDanger: true, () => DeleteRow(_rowBoundary - 1));
@@ -2827,7 +3445,7 @@ internal sealed class MarkdownTableControl : Border {
             var controls = new List<TextBox>();
             for (var column = 0; column < columns; column++) {
                 var cellLines = new Border {
-                    BorderBrush = ThemeBrush("BorderSubtleBrush", Brushes.LightGray),
+                    BorderBrush = ThemeBrush("MarkdownTableDividerBrush", Brushes.Gray),
                     BorderThickness = new Thickness(
                         0,
                         0,
@@ -2849,6 +3467,8 @@ internal sealed class MarkdownTableControl : Border {
                     Background = Brushes.Transparent,
                     BorderBrush = Brushes.Transparent,
                     BorderThickness = new Thickness(0),
+                    SelectionBrush = ThemeBrush("TextSelectionBrush", Brushes.Transparent),
+                    SelectionForegroundBrush = ThemeBrush("TextPrimaryBrush", Brushes.Black),
                     FocusAdorner = null,
                     AcceptsReturn = false,
                     TextWrapping = TextWrapping.Wrap,
@@ -2858,6 +3478,8 @@ internal sealed class MarkdownTableControl : Border {
                 box.Classes.Add("MarkdownTableCellInput");
                 Grid.SetRow(box, row); Grid.SetColumn(box, column);
                 box.TextChanged += OnCellTextChanged;
+                box.AddHandler(InputElement.KeyDownEvent, OnCellPreviewKeyDown,
+                    RoutingStrategies.Tunnel);
                 box.KeyDown += OnCellKeyDown;
                 box.AddHandler(InputElement.GotFocusEvent, OnTableDescendantGotFocus,
                     RoutingStrategies.Bubble, handledEventsToo: true);
@@ -2869,6 +3491,14 @@ internal sealed class MarkdownTableControl : Border {
             _cells.Add(controls);
         }
         RecalculateColumnWidths();
+    }
+
+    private void UpdateHeaderBackgroundBounds() {
+        if (_cells.Count == 0 || _cells[0].Count == 0) return;
+        Canvas.SetLeft(_headerBackground, -Padding.Left);
+        Canvas.SetTop(_headerBackground, -Padding.Top);
+        _headerBackground.Width = _grid.Bounds.Width + Padding.Left + Padding.Right;
+        _headerBackground.Height = _cells[0][0].Bounds.Height + Padding.Top;
     }
 
     private void OnCellTextChanged(object? sender, TextChangedEventArgs e) {
@@ -2895,7 +3525,16 @@ internal sealed class MarkdownTableControl : Border {
     }
 
     private void OnCellKeyDown(object? sender, KeyEventArgs e) {
-        if (sender is not TextBox box || e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        if (sender is not TextBox box) return;
+
+        if (e.Key is Key.Up or Key.Down or Key.Left or Key.Right) {
+            // The cell has already applied its caret movement. Do not let AvaloniaEdit also
+            // move its hidden document caret and scroll the outer editor viewport.
+            e.Handled = true;
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
 
         if (e.Key == Key.Tab) {
             var cells = _cells.SelectMany(row => row).ToList();
@@ -2911,6 +3550,83 @@ internal sealed class MarkdownTableControl : Border {
         if (e.Key != Key.Enter) return;
         e.Handled = true;
         MoveToCellAfter(box);
+    }
+
+    private void OnCellPreviewKeyDown(object? sender, KeyEventArgs e) {
+        if (sender is not TextBox box || e.KeyModifiers != KeyModifiers.None ||
+            e.Key is not (Key.Up or Key.Down or Key.Left or Key.Right)) return;
+        if (e.Key is Key.Left or Key.Right && box.SelectionStart != box.SelectionEnd) return;
+        if (TryNavigateCell(box, e.Key)) e.Handled = true;
+    }
+
+    private bool TryNavigateCell(TextBox current, Key key) {
+        var row = Grid.GetRow(current);
+        var column = Grid.GetColumn(current);
+        if (row < 0 || row >= _cells.Count ||
+            column < 0 || column >= _cells[row].Count ||
+            !ReferenceEquals(_cells[row][column], current)) return false;
+
+        var caret = current.CaretIndex;
+        switch (key) {
+            case Key.Left:
+                if (caret > 0) return false;
+                if (column > 0) FocusNavigatedCell(_cells[row][column - 1]);
+                else if (row > 0) FocusNavigatedCell(_cells[row - 1][^1]);
+                return true;
+            case Key.Right:
+                if (caret < (current.Text ?? string.Empty).Length) return false;
+                if (column + 1 < _cells[row].Count) FocusNavigatedCell(_cells[row][column + 1], 0);
+                else if (row + 1 < _cells.Count) FocusNavigatedCell(_cells[row + 1][0], 0);
+                return true;
+            case Key.Up:
+                if (row > 0) FocusNavigatedCell(_cells[row - 1][column], caret);
+                return true;
+            case Key.Down:
+                if (row + 1 < _cells.Count) FocusNavigatedCell(_cells[row + 1][column], caret);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void FocusNavigatedCell(TextBox box) =>
+        FocusNavigatedCell(box, (box.Text ?? string.Empty).Length);
+
+    private void FocusNavigatedCell(TextBox box, int requestedCaretIndex) {
+        var ticket = ++_navigationScrollTicket;
+        var scrollTarget = MinimalScrollTargetFor(box);
+        FocusCell(box, requestedCaretIndex);
+        if (scrollTarget is not { } target) return;
+
+        void RestoreMinimalOffset() {
+            if (ticket != _navigationScrollTicket) return;
+            var maximumOffset = Math.Max(0, target.Viewer.Extent.Height - target.Viewer.Viewport.Height);
+            target.Viewer.Offset = new Vector(
+                target.Viewer.Offset.X,
+                Math.Clamp(target.VerticalOffset, 0, maximumOffset));
+        }
+
+        RestoreMinimalOffset();
+        Dispatcher.UIThread.Post(RestoreMinimalOffset, DispatcherPriority.Background);
+    }
+
+    private (ScrollViewer Viewer, double VerticalOffset)? MinimalScrollTargetFor(TextBox box) {
+        var textView = this.GetVisualAncestors().OfType<TextView>().FirstOrDefault();
+        var viewer = textView?.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+        if (textView is null || viewer is null ||
+            box.TranslatePoint(default, textView) is not { } topLeft ||
+            box.TranslatePoint(new Point(0, box.Bounds.Height), textView) is not { } bottomLeft)
+            return null;
+
+        var viewportHeight = viewer.Viewport.Height > 0
+            ? viewer.Viewport.Height
+            : textView.Bounds.Height;
+        if (!double.IsFinite(viewportHeight) || viewportHeight <= 0) return null;
+
+        var verticalOffset = viewer.Offset.Y;
+        if (topLeft.Y < 0) verticalOffset += topLeft.Y;
+        else if (bottomLeft.Y > viewportHeight) verticalOffset += bottomLeft.Y - viewportHeight;
+        return (viewer, verticalOffset);
     }
 
     private void MoveToCellAfter(TextBox current) {
@@ -2935,10 +3651,13 @@ internal sealed class MarkdownTableControl : Border {
         }
     }
 
-    private static void FocusCell(TextBox box) {
+    private static void FocusCell(TextBox box) =>
+        FocusCell(box, (box.Text ?? string.Empty).Length);
+
+    private static void FocusCell(TextBox box, int requestedCaretIndex) {
         void ApplyFocus() {
             box.Focus();
-            box.CaretIndex = (box.Text ?? string.Empty).Length;
+            box.CaretIndex = Math.Clamp(requestedCaretIndex, 0, (box.Text ?? string.Empty).Length);
             box.SelectionStart = box.CaretIndex;
             box.SelectionEnd = box.CaretIndex;
         }
@@ -3640,10 +4359,36 @@ internal sealed class MarkdownTableControl : Border {
         _changed(markdown, isFirstChange);
     }
 
-    private void InsertRow(int boundary) { var rows = Values(); rows.Insert(Math.Clamp(boundary, 0, rows.Count), Enumerable.Repeat(string.Empty, rows[0].Count).ToList()); Build(rows); PublishChange(); }
-    private void DeleteRow(int row) { var rows = Values(); if (rows.Count > 1 && row >= 0 && row < rows.Count) rows.RemoveAt(row); Build(rows); PublishChange(); }
-    private void InsertColumn(int boundary) { var rows = Values(); var column = Math.Clamp(boundary, 0, rows[0].Count); foreach (var row in rows) row.Insert(column, string.Empty); Build(rows); PublishChange(); }
-    private void DeleteColumn(int column) { var rows = Values(); if (rows[0].Count > 1 && column >= 0 && column < rows[0].Count) foreach (var row in rows) row.RemoveAt(column); Build(rows); PublishChange(); }
+    private void InsertRow(int boundary) {
+        var rows = Values();
+        rows.Insert(Math.Clamp(boundary, 0, rows.Count),
+            Enumerable.Repeat(string.Empty, rows[0].Count).ToList());
+        Build(rows);
+        PublishChange();
+    }
+
+    private void DeleteRow(int row) {
+        var rows = Values();
+        if (rows.Count > 1 && row >= 0 && row < rows.Count) rows.RemoveAt(row);
+        Build(rows);
+        PublishChange();
+    }
+
+    private void InsertColumn(int boundary) {
+        var rows = Values();
+        var column = Math.Clamp(boundary, 0, rows[0].Count);
+        foreach (var row in rows) row.Insert(column, string.Empty);
+        Build(rows);
+        PublishChange();
+    }
+
+    private void DeleteColumn(int column) {
+        var rows = Values();
+        if (rows[0].Count > 1 && column >= 0 && column < rows[0].Count)
+            foreach (var row in rows) row.RemoveAt(column);
+        Build(rows);
+        PublishChange();
+    }
     private List<List<string>> Values() => _cells
         .Select(row => row.Select(box => NormalizeCellText(box.Text ?? string.Empty)).ToList())
         .ToList();

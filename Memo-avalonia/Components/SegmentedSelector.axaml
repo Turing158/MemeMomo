@@ -105,7 +105,7 @@
     </Style>
     <Style Selector="Border.segment-option.selected TextBlock.segment-label">
       <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
-      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="FontWeight" Value="Medium"/>
     </Style>
   </UserControl.Styles>
 

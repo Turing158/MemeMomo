@@ -323,6 +323,26 @@
                   <TextBlock Text="拖动主窗口到屏幕边缘时收起为方块" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
                 </StackPanel>
               </comp:AnimatedCheckBox>
+              <comp:AnimatedCheckBox x:Name="_showMainWindowTaskbarIconCheckBox"
+                                     IsChecked="False"
+                                     AutomationProperties.Name="显示主界面任务栏图标"
+                                     Checked="OnShowMainWindowTaskbarIconChecked"
+                                     Unchecked="OnShowMainWindowTaskbarIconUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="主界面任务栏图标" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="主界面窗口显示时在 Windows 任务栏中显示图标" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+              <comp:AnimatedCheckBox x:Name="_showMemoWindowTaskbarIconCheckBox"
+                                     IsChecked="False"
+                                     AutomationProperties.Name="显示便签窗口任务栏图标"
+                                     Checked="OnShowMemoWindowTaskbarIconChecked"
+                                     Unchecked="OnShowMemoWindowTaskbarIconUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="便签窗口任务栏图标" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="在标题栏显示按钮，可单独控制每个便签的任务栏图标" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
 
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2" VerticalAlignment="Center">
@@ -386,7 +406,7 @@
                 <TextBlock Text="点击后按快捷键，按 Esc 留空，右键取消" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
               </StackPanel>
 
-              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Row="0" Text="置顶" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
                 <Button Grid.Row="0" Grid.Column="1" x:Name="_toggleTopmostHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnToggleTopmostHotkeyClick"/>
 
@@ -398,6 +418,22 @@
 
                 <TextBlock Grid.Row="3" Text="快速添加（剪贴板）" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
                 <Button Grid.Row="3" Grid.Column="1" x:Name="_quickMemoHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnQuickMemoHotkeyClick" Margin="0,8,0,0"/>
+
+                <comp:CollapsibleSection Grid.Row="4"
+                                         Grid.ColumnSpan="2"
+                                         x:Name="_memoTaskbarHotkeySection"
+                                         IsExpanded="False">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                    <TextBlock Text="切换便签任务栏图标"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Button Grid.Column="1"
+                            x:Name="_toggleMemoTaskbarHotkeyButton"
+                            Classes="HotkeyCaptureBtn"
+                            AutomationProperties.Name="切换便签任务栏图标快捷键"
+                            Click="OnToggleMemoTaskbarHotkeyClick"/>
+                  </Grid>
+                </comp:CollapsibleSection>
               </Grid>
               <comp:CollapsibleSection x:Name="_hotkeyValidationSection" SpacingCompensation="12" IsExpanded="False">
                 <TextBlock x:Name="_hotkeyValidationText"

@@ -14,6 +14,7 @@ using Avalonia.VisualTree;
 using Memo.Behaviors;
 using Memo.Components;
 using Memo.Models;
+using Memo.Platform.Windows;
 using Memo.Services;
 using Memo.UI;
 using Memo.Utils;
@@ -74,7 +75,7 @@ public partial class MainWindow : Window {
         public FrameAnimation? Animation { get; set; }
     }
 
-    // 长按拖拽重排管理器
+    // 鼠标拖动重排管理器
     private DragReorderManager? _dragManager;
 
     public MainWindow() : this(null) { }
@@ -131,6 +132,15 @@ public partial class MainWindow : Window {
         _settings = settings;
         ApplyDockEnabledSetting(settings.MainWindowDockEnabled);
         ApplyDockSizeSetting(settings.MainWindowDockSize);
+        UpdateTaskbarIconVisibility(IsVisible);
+    }
+
+    private void UpdateTaskbarIconVisibility(bool windowWillBeVisible) {
+        TaskbarIconVisibility.SetVisible(
+            this,
+            windowWillBeVisible
+            && _dockState == DockState.Expanded
+            && _settings.ShowMainWindowTaskbarIcon);
     }
 
     public async void FocusInputForNewMemo() {
@@ -144,14 +154,14 @@ public partial class MainWindow : Window {
 
     private void ShowWithOpenTransition(bool force) {
         if (!force && IsVisible && WindowState == WindowState.Normal && Opacity >= 1) {
-            ShowInTaskbar = false;
+            UpdateTaskbarIconVisibility(windowWillBeVisible: true);
             Activate();
             return;
         }
 
         if (!IsVisible) PrepareWindowOpenState();
         WindowState = WindowState.Normal;
-        ShowInTaskbar = false;
+        UpdateTaskbarIconVisibility(windowWillBeVisible: true);
         Show();
         Activate();
         Dispatcher.UIThread.Post(CompleteOpenAfterShow, DispatcherPriority.Render);
@@ -161,7 +171,7 @@ public partial class MainWindow : Window {
         _windowTransition?.CloseAfterTransition(() => {
                 Hide();
                 WindowState = WindowState.Normal;
-                ShowInTaskbar = false;
+                UpdateTaskbarIconVisibility(windowWillBeVisible: false);
                 PrepareWindowOpenState();
             });
     }

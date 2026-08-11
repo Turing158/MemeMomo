@@ -13,6 +13,7 @@ public class MemoItem : INotifyPropertyChanged {
     private string _content = string.Empty;
     private DateTime _createdAt;
     private DateTime _updatedAt;
+    private DateTime? _reminderAt;
 
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -44,6 +45,17 @@ public class MemoItem : INotifyPropertyChanged {
             if (_updatedAt != value) {
                 _updatedAt = value;
                 OnPropertyChanged(nameof(UpdatedAt));
+            }
+        }
+    }
+
+    /// <summary>计划提醒的本地时间；null 表示当前没有提醒。</summary>
+    public DateTime? ReminderAt {
+        get => _reminderAt;
+        set {
+            if (_reminderAt != value) {
+                _reminderAt = value;
+                OnPropertyChanged(nameof(ReminderAt));
             }
         }
     }

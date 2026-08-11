@@ -13,6 +13,7 @@ internal static class ThemePreferences {
         bgSecondary: "#FAF8F3",
         bgTertiary: "#EFEAE1",
         bgHover: "#EBE5DA",
+        transparent: "#00FFFFFF",
         surfacePrimary: "#FFFFFF",
         surfaceHover: "#FBF9F4",
         surfaceActive: "#F2EDE4",
@@ -41,6 +42,13 @@ internal static class ThemePreferences {
         iconDefault: "#6B6359",
         iconHover: "#1E1A16",
         iconAccent: "#C06A48",
+        markdownCodeBlockBackground: "#E2E7EA",
+        markdownCodeBlockBorder: "#818E98",
+        markdownQuoteBackground: "#F0DFD4",
+        markdownQuoteBorder: "#D2AA92",
+        markdownTableBorder: "#8B7D6A",
+        markdownTableDivider: "#978A79",
+        markdownTableHeader: "#14000000",
         textOnAccent: "#FFFFFF");
 
     private static readonly IReadOnlyDictionary<string, Color> DarkPalette = CreatePalette(
@@ -48,6 +56,7 @@ internal static class ThemePreferences {
         bgSecondary: "#1D1F1C",
         bgTertiary: "#282A26",
         bgHover: "#2D302B",
+        transparent: "#00000000",
         surfacePrimary: "#222420",
         surfaceHover: "#282B26",
         surfaceActive: "#31342E",
@@ -76,9 +85,18 @@ internal static class ThemePreferences {
         iconDefault: "#BAB2A6",
         iconHover: "#F0ECE3",
         iconAccent: "#D58B68",
+        markdownCodeBlockBackground: "#252A2D",
+        markdownCodeBlockBorder: "#65717A",
+        markdownQuoteBackground: "#352A24",
+        markdownQuoteBorder: "#765B4C",
+        markdownTableBorder: "#7D8376",
+        markdownTableDivider: "#62695F",
+        markdownTableHeader: "#14FFFFFF",
         textOnAccent: "#211914");
 
     private static Application? _application;
+
+    public static event EventHandler? PaletteChanged;
 
     public static ThemeMode Mode { get; private set; } = ThemeMode.FollowSystem;
 
@@ -110,6 +128,7 @@ internal static class ThemePreferences {
         if (_application != null)
             _application.ActualThemeVariantChanged -= OnActualThemeVariantChanged;
         _application = null;
+        PaletteChanged = null;
     }
 
     private static void OnActualThemeVariantChanged(object? sender, EventArgs e) {
@@ -120,10 +139,14 @@ internal static class ThemePreferences {
     private static void ApplyPalette(bool useDarkPalette) {
         if (_application == null) return;
         var palette = useDarkPalette ? DarkPalette : LightPalette;
+        var changed = false;
         foreach (var (key, color) in palette) {
-            if (_application.Resources[key] is SolidColorBrush brush)
+            if (_application.Resources[key] is SolidColorBrush brush && brush.Color != color) {
                 brush.Color = color;
+                changed = true;
+            }
         }
+        if (changed) PaletteChanged?.Invoke(null, EventArgs.Empty);
     }
 
     private static IReadOnlyDictionary<string, Color> CreatePalette(
@@ -131,6 +154,7 @@ internal static class ThemePreferences {
         string bgSecondary,
         string bgTertiary,
         string bgHover,
+        string transparent,
         string surfacePrimary,
         string surfaceHover,
         string surfaceActive,
@@ -159,11 +183,19 @@ internal static class ThemePreferences {
         string iconDefault,
         string iconHover,
         string iconAccent,
+        string markdownCodeBlockBackground,
+        string markdownCodeBlockBorder,
+        string markdownQuoteBackground,
+        string markdownQuoteBorder,
+        string markdownTableBorder,
+        string markdownTableDivider,
+        string markdownTableHeader,
         string textOnAccent) => new Dictionary<string, Color> {
             ["BgPrimaryBrush"] = Color.Parse(bgPrimary),
             ["BgSecondaryBrush"] = Color.Parse(bgSecondary),
             ["BgTertiaryBrush"] = Color.Parse(bgTertiary),
             ["BgHoverBrush"] = Color.Parse(bgHover),
+            ["TransparentBrush"] = Color.Parse(transparent),
             ["SurfacePrimaryBrush"] = Color.Parse(surfacePrimary),
             ["SurfaceHoverBrush"] = Color.Parse(surfaceHover),
             ["SurfaceActiveBrush"] = Color.Parse(surfaceActive),
@@ -178,6 +210,7 @@ internal static class ThemePreferences {
             ["AccentSubtleBrush"] = Color.Parse(accentSubtle),
             ["AccentSubtlePressedBrush"] = Color.Parse(accentSubtlePressed),
             ["AccentPressedBrush"] = Color.Parse(accentPressed),
+            ["TextSelectionBrush"] = Color.Parse(accentSubtlePressed),
             ["DangerPrimaryBrush"] = Color.Parse(dangerPrimary),
             ["DangerHoverBrush"] = Color.Parse(dangerHover),
             ["DangerSubtleBrush"] = Color.Parse(dangerSubtle),
@@ -192,6 +225,13 @@ internal static class ThemePreferences {
             ["IconDefaultBrush"] = Color.Parse(iconDefault),
             ["IconHoverBrush"] = Color.Parse(iconHover),
             ["IconAccentBrush"] = Color.Parse(iconAccent),
+            ["MarkdownCodeBlockBackgroundBrush"] = Color.Parse(markdownCodeBlockBackground),
+            ["MarkdownCodeBlockBorderBrush"] = Color.Parse(markdownCodeBlockBorder),
+            ["MarkdownQuoteBackgroundBrush"] = Color.Parse(markdownQuoteBackground),
+            ["MarkdownQuoteBorderBrush"] = Color.Parse(markdownQuoteBorder),
+            ["MarkdownTableBorderBrush"] = Color.Parse(markdownTableBorder),
+            ["MarkdownTableDividerBrush"] = Color.Parse(markdownTableDivider),
+            ["MarkdownTableHeaderBrush"] = Color.Parse(markdownTableHeader),
             ["TextOnAccentBrush"] = Color.Parse(textOnAccent),
         };
 }
