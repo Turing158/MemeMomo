@@ -33,9 +33,9 @@
 - 便签标题栏提供提醒按钮，可为当前备忘录设置、修改或取消一条提醒
 - 日期支持直接输入和日历选择，时间使用时、分、秒三列滚轮选择器
 - 提供「1分钟后」「10分钟后」「半小时后」「1小时后」四个快捷时间
-- 使用 Windows 原生计划通知，即使 Memo 退出后也可由系统按时显示
-- 通知标题取备忘录标题；正文移除 Markdown 标记，表格、代码块和图片分别显示为「[表格]」「[代码]」「[图片]」
-- 点击系统通知会打开对应备忘录的便签，并将窗口放在主界面所在屏幕的工作区中央
+- 提醒由应用内计时器触发；关闭主窗口并驻留托盘时仍然有效
+- 完全退出 Memo 后不会在后台触发；下次启动时会立即补触发已经到期的提醒
+- 提醒到期后会打开对应备忘录的便签，并将窗口放在主界面所在屏幕的工作区中央
 
 ### 贴边收起
 
@@ -149,7 +149,6 @@
 - Avalonia UI 11.1（默认启用编译绑定）
 - Avalonia.AvaloniaEdit 11.1.0（光标、选择、输入法、撤销、滚动与虚拟化）
 - Markdig 0.41.3（Markdown AST、源码区间与可见位置映射）
-- Microsoft.Toolkit.Uwp.Notifications 7.1.3（Windows 原生计划通知与点击激活）
 - C#
 
 ## 运行环境与构建
@@ -220,7 +219,7 @@ Memo-avalonia/
 - 贴边收起逻辑在 `MainWindow.Docking.cs`：检测边缘距离、方块拖动、展开还原与状态持久化；方块大小可在设置中实时调整。
 - 鼠标拖拽排序封装在 `DragReorderManager`：拖拽期间不修改集合，仅在释放时调用 `MainViewModel.MoveItem`；释放到主窗口外则触发便签弹出。
 - 便签由 `MemoPopoutWindow` 实现，`App` 维护便签列表并决定置顶快捷键的作用目标；设置「重复便签」关闭时复用并移动现有便签位置。
-- 提醒界面由 `ReminderWindow` 与 `TimeWheelSelector` 实现；`WindowsReminderService` 负责原生计划通知、启动激活与取消，`MarkdownNotificationText` 负责生成通知纯文本。
+- 提醒界面由 `ReminderWindow` 与 `TimeWheelSelector` 实现；`App` 中的应用内计时器检查已到期提醒并打开对应便签。
 - 教程窗口 `TutorialWindow` 与便签同构，从当前设置读取并展示快捷键；置顶快捷键同样作用于最近激活的教程窗口。
 - 窗口过渡动画由 `WindowTransitionController` 统一提供，动效受 `MotionPreferences`（跟随系统/开启/关闭）控制。
 - 所有窗口（主窗口、便签、设置、教程）均采用无边框圆角设计，并共用一套边缘/角落缩放手柄。

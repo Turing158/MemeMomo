@@ -31,9 +31,7 @@ public partial class App : Application{
     private MemoPopoutWindow? _latestMemoPopout;
     private Window? _latestMemoWindow;
     private MainWindow? _mainWindow;
-    private WindowsReminderService? _reminderService;
-    private DispatcherTimer? _reminderExpiryTimer;
-    private Guid? _pendingReminderActivation;
+    private DispatcherTimer? _reminderTimer;
     private string? _lastClipboardText;
 
     public override void Initialize() {
@@ -46,21 +44,16 @@ public partial class App : Application{
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop) {
             var mainWindow = new MainWindow();
             _mainWindow = mainWindow;
-            _reminderService = WindowsReminderService.Shared;
-            _reminderService.Activated += OnReminderActivated;
             mainWindow.MemoViewModel.MemoDeleted += OnMemoDeleted;
-            mainWindow.MemoViewModel.MemoUpdated += OnMemoUpdated;
             mainWindow.MemoViewModel.MemosLoaded += OnMemosLoaded;
-            if (_reminderService.TryTakePendingActivation(out var activatedMemoId))
-                _pendingReminderActivation = activatedMemoId;
             _latestMemoWindow = mainWindow;
             desktop.MainWindow = mainWindow;
 
             mainWindow.Activated += (_, _) => _latestMemoWindow = mainWindow;
             mainWindow.MemoPopoutRequested += OpenMemoPopout;
-            _reminderExpiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _reminderExpiryTimer.Tick += (_, _) => ClearExpiredReminderState();
-            _reminderExpiryTimer.Start();
+            _reminderTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _reminderTimer.Tick += (_, _) => CheckDueReminders();
+            _reminderTimer.Start();
 
             void ExitApplication() {
                 foreach (var animation in _positionAnimations.Values) animation.Cancel();
@@ -77,13 +70,8 @@ public partial class App : Application{
                 _positionAnimations.Clear();
                 ThemePreferences.Shutdown();
                 MotionPreferences.Shutdown();
-                _reminderExpiryTimer?.Stop();
-                _reminderExpiryTimer = null;
-                if (_reminderService != null) {
-                    _reminderService.Activated -= OnReminderActivated;
-                    _reminderService.Dispose();
-                    _reminderService = null;
-                }
+                _reminderTimer?.Stop();
+                _reminderTimer = null;
             };
 
             async Task SaveSettingsAsync(AppSettings settings) {
@@ -238,12 +226,6 @@ public partial class App : Application{
     private void OnMemoDeleted(Guid memoId) {
         ClosePopoutsForDeletedMemo(_memoPopouts, memoId);
         if (_reminderWindows.Remove(memoId, out var reminderWindow)) reminderWindow.Close();
-        try {
-            _reminderService?.Cancel(memoId);
-        }
-        catch (Exception ex) {
-            System.Diagnostics.Debug.WriteLine($"[Reminder] Cancel deleted memo failed: {ex.Message}");
-        }
     }
 
     private void OpenReminderWindow(MemoPopoutWindow owner, MemoItem memo) {
@@ -261,65 +243,34 @@ public partial class App : Application{
     }
 
     private async Task SaveReminderAsync(MemoItem memo, DateTime? reminderAt) {
-        if (_reminderService == null || _mainWindow == null)
-            throw new InvalidOperationException("Windows 提醒服务尚未就绪。");
-
-        if (reminderAt is { } value) _reminderService.Schedule(memo, value);
-        else _reminderService.Cancel(memo.Id);
+        if (_mainWindow == null)
+            throw new InvalidOperationException("提醒服务尚未就绪。");
 
         memo.ReminderAt = reminderAt;
         await _mainWindow.MemoViewModel.SaveAsync();
     }
 
-    private void OnReminderActivated(Guid memoId) {
-        Dispatcher.UIThread.Post(() => {
-            _pendingReminderActivation = memoId;
-            TryOpenPendingReminder();
-        });
-    }
-
-    private void OnMemoUpdated(MemoItem memo) {
-        if (_reminderService == null || memo.ReminderAt is not { } reminderAt ||
-            reminderAt <= DateTimeUtils.Now) return;
-        try {
-            _reminderService.Schedule(memo, reminderAt);
-        }
-        catch (Exception ex) {
-            System.Diagnostics.Debug.WriteLine($"[Reminder] Refresh content failed: {ex.Message}");
-        }
-    }
-
     private void OnMemosLoaded() {
-        if (_mainWindow == null) return;
-
-        ClearExpiredReminderState();
-        _reminderService?.Reconcile(_mainWindow.MemoViewModel.Memos);
-        TryOpenPendingReminder();
+        CheckDueReminders();
     }
 
-    private void ClearExpiredReminderState() {
+    private void CheckDueReminders() {
         if (_mainWindow?.MemoViewModel.IsLoaded != true) return;
 
-        var expired = _mainWindow.MemoViewModel.Memos
-            .Where(item => item.ReminderAt <= DateTimeUtils.Now)
-            .ToArray();
-        if (expired.Length == 0) return;
+        var dueMemos = TakeDueReminders(_mainWindow.MemoViewModel.Memos, DateTimeUtils.Now);
+        if (dueMemos.Length == 0) return;
 
-        foreach (var memo in expired) memo.ReminderAt = null;
+        foreach (var memo in dueMemos) OpenMemoPopoutCentered(memo);
         _ = _mainWindow.MemoViewModel.SaveAsync();
     }
 
-    private void TryOpenPendingReminder() {
-        if (_pendingReminderActivation is not { } memoId ||
-            _mainWindow?.MemoViewModel.IsLoaded != true) return;
-
-        _pendingReminderActivation = null;
-        var memo = _mainWindow.MemoViewModel.Memos.FirstOrDefault(item => item.Id == memoId);
-        if (memo == null) return;
-
-        memo.ReminderAt = null;
-        _ = _mainWindow.MemoViewModel.SaveAsync();
-        OpenMemoPopoutCentered(memo);
+    internal static MemoItem[] TakeDueReminders(IEnumerable<MemoItem> memos, DateTime now) {
+        var dueMemos = memos
+            .Where(item => item.ReminderAt is { } reminderAt && reminderAt <= now)
+            .OrderBy(item => item.ReminderAt)
+            .ToArray();
+        foreach (var memo in dueMemos) memo.ReminderAt = null;
+        return dueMemos;
     }
 
     internal static void ClosePopoutsForDeletedMemo(

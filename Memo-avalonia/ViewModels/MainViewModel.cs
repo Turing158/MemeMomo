@@ -16,7 +16,6 @@ public class MainViewModel {
 
     public ObservableCollection<MemoItem> Memos { get; } = new();
     public event Action<Guid>? MemoDeleted;
-    public event Action<MemoItem>? MemoUpdated;
     public event Action? MemosLoaded;
 
     public bool IsLoaded { get; private set; }
@@ -78,7 +77,6 @@ public class MainViewModel {
         if (item == null) return;
         item.Content = content;
         item.UpdatedAt = DateTimeUtils.Now;
-        MemoUpdated?.Invoke(item);
     }
 
     public void UpdateItemAndSave(Guid id, string content) {
