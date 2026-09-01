@@ -1,0 +1,46 @@
+<windows:BorderlessWindow x:Class="Memo.Views.TutorialWindow"
+                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:windows="clr-namespace:Memo.UI.Windows"
+                          Title="教程"
+                          Width="380"
+                          Height="360"
+                          MinWidth="300"
+                          MinHeight="220"
+                          ResizeMode="CanResize"
+                          WindowStartupLocation="Manual"
+                          ShowInTaskbar="False"
+                          UseBuiltInTitleBar="False"
+                          TitleBarHeight="0"
+                          CornerRadius="14">
+  <Grid Background="{DynamicResource BgPrimaryBrush}">
+    <Grid.RowDefinitions><RowDefinition Height="38" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+    <Border Grid.Row="0"
+            Background="{DynamicResource BgPrimaryBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,0,0,1"
+            CornerRadius="14,14,0,0"
+            MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+      <Grid Margin="12,0,8,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Image Width="18" Height="18" Source="/Memo;component/Assets/appicon.png" />
+          <TextBlock Text="教程" Margin="8,0,0,0" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <Button x:Name="PinButton" Width="26" Height="26" Padding="0" Style="{StaticResource TitleBarButtonStyle}" ToolTip="置顶" AutomationProperties.Name="置顶" Click="OnPinClick">
+            <Path x:Name="PinIcon" Width="13" Height="13" Stretch="Uniform" Data="{DynamicResource PinIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" RenderTransformOrigin="0.5,0.5" />
+          </Button>
+          <Button Width="26" Height="26" Padding="0" Style="{StaticResource TitleBarButtonStyle}" ToolTip="关闭" AutomationProperties.Name="关闭" Click="OnCloseClick">
+            <Path Width="13" Height="13" Stretch="Uniform" Data="{DynamicResource CloseIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Border Grid.Row="1" Background="{DynamicResource BgPrimaryBrush}" CornerRadius="0,0,14,14" Padding="13">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <TextBlock x:Name="TutorialContent" FontSize="13" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" LineHeight="21" />
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</windows:BorderlessWindow>

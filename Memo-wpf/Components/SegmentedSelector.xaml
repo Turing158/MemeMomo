@@ -1,0 +1,31 @@
+<UserControl x:Class="Memo.Components.SegmentedSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource TransparentBrush}"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}">
+  <Grid>
+    <Border x:Name="Track"
+            MinHeight="42"
+            Padding="3"
+            Background="{DynamicResource BgSecondaryBrush}"
+            BorderBrush="{DynamicResource BorderDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="11">
+      <Border.Style>
+        <Style TargetType="Border">
+          <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+        </Style>
+      </Border.Style>
+      <Grid x:Name="LayoutRoot">
+        <Canvas IsHitTestVisible="False">
+          <Border x:Name="Indicator"
+                  Background="{DynamicResource AccentPrimaryBrush}"
+                  CornerRadius="9"
+                  Visibility="Collapsed" />
+        </Canvas>
+        <Grid x:Name="OptionsGrid" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

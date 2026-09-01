@@ -1,0 +1,33 @@
+<dialogs:MemoDialogWindow x:Class="Memo.Components.Dialogs.LinkEditDialog"
+                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:dialogs="clr-namespace:Memo.Components.Dialogs"
+                          xmlns:ui="clr-namespace:Memo.UI"
+                          Title="插入链接"
+                          Width="460"
+                          Height="356"
+                          MinWidth="380"
+                          MinHeight="356"
+                          ShellBackground="{DynamicResource SurfacePrimaryBrush}"
+                          ShellBorderBrush="{DynamicResource BorderEmphasisBrush}"
+                          PreviewKeyDown="OnDialogPreviewKeyDown">
+  <Grid Margin="22,18,22,16">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="1" /><RowDefinition Height="*" /><RowDefinition Height="1" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <Grid Grid.Row="0" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+      <Border Width="34" Height="34" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="1" CornerRadius="8"><Path Width="17" Height="17" Stretch="Uniform" Data="{DynamicResource MdLinkIcon}" Fill="{DynamicResource AccentPrimaryBrush}" /></Border>
+      <StackPanel Grid.Column="1" Margin="11,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="DialogTitleText" Text="插入链接" FontSize="15.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" /><TextBlock Margin="0,3,0,0" Text="链接文本和地址将作为 Markdown 链接保存" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" /></StackPanel>
+      <Button Grid.Column="2" Style="{StaticResource DialogIconButtonStyle}" AutomationProperties.Name="关闭链接面板" ToolTip="关闭" Click="OnCancelClick"><Path Width="14" Height="14" Stretch="Uniform" Data="{DynamicResource CloseIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Button>
+    </Grid>
+    <Border Grid.Row="1" Background="{DynamicResource BorderSubtleBrush}" />
+    <StackPanel Grid.Row="2" Margin="0,16,0,14">
+      <TextBlock Text="链接文本" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+      <Border x:Name="LabelInputRoot" Margin="0,5,0,0" Style="{StaticResource DialogInputRootStyle}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0"><TextBlock Text="Aa" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource IconDefaultBrush}" /></Border><TextBox x:Name="LabelBox" Grid.Column="1" Margin="11,0,12,0" Style="{StaticResource DialogTextBoxStyle}" ToolTip="输入显示文字" AutomationProperties.Name="链接文本" TextChanged="OnInputTextChanged" /></Grid></Border>
+      <TextBlock x:Name="LabelErrorText" Height="17" Margin="0,3,0,5" Foreground="{DynamicResource DangerPrimaryBrush}" FontSize="11.5" Opacity="0" AutomationProperties.Name="链接文本错误" />
+      <TextBlock Text="链接地址" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+      <Border x:Name="UrlInputRoot" Margin="0,5,0,0" Style="{StaticResource DialogInputRootStyle}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions><Border BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,1,0"><Path Width="15" Height="15" Stretch="Uniform" Data="{DynamicResource MdLinkIcon}" Fill="{DynamicResource IconDefaultBrush}" /></Border><TextBox x:Name="UrlBox" Grid.Column="1" Margin="11,0,4,0" Style="{StaticResource DialogTextBoxStyle}" ToolTip="https://example.com" AutomationProperties.Name="链接地址" TextChanged="OnInputTextChanged" /><Button x:Name="ClearUrlButton" Grid.Column="2" Width="30" Height="30" Margin="0,0,4,0" Style="{StaticResource DialogInputIconButtonStyle}" AutomationProperties.Name="清空链接地址" ToolTip="清空" Visibility="Collapsed" Click="OnClearUrlClick"><Path Width="12" Height="12" Stretch="Uniform" Data="{DynamicResource CloseIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" /></Button></Grid></Border>
+      <TextBlock x:Name="UrlErrorText" Height="17" Margin="0,3,0,0" Foreground="{DynamicResource DangerPrimaryBrush}" FontSize="11.5" Opacity="0" AutomationProperties.Name="链接地址错误" />
+    </StackPanel>
+    <Border Grid.Row="3" Background="{DynamicResource BorderSubtleBrush}" />
+    <StackPanel Grid.Row="4" Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Right"><Button Margin="0,0,9,0" Content="取消" Style="{StaticResource DialogSecondaryActionButtonStyle}" AutomationProperties.Name="取消" Click="OnCancelClick" /><Button x:Name="SubmitButton" Style="{StaticResource DialogPrimaryActionButtonStyle}" AutomationProperties.Name="插入链接" Click="OnSubmitClick"><TextBlock x:Name="SubmitButtonText" Text="插入链接" /></Button></StackPanel>
+  </Grid>
+</dialogs:MemoDialogWindow>

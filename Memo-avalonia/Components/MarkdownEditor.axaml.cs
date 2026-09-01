@@ -486,7 +486,7 @@ public partial class MarkdownEditor : UserControl {
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e) {
         var control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (_imeClient.IsComposing && !control) return;
-        if (IsTableInputSource(e.Source)) {
+        if (IsTableInputActive(e.Source)) {
             if (control && e.Key == Key.Enter) { e.Handled = true; await RequestSaveAsync(completeEditing: true); }
             else if (e.Key == Key.Escape) { _imeClient.ClearPreedit(); e.Handled = true; await CancelEditingAsync(); }
             return;
@@ -635,6 +635,10 @@ public partial class MarkdownEditor : UserControl {
     private static bool IsTableInputSource(object? source) =>
         source is Visual visual &&
         visual.GetVisualAncestors().Append(visual).OfType<MarkdownTableControl>().Any();
+
+    private bool IsTableInputActive(object? source) =>
+        IsTableInputSource(source) ||
+        IsTableInputSource(TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement());
 
     private static bool IsScrollBarInputSource(object? source) =>
         source is Visual visual &&

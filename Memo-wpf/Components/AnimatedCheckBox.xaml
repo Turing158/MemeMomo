@@ -1,0 +1,158 @@
+<CheckBox x:Class="Memo.Components.AnimatedCheckBox"
+          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+          xmlns:ui="clr-namespace:Memo.UI"
+          MinHeight="44"
+          Padding="0,3"
+          Background="{DynamicResource TransparentBrush}"
+          BorderThickness="0"
+          Cursor="Hand"
+          FocusVisualStyle="{x:Null}"
+          ui:InteractionAnimations.Profile="Button"
+          ui:InteractionAnimations.TargetName="IndicatorMotionSurface"
+          ui:InteractionAnimations.HoverScale="1"
+          ui:InteractionAnimations.PressedScale="0.94"
+          ui:InteractionAnimations.SurfaceHoverLayerName="IndicatorHoverLayer"
+          ui:InteractionAnimations.SurfacePressedLayerName="IndicatorPressedLayer"
+          HorizontalContentAlignment="Stretch"
+          VerticalContentAlignment="Center">
+    <CheckBox.Template>
+    <ControlTemplate TargetType="{x:Type CheckBox}">
+      <Border MinHeight="{TemplateBinding MinHeight}"
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+          <Grid Grid.Column="1" Width="28" Height="28" Margin="16,0,0,0">
+            <Border x:Name="PART_Indicator"
+                    Width="20"
+                    Height="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource BgSecondaryBrush}"
+                    BorderBrush="{DynamicResource BorderDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+              <!-- Keep the frame fixed; only the fill and glyph respond to press/release. -->
+              <Grid>
+                <Grid x:Name="IndicatorMotionSurface"
+                      RenderTransformOrigin="0.5,0.5">
+                  <Border x:Name="IndicatorBaseLayer"
+                          Background="{DynamicResource AccentPrimaryBrush}"
+                          CornerRadius="5"
+                          IsHitTestVisible="False"
+                          Opacity="0"
+                          RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                      <ScaleTransform ScaleX="0.65" ScaleY="0.65" />
+                    </Border.RenderTransform>
+                  </Border>
+                  <Border x:Name="IndicatorHoverLayer"
+                          CornerRadius="5"
+                          IsHitTestVisible="False"
+                          Opacity="0">
+                    <Border.Style>
+                      <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Border.Style>
+                  </Border>
+                  <Border x:Name="IndicatorPressedLayer"
+                          CornerRadius="5"
+                          IsHitTestVisible="False"
+                          Opacity="0">
+                    <Border.Style>
+                      <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Border.Style>
+                  </Border>
+                  <Path x:Name="PART_CheckMark"
+                        Width="14"
+                        Height="14"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Data="M1.5,7.5 L3.1,5.9 L5.8,8.6 L11.2,3.2 L12.8,4.8 L5.8,11.8 Z"
+                        Fill="{DynamicResource TextOnAccentBrush}"
+                        IsHitTestVisible="False"
+                        Opacity="0"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Path.RenderTransform>
+                      <ScaleTransform ScaleX="0.65" ScaleY="0.65" />
+                    </Path.RenderTransform>
+                  </Path>
+                  <Border x:Name="PART_IndeterminateMark"
+                          Width="10"
+                          Height="2"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          Background="{DynamicResource TextOnAccentBrush}"
+                          CornerRadius="1"
+                          IsHitTestVisible="False"
+                          Opacity="0"
+                          RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                      <ScaleTransform ScaleX="0.65" ScaleY="0.65" />
+                    </Border.RenderTransform>
+                  </Border>
+                </Grid>
+                <Grid x:Name="IndicatorPressPreview"
+                      IsHitTestVisible="False"
+                      Opacity="0"
+                      RenderTransformOrigin="0.5,0.5">
+                  <Grid.RenderTransform>
+                    <ScaleTransform ScaleX="0" ScaleY="0" />
+                  </Grid.RenderTransform>
+                  <Border Background="{DynamicResource AccentPrimaryBrush}"
+                          CornerRadius="5" />
+                  <Path Width="14"
+                        Height="14"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Data="M1.5,7.5 L3.1,5.9 L5.8,8.6 L11.2,3.2 L12.8,4.8 L5.8,11.8 Z"
+                        Fill="{DynamicResource TextOnAccentBrush}"
+                        IsHitTestVisible="False" />
+                </Grid>
+              </Grid>
+            </Border>
+          </Grid>
+        </Grid>
+      </Border>
+      <ControlTemplate.Triggers>
+        <Trigger Property="IsChecked" Value="True">
+          <Setter TargetName="PART_Indicator" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+        </Trigger>
+        <Trigger Property="IsChecked" Value="{x:Null}">
+          <Setter TargetName="PART_Indicator" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.5" />
+          <Setter Property="Cursor" Value="Arrow" />
+        </Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate>
+  </CheckBox.Template>
+</CheckBox>
