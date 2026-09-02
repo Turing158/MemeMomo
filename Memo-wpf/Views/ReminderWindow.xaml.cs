@@ -19,7 +19,6 @@ public partial class ReminderWindow : BorderlessWindow
     private Func<MemoItem, DateTime?, Task> _saveReminderAsync = static (_, _) => Task.CompletedTask;
     private bool _busy;
     private bool _closeRequested;
-    private bool _dateIsValid = true;
 
     public ReminderWindow()
     {
@@ -52,7 +51,7 @@ public partial class ReminderWindow : BorderlessWindow
     public bool IsBusy => _busy;
     public string ErrorMessage => ErrorText.Text;
     internal DateTime? SelectedReminderAt => TryGetSelectedDateTime(out DateTime value) ? value : null;
-    internal DatePicker DatePickerPart => DatePicker;
+    internal DateFieldSelector DateFieldPart => DateField;
     internal TimeWheelSelector TimeWheelPart => TimeWheel;
     internal void CloseImmediatelyForTest() => CloseImmediately();
 
@@ -213,24 +212,19 @@ public partial class ReminderWindow : BorderlessWindow
         ScheduleButton.Content = busy ? "正在保存…" : "设置提醒";
     }
 
-    private void OnSelectedDateChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnSelectedDateChanged(object? sender, DateSelectionChangedEventArgs e)
     {
-        _dateIsValid = DatePicker.SelectedDate is not null;
-        if (_dateIsValid) ErrorText.Text = string.Empty;
-    }
-
-    private void OnDateValidationError(object? sender, DatePickerDateValidationErrorEventArgs e)
-    {
-        e.ThrowException = false;
-        _dateIsValid = false;
-        ShowError("日期格式无效，请输入 yyyy-MM-dd 或从日历选择。");
+        if (DateField.SelectedDate is not null)
+        {
+            ErrorText.Text = string.Empty;
+        }
     }
 
     private void OnTimeChanged(object? sender, EventArgs e) { }
 
     private bool TryGetSelectedDateTime(out DateTime value)
     {
-        if (!_dateIsValid || DatePicker.SelectedDate is not DateTime date)
+        if (DateField.SelectedDate is not DateTime date)
         {
             value = default;
             return false;
@@ -245,8 +239,7 @@ public partial class ReminderWindow : BorderlessWindow
     {
         DateTime local = value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value;
         local = DateTime.SpecifyKind(local, DateTimeKind.Local);
-        _dateIsValid = true;
-        DatePicker.SelectedDate = local.Date;
+        DateField.SelectedDate = local.Date;
         TimeWheel.SetTime(local.TimeOfDay);
     }
 

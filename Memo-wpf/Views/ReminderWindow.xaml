@@ -51,18 +51,10 @@
             <Button Content="1小时后" Tag="3600" Margin="3,0,0,0" Style="{StaticResource MemoBaseButtonStyle}" Height="32" Padding="4,0" Click="OnQuickTimeClick" AutomationProperties.Name="设置为1小时后" />
           </UniformGrid>
 
-          <Border Margin="0,10,0,0" Height="42" Background="{DynamicResource BgSecondaryBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="9">
-            <DatePicker x:Name="DatePicker"
-                        ui:InteractionAnimations.Profile="Surface"
-                        SelectedDateFormat="Short"
-                        SelectedDateChanged="OnSelectedDateChanged"
-                        DateValidationError="OnDateValidationError"
-                        Language="zh-CN"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center"
-                        FontSize="14"
-                        AutomationProperties.Name="提醒日期" />
-          </Border>
+          <components:DateFieldSelector x:Name="DateField"
+                                        Margin="0,10,0,0"
+                                        SelectedDateChanged="OnSelectedDateChanged"
+                                        AutomationProperties.Name="提醒日期" />
           <components:TimeWheelSelector x:Name="TimeWheel" Margin="0,10,0,0" AutomationProperties.Name="提醒时间" />
         </StackPanel>
       </Border>

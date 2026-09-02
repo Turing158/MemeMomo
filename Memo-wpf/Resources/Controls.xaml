@@ -609,6 +609,80 @@
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
 
+  <!-- DateFieldSelector: 月份导航按钮。透明常态，hover/press 由基样式的两层承担。
+       箭头由各按钮自带 Path 内容提供（旋转 ChevronDownIcon），Fill 绑到本样式的
+       Foreground，以便 hover 时随 IconHoverBrush 一起变化。 -->
+  <Style x:Key="CalendarNavigationButtonStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource IconDefaultBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ui:CornerRadiusProxy.Value" Value="6" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Foreground" Value="{DynamicResource IconHoverBrush}" />
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- DateFieldSelector: 日期格。选中态与今日态由 InteractionState 触发器驱动，
+       两者重合时只呈现选中态（选中 setter 位于今日 setter 之后）。 -->
+  <Style x:Key="CalendarDayCellStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ui:CornerRadiusProxy.Value" Value="6" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsRevealed), RelativeSource={RelativeSource Self}}" Value="True">
+        <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsSelected), RelativeSource={RelativeSource Self}}" Value="True">
+        <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- DateFieldSelector: 相邻月日期格。文字降级，其余与当月一致。 -->
+  <Style x:Key="CalendarAdjacentDayCellStyle" TargetType="Button" BasedOn="{StaticResource CalendarDayCellStyle}">
+    <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+  </Style>
+
+  <!-- DateFieldSelector: 标题按钮（年月 / 年份 / 年份区间）。透明常态，点击逐级上钻。 -->
+  <Style x:Key="CalendarHeaderButtonStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+    <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource TransparentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ui:CornerRadiusProxy.Value" Value="6" />
+  </Style>
+
+  <!-- DateFieldSelector: 月份格与年份格。与日期格同源，仅尺寸与字号不同。 -->
+  <Style x:Key="CalendarUnitCellStyle" TargetType="Button" BasedOn="{StaticResource CalendarDayCellStyle}">
+    <Setter Property="FontSize" Value="14" />
+  </Style>
+
+  <!-- DateFieldSelector: 年份视图里越出当前区间的补位年份，文字降级。 -->
+  <Style x:Key="CalendarAdjacentUnitCellStyle" TargetType="Button" BasedOn="{StaticResource CalendarUnitCellStyle}">
+    <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+  </Style>
+
     <Style x:Key="DialogPrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogActionButtonStyle}">
     <Setter Property="MinWidth" Value="116" />
     <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
