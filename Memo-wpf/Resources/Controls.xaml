@@ -652,6 +652,8 @@
         <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
+        <Setter Property="ui:InteractionAnimations.HoverBackground" Value="{DynamicResource AccentHoverBrush}" />
+        <Setter Property="ui:InteractionAnimations.PressedBackground" Value="{DynamicResource AccentPressedBrush}" />
       </DataTrigger>
     </Style.Triggers>
   </Style>

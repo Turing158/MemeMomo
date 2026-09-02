@@ -29,6 +29,10 @@ public partial class DateFieldSelector : WpfUserControl
     internal const int PickerCellCount = PickerColumns * PickerRows;
     internal const int YearsPerDecade = 10;
 
+    // Keep the cell's 1 DIP vertical margins inside each row so the rounded
+    // bottom edge has a full layout slot to render into.
+    private const double DayCellSize = 34;
+    private const double DayRowHeight = DayCellSize + 2;
     private const double PickerRowHeight = 46;
 
     /// <summary>
@@ -69,6 +73,7 @@ public partial class DateFieldSelector : WpfUserControl
 
         Field.MouseLeftButtonUp += OnFieldClick;
         Field.KeyDown += OnFieldKeyDown;
+        CalendarPopup.Closed += OnCalendarPopupClosed;
         HeaderButton.Click += OnHeaderClick;
         PreviousMonthButton.Click += (_, _) => StepLevel(-1);
         NextMonthButton.Click += (_, _) => StepLevel(1);
@@ -218,6 +223,10 @@ public partial class DateFieldSelector : WpfUserControl
             Field.ReleaseMouseCapture();
         }
 
+        // 先复位组件状态，再关闭 Popup，避免 Closed 回调在卸载期间重新启动动画。
+        IsDropDownOpen = false;
+        Field.SetResourceReference(Border.BorderBrushProperty, "BorderDefaultBrush");
+        FieldChevronRotation.Angle = 0;
         PopupAnimations.Close(CalendarPopup, immediate: true, restoreFocus: false);
 
         // Close() only releases the dismissal monitor's global input hook through the
@@ -225,8 +234,23 @@ public partial class DateFieldSelector : WpfUserControl
         // first. Disabling the attachment disposes that state outright, so the
         // InputManager subscription cannot outlive the control.
         PopupAnimations.SetIsEnabled(CalendarPopup, false);
-        IsDropDownOpen = false;
         DetachOwnerWindow();
+    }
+
+    /// <summary>
+    /// PopupDismissalMonitor 直接关闭 Popup 时不会经过 CloseDropDown，
+    /// 因此必须从 Popup 的实际 Closed 事件同步字段状态，否则下一次点击会被误判为“再次关闭”。
+    /// </summary>
+    private void OnCalendarPopupClosed(object? sender, EventArgs e)
+    {
+        if (!IsDropDownOpen)
+        {
+            return;
+        }
+
+        IsDropDownOpen = false;
+        Field.SetResourceReference(Border.BorderBrushProperty, "BorderDefaultBrush");
+        AnimateChevron(0);
     }
 
     private void BuildWeekdayHeader()
@@ -257,7 +281,7 @@ public partial class DateFieldSelector : WpfUserControl
 
         for (int row = 0; row < WeekCount; row++)
         {
-            MonthGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+            MonthGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(DayRowHeight) });
         }
 
         for (int index = 0; index < CellCount; index++)
@@ -265,7 +289,7 @@ public partial class DateFieldSelector : WpfUserControl
             WpfButton cell = new()
             {
                 Name = $"DayCell{index}",
-                Height = 34,
+                Height = DayCellSize,
                 Margin = new Thickness(1),
                 Focusable = true,
                 Tag = index,
@@ -440,7 +464,6 @@ public partial class DateFieldSelector : WpfUserControl
     {
         DateTime month = MonthOf(DisplayMonth == UnsetMonth ? DateTime.Today : DisplayMonth);
         DateTime today = DateTime.Today;
-        DateTime? selected = SelectedDate?.Date;
 
         for (int index = 0; index < PickerCellCount; index++)
         {
@@ -452,7 +475,9 @@ public partial class DateFieldSelector : WpfUserControl
             cell.SetValue(AutomationProperties.NameProperty, $"{month.Year} 年 {monthNumber} 月");
             cell.SetResourceReference(StyleProperty, "CalendarUnitCellStyle");
 
-            bool isSelected = selected is { } pick && pick.Year == month.Year && pick.Month == monthNumber;
+            // 月份层级表示当前正在浏览的月份，而不是仍可能停留在旧月份的
+            // SelectedDate。选中年份后回到月份层级时，active 必须跟随 DisplayMonth。
+            bool isSelected = month.Month == monthNumber;
             InteractionState.SetIsSelected(cell, isSelected);
             InteractionState.SetIsRevealed(
                 cell,
@@ -463,7 +488,7 @@ public partial class DateFieldSelector : WpfUserControl
     private void RefreshYearPicker()
     {
         int today = DateTime.Today.Year;
-        int? selected = SelectedDate?.Year;
+        int displayedYear = MonthOf(DisplayMonth == UnsetMonth ? DateTime.Today : DisplayMonth).Year;
 
         for (int index = 0; index < PickerCellCount; index++)
         {
@@ -482,7 +507,9 @@ public partial class DateFieldSelector : WpfUserControl
                 StyleProperty,
                 inDecade ? "CalendarUnitCellStyle" : "CalendarAdjacentUnitCellStyle");
 
-            bool isSelected = inRange && selected == year;
+            // 年份层级同样跟随当前显示年份。SelectedDate 可能仍是用户进入
+            // picker 前的日期，不能让它覆盖刚刚浏览到的年份。
+            bool isSelected = inRange && displayedYear == year;
             InteractionState.SetIsSelected(cell, isSelected);
             InteractionState.SetIsRevealed(cell, inRange && !isSelected && year == today);
         }

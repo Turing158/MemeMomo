@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Memo.Infrastructure;
 using Memo.UI;
+using System.Windows.Threading;
 using Button = System.Windows.Controls.Button;
 using FontFamily = System.Windows.Media.FontFamily;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -300,8 +301,61 @@ public partial class TimeWheelSelector : UserControl
             ApplyPixelDelta(_pressedPart, _pressedWheel, delta);
             e.Handled = true;
         }
+        else if (_pressedOnStepButton
+            && sender is Border releaseTrack
+            && IsSameStepRegion(_pressY, e.GetPosition(releaseTrack).Y))
+        {
+            // The translated number strips can be the routed source even though
+            // their canvas is not hit-testable. Keep the upper/lower regions clickable.
+            bool routedThroughStepButton = IsStepButtonSource(e.OriginalSource);
+            Adjust(_pressedPart, _pressY < TimeWheelPhysics.ItemHeight ? -1 : 1);
+            if (routedThroughStepButton)
+            {
+                // A Button may still raise Click after this preview event. Suppress
+                // that duplicate, then clear the guard for the next pointer sequence.
+                _suppressStepClick = true;
+                _ = Dispatcher.BeginInvoke(
+                    DispatcherPriority.Input,
+                    new Action(() => _suppressStepClick = false));
+            }
+
+            e.Handled = true;
+        }
 
         EndPointerInteraction(startInertia: _isDragging);
+    }
+
+    private static bool IsSameStepRegion(double pressY, double releaseY)
+    {
+        if (pressY < TimeWheelPhysics.ItemHeight)
+        {
+            return releaseY >= 0 && releaseY < TimeWheelPhysics.ItemHeight;
+        }
+
+        return releaseY >= TimeWheelPhysics.ViewportHeight - TimeWheelPhysics.ItemHeight
+            && releaseY <= TimeWheelPhysics.ViewportHeight;
+    }
+
+    private static bool IsStepButtonSource(object? source)
+    {
+        DependencyObject? current = source as DependencyObject;
+        if (current is null)
+        {
+            return false;
+        }
+
+        while (current is not null)
+        {
+            if (current is Button)
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current)
+                ?? (current as FrameworkElement)?.TemplatedParent;
+        }
+
+        return false;
     }
 
     private void OnWheelLostMouseCapture(object sender, MouseEventArgs e)

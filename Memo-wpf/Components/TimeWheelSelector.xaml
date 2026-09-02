@@ -22,12 +22,13 @@
         </Trigger>
       </Style.Triggers>
     </Style>
-        <Style x:Key="TimeWheelStepStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+    <Style x:Key="TimeWheelStepStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
       <Setter Property="Height" Value="32" />
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
       <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="ui:CornerRadiusProxy.Value" Value="0" />
       <Setter Property="FocusVisualStyle" Value="{x:Null}" />
       <Setter Property="Focusable" Value="False" />
       <Setter Property="Cursor" Value="Hand" />
@@ -37,10 +38,19 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="StepSurface" Background="{TemplateBinding Background}" ClipToBounds="True">
+            <Border x:Name="StepSurface"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="{TemplateBinding ui:CornerRadiusProxy.Value}"
+                    ClipToBounds="True">
               <Grid>
-                <Border x:Name="StepHoverLayer" Background="{DynamicResource BgHoverBrush}" Opacity="0" />
-                <Border x:Name="StepPressedLayer" Background="{DynamicResource SurfaceActiveBrush}" Opacity="0" />
+                <Border x:Name="StepHoverLayer"
+                        Background="{DynamicResource BgHoverBrush}"
+                        CornerRadius="{Binding Path=(ui:CornerRadiusProxy.Value), RelativeSource={RelativeSource TemplatedParent}}"
+                        Opacity="0" />
+                <Border x:Name="StepPressedLayer"
+                        Background="{DynamicResource SurfaceActiveBrush}"
+                        CornerRadius="{Binding Path=(ui:CornerRadiusProxy.Value), RelativeSource={RelativeSource TemplatedParent}}"
+                        Opacity="0" />
                 <Grid x:Name="StepContent" RenderTransformOrigin="0.5,0.5">
                   <ContentPresenter />
                 </Grid>
@@ -91,8 +101,17 @@
                 IsHitTestVisible="False" />
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-          <Button Tag="Hour:-1" AutomationProperties.Name="上一小时" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
-          <Button Grid.Row="2" Tag="Hour:1" AutomationProperties.Name="下一小时" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
+          <Button Tag="Hour:-1"
+                  AutomationProperties.Name="上一小时"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="9,9,0,0"
+                  Click="OnStepClick" />
+          <Button Grid.Row="2"
+                  Tag="Hour:1"
+                  AutomationProperties.Name="下一小时"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="0,0,9,9"
+                  Click="OnStepClick" />
         </Grid>
         <!-- Keep the translated full-height strips inside a finite viewport. -->
         <Canvas x:Name="HourNumberViewport" ClipToBounds="True" IsHitTestVisible="False">
@@ -115,8 +134,17 @@
       <Grid ClipToBounds="True">
         <Border Height="32" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="0,1" IsHitTestVisible="False" />
         <Grid><Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-          <Button Tag="Minute:-1" AutomationProperties.Name="上一分钟" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
-          <Button Grid.Row="2" Tag="Minute:1" AutomationProperties.Name="下一分钟" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
+          <Button Tag="Minute:-1"
+                  AutomationProperties.Name="上一分钟"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="9,9,0,0"
+                  Click="OnStepClick" />
+          <Button Grid.Row="2"
+                  Tag="Minute:1"
+                  AutomationProperties.Name="下一分钟"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="0,0,9,9"
+                  Click="OnStepClick" />
         </Grid>
         <Canvas x:Name="MinuteNumberViewport" ClipToBounds="True" IsHitTestVisible="False">
           <StackPanel x:Name="MinutePrimaryStrip" Width="{Binding ActualWidth, ElementName=MinuteNumberViewport}"><StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform></StackPanel>
@@ -138,8 +166,17 @@
       <Grid ClipToBounds="True">
         <Border Height="32" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="0,1" IsHitTestVisible="False" />
         <Grid><Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-          <Button Tag="Second:-1" AutomationProperties.Name="上一秒" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
-          <Button Grid.Row="2" Tag="Second:1" AutomationProperties.Name="下一秒" Style="{StaticResource TimeWheelStepStyle}" Click="OnStepClick" />
+          <Button Tag="Second:-1"
+                  AutomationProperties.Name="上一秒"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="9,9,0,0"
+                  Click="OnStepClick" />
+          <Button Grid.Row="2"
+                  Tag="Second:1"
+                  AutomationProperties.Name="下一秒"
+                  Style="{StaticResource TimeWheelStepStyle}"
+                  ui:CornerRadiusProxy.Value="0,0,9,9"
+                  Click="OnStepClick" />
         </Grid>
         <Canvas x:Name="SecondNumberViewport" ClipToBounds="True" IsHitTestVisible="False">
           <StackPanel x:Name="SecondPrimaryStrip" Width="{Binding ActualWidth, ElementName=SecondNumberViewport}"><StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform></StackPanel>
