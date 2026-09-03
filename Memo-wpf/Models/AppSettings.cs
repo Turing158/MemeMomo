@@ -29,6 +29,8 @@ public class AppSettings
     public bool ShowMemoWindowTaskbarIcon { get; set; }
     /// <summary>快速添加后自动显示便签：依赖 QuickMemoEnabled，仅在启用快速粘贴时才生效。</summary>
     public bool QuickMemoShowPopoutAfterAdd { get; set; }
+    /// <summary>提醒到期时的投递方式：系统通知 / 应用内窗口 / 两者。旧 settings.json 无此键时回落 SystemToast。</summary>
+    public ReminderNotificationMode ReminderNotification { get; set; } = ReminderNotificationMode.SystemToast;
 
     public bool MainWindowDockEnabled { get; set; } = true;
     public bool MainWindowDocked { get; set; }
@@ -82,6 +84,7 @@ public class AppSettings
         target.ShowMainWindowTaskbarIcon = ShowMainWindowTaskbarIcon;
         target.ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarIcon;
         target.QuickMemoShowPopoutAfterAdd = QuickMemoShowPopoutAfterAdd;
+        target.ReminderNotification = ReminderNotification;
         target.MainWindowDockEnabled = MainWindowDockEnabled;
         target.MainWindowDockSize = MainWindowDockSize;
     }
@@ -126,6 +129,7 @@ public class AppSettings
         ShowMainWindowTaskbarIcon = ShowMainWindowTaskbarIcon,
         ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarIcon,
         QuickMemoShowPopoutAfterAdd = QuickMemoShowPopoutAfterAdd,
+        ReminderNotification = ReminderNotification,
         MainWindowDockEnabled = MainWindowDockEnabled,
         MainWindowDocked = MainWindowDocked,
         MainWindowDockSize = MainWindowDockSize,

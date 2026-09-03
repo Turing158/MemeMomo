@@ -38,6 +38,7 @@ public class JsonSettingsStorage
             var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
             if (!Enum.IsDefined(settings.ThemeMode)) settings.ThemeMode = ThemeMode.FollowSystem;
             if (!Enum.IsDefined(settings.MotionMode)) settings.MotionMode = MotionMode.AlwaysOn;
+            if (!Enum.IsDefined(settings.ReminderNotification)) settings.ReminderNotification = ReminderNotificationMode.SystemToast;
             settings.MainWindowDockSize = Math.Clamp(
                 settings.MainWindowDockSize,
                 AppSettings.MinimumMainWindowDockSize,

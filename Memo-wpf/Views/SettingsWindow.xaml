@@ -80,6 +80,14 @@
           </StackPanel>
         </Border>
 
+        <Border Margin="0,12,0,0" Style="{StaticResource SettingsCardStyle}">
+          <StackPanel>
+            <TextBlock Style="{StaticResource SectionTitleStyle}" Text="提醒方式" />
+            <TextBlock Style="{StaticResource DescriptionStyle}" Text="系统通知会遵循 Windows 的免打扰设置" />
+            <components:SegmentedSelector x:Name="ReminderNotificationSelector" Margin="0,10,0,0" AutomationProperties.Name="提醒方式" />
+          </StackPanel>
+        </Border>
+
         <components:CollapsibleSection x:Name="DockSizeSection" SpacingCompensation="12">
           <Border Margin="0,12,0,0" Style="{StaticResource SettingsCardStyle}"><StackPanel><TextBlock Style="{StaticResource SectionTitleStyle}" Text="贴边方块大小" /><TextBlock Style="{StaticResource DescriptionStyle}" Text="调整主窗口贴边收起后的方块尺寸" /><components:AnimatedSlider x:Name="DockSizeSlider" Minimum="30" Maximum="75" Step="1" ValueSuffix="px" AutomationProperties.Name="贴边方块大小" /></StackPanel></Border>
         </components:CollapsibleSection>

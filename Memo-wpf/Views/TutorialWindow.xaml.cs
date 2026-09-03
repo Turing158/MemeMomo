@@ -114,7 +114,8 @@ public partial class TutorialWindow : BorderlessWindow
             "托盘菜单提供：打开备忘录、新建备忘录、窗口置顶、退出应用。",
             "",
             "十、其它设置",
-            "快速添加、动效、主题、贴边、任务栏图标等设置均会即时应用并自动保存。"
+            "快速添加、动效、主题、贴边、任务栏图标等设置均会即时应用并自动保存。",
+            "提醒到期默认逐条发送 Windows 系统通知（遵循系统免打扰设置）；可在设置的「提醒方式」中改为应用内窗口弹出。"
         ]);
         TutorialContent.Text = string.Join("\n", lines);
     }

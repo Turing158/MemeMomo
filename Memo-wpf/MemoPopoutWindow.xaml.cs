@@ -111,6 +111,9 @@ public partial class MemoPopoutWindow : BorderlessWindow
         _dockPopLengthSaver = savePopLength;
     }
 
+    /// <summary>程序化退出贴边并还原为完整浮动窗口（点击系统通知等外部入口）。返回是否发起了弹出。</summary>
+    public bool PopOutFromDock() => _dockController?.PopOutFromDock() ?? false;
+
     public void TogglePinned() => SetPinned(!Topmost);
 
     public void SetPinned(bool isPinned)

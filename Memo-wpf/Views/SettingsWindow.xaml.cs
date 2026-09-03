@@ -145,9 +145,16 @@ public partial class SettingsWindow : BorderlessWindow
             new(nameof(MotionMode.AlwaysOn), "始终开启"),
             new(nameof(MotionMode.Off), "关闭")
         ];
+        ReminderNotificationSelector.Options =
+        [
+            new(nameof(ReminderNotificationMode.SystemToast), "系统通知"),
+            new(nameof(ReminderNotificationMode.InAppWindow), "应用内窗口"),
+            new(nameof(ReminderNotificationMode.Both), "两者")
+        ];
         CloseActionSelector.SelectionChanged += OnCloseActionSelectionChanged;
         ThemeSelector.SelectionChanged += OnThemeSelectionChanged;
         MotionSelector.SelectionChanged += OnMotionSelectionChanged;
+        ReminderNotificationSelector.SelectionChanged += OnReminderNotificationSelectionChanged;
     }
 
     private void ApplySettingsToUi()
@@ -162,6 +169,7 @@ public partial class SettingsWindow : BorderlessWindow
             CloseActionSelector.SelectedKey = _settings.CloseButtonAction.ToString();
             ThemeSelector.SelectedKey = _settings.ThemeMode.ToString();
             MotionSelector.SelectedKey = _settings.MotionMode.ToString();
+            ReminderNotificationSelector.SelectedKey = _settings.ReminderNotification.ToString();
             QuickMemoEnabledCheckBox.IsChecked = _settings.QuickMemoEnabled;
             QuickMemoShowPopoutCheckBox.IsChecked = _settings.QuickMemoShowPopoutAfterAdd;
             DuplicateMemoCheckBox.IsChecked = _settings.DuplicateMemoEnabled;
@@ -310,6 +318,14 @@ public partial class SettingsWindow : BorderlessWindow
         _settings.MotionMode = mode;
         MotionPreferences.ApplyMode(mode);
         UpdateMotionStatus();
+        CommitChange();
+    }
+
+    private void OnReminderNotificationSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
+    {
+        if (_applyingUi || !Enum.TryParse(e.NewKey, out ReminderNotificationMode mode) || _settings.ReminderNotification == mode) return;
+        _settings.ReminderNotification = mode;
+        // 该设置无即时运行时副作用：App 在保存回调后从 _settings 读取，下一条到期提醒即生效。
         CommitChange();
     }
 
@@ -586,5 +602,6 @@ public partial class SettingsWindow : BorderlessWindow
         CloseActionSelector.SelectionChanged -= OnCloseActionSelectionChanged;
         ThemeSelector.SelectionChanged -= OnThemeSelectionChanged;
         MotionSelector.SelectionChanged -= OnMotionSelectionChanged;
+        ReminderNotificationSelector.SelectionChanged -= OnReminderNotificationSelectionChanged;
     }
 }

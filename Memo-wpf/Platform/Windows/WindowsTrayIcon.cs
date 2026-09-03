@@ -1,19 +1,29 @@
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using Memo.Services;
 using WpfApplication = System.Windows.Application;
 
 namespace Memo.Platform.Windows;
 
 /// <summary>NotifyIcon adapter with the source single/double-click semantics.</summary>
-public sealed class WindowsTrayIcon : IDisposable
+public sealed class WindowsTrayIcon : IDisposable, IBalloonNotificationSink
 {
+    // 自 Vista 起 Shell 忽略该超时，实际显示时长由系统「通知显示时长」设置决定；节拍由 ReminderToastQueue 看门狗负责。
+    private const int BalloonTimeoutMilliseconds = 10000;
+
     private readonly NotifyIcon _notifyIcon;
     private readonly Action _showMenu;
     private readonly Action _showWindow;
     private bool _traySingleClickToShow;
     private long _lastShowTick;
     private int _disposed;
+
+    /// <summary>气泡被点击（含通知中心历史条目，Shell 是否回传由系统决定）。</summary>
+    public event Action? BalloonClicked;
+
+    /// <summary>气泡被用户关闭或超时消失（Win10/11 下不保证到达）。</summary>
+    public event Action? BalloonDismissed;
 
     public WindowsTrayIcon(Action showMenu, Action showWindow)
     {
@@ -28,6 +38,24 @@ public sealed class WindowsTrayIcon : IDisposable
         _notifyIcon.MouseUp += OnMouseUp;
         _notifyIcon.MouseClick += OnMouseClick;
         _notifyIcon.MouseDoubleClick += OnMouseDoubleClick;
+        _notifyIcon.BalloonTipClicked += OnBalloonTipClicked;
+        _notifyIcon.BalloonTipClosed += OnBalloonTipClosed;
+    }
+
+    /// <summary>通过常驻托盘图标发一条 Shell 气泡（即 Windows 系统通知）。失败只记调试输出，不得打断队列节拍。</summary>
+    public void ShowBalloon(string title, string body)
+    {
+        try
+        {
+            _notifyIcon.BalloonTipTitle = title;
+            _notifyIcon.BalloonTipText = body;
+            _notifyIcon.BalloonTipIcon = ToolTipIcon.None;
+            _notifyIcon.ShowBalloonTip(BalloonTimeoutMilliseconds);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Tray] balloon show failed: {exception.Message}");
+        }
     }
 
     public bool TraySingleClickToShow
@@ -53,6 +81,10 @@ public sealed class WindowsTrayIcon : IDisposable
         if (!_traySingleClickToShow && e.Button == MouseButtons.Left) ShowWindowOncePerClickSequence();
     }
 
+    private void OnBalloonTipClicked(object? sender, EventArgs e) => BalloonClicked?.Invoke();
+
+    private void OnBalloonTipClosed(object? sender, EventArgs e) => BalloonDismissed?.Invoke();
+
     private void ShowWindowOncePerClickSequence()
     {
         long now = Environment.TickCount64;
@@ -71,6 +103,8 @@ public sealed class WindowsTrayIcon : IDisposable
         _notifyIcon.MouseUp -= OnMouseUp;
         _notifyIcon.MouseClick -= OnMouseClick;
         _notifyIcon.MouseDoubleClick -= OnMouseDoubleClick;
+        _notifyIcon.BalloonTipClicked -= OnBalloonTipClicked;
+        _notifyIcon.BalloonTipClosed -= OnBalloonTipClosed;
         _notifyIcon.Visible = false;
         _notifyIcon.Icon?.Dispose();
         _notifyIcon.Dispose();

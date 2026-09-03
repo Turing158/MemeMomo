@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
     private TrayMenuWindow? _trayMenu;
     private WindowsTrayIcon? _trayIcon;
     private GlobalHotkeyService? _hotkeyService;
+    private readonly ReminderToastQueue _toastQueue = new();
     private DispatcherTimer? _reminderTimer;
     private string? _lastClipboardText;
     private bool _settingsFailureDialogVisible;
@@ -152,7 +153,7 @@ public partial class App : System.Windows.Application
         return OpenMemoPopout(memo, position, alwaysReuse);
     }
 
-    private MemoPopoutWindow? OpenMemoPopout(MemoItem memo, WpfPoint position, bool alwaysReuse)
+    private MemoPopoutWindow? OpenMemoPopout(MemoItem memo, WpfPoint position, bool alwaysReuse, bool popOutFromDock = false)
     {
         ArgumentNullException.ThrowIfNull(memo);
         if (_typedMainWindow is null)
@@ -175,6 +176,14 @@ public partial class App : System.Windows.Application
                 }
                 if (existing.IsEdgeDocked)
                 {
+                    if (popOutFromDock && existing.PopOutFromDock())
+                    {
+                        // 显式查看入口（点击系统通知）：贴边便签自动脱离贴边，弹出完整窗口。
+                        SetLatestMemoPopout(existing);
+                        existing.Activate();
+                        return existing;
+                    }
+
                     // 贴边中的便签保持原位：不移动、不抢焦点，只刷新引用。
                     SetLatestMemoPopout(existing);
                     return existing;
@@ -204,7 +213,7 @@ public partial class App : System.Windows.Application
         return popout;
     }
 
-    internal MemoPopoutWindow? OpenMemoPopoutCenteredForTest(MemoItem memo)
+    internal MemoPopoutWindow? OpenMemoPopoutCentered(MemoItem memo, bool popOutFromDock = false)
     {
         if (_typedMainWindow is null)
         {
@@ -215,7 +224,11 @@ public partial class App : System.Windows.Application
         WpfRect placement = MemoWindowPlacement.CenterPixels(
             new WpfSize(MemoWindowPlacement.DefaultWidthDip, MemoWindowPlacement.DefaultHeightDip),
             monitor);
-        return OpenMemoPopout(memo, new WpfPoint(placement.Left, placement.Top), alwaysReuse: true);
+        return OpenMemoPopout(
+            memo,
+            new WpfPoint(placement.Left, placement.Top),
+            alwaysReuse: true,
+            popOutFromDock);
     }
 
     private void OnReminderRequested(MemoPopoutWindow popout, MemoItem memo)
@@ -281,7 +294,11 @@ public partial class App : System.Windows.Application
         timer.Tick -= OnReminderTimerTick;
     }
 
-    private void OnReminderTimerTick(object? sender, EventArgs e) => CheckDueReminders();
+    private void OnReminderTimerTick(object? sender, EventArgs e)
+    {
+        CheckDueReminders();
+        _toastQueue.Pump(Utils.DateTimeUtils.Now);
+    }
 
     private void OnMemosLoaded() => CheckDueReminders();
 
@@ -300,10 +317,71 @@ public partial class App : System.Windows.Application
 
         foreach (MemoItem memo in dueMemos)
         {
-            _ = OpenMemoPopoutCenteredForTest(memo);
+            switch (_settings.ReminderNotification)
+            {
+                case ReminderNotificationMode.InAppWindow:
+                    _ = OpenMemoPopoutCentered(memo);
+                    break;
+                case ReminderNotificationMode.Both:
+                    _ = OpenMemoPopoutCentered(memo);
+                    _toastQueue.Enqueue(memo.Id, memo.Title, memo.Subtitle);
+                    break;
+                default:
+                    // 队列溢出（32 条上限）时该条改走应用内弹窗，不静默丢弃提醒。
+                    if (!_toastQueue.Enqueue(memo.Id, memo.Title, memo.Subtitle))
+                    {
+                        _ = OpenMemoPopoutCentered(memo);
+                    }
+
+                    break;
+            }
         }
 
         _ = _typedMainWindow.ViewModel.SaveAsync();
+    }
+
+    private void OnBalloonClicked()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            OpenMemoFromBalloon();
+        }
+        else
+        {
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(OpenMemoFromBalloon));
+        }
+    }
+
+    private void OnBalloonDismissed()
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            _toastQueue.NotifyDismissed();
+        }
+        else
+        {
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(_toastQueue.NotifyDismissed));
+        }
+    }
+
+    private void OpenMemoFromBalloon()
+    {
+        // 通知中心历史条目的点击可能不回传或迟于看门狗结束（memoId 为 null），
+        // 且对应便签可能已被删除；两种情况都退化为恢复主窗口。
+        Guid? memoId = _toastQueue.NotifyClicked();
+        MemoItem? memo = memoId is { } id
+            ? _typedMainWindow?.ViewModel.Memos.FirstOrDefault(item => item.Id == id)
+            : null;
+        if (memo is not null)
+        {
+            _ = OpenMemoPopoutCentered(memo, popOutFromDock: true);
+            return;
+        }
+
+        if (_typedMainWindow is not null)
+        {
+            RestoreWindow(_typedMainWindow);
+        }
     }
 
     private void OnPopoutActivated(object? sender, EventArgs e)
@@ -363,6 +441,7 @@ public partial class App : System.Windows.Application
 
     private void OnMemoDeleted(Guid memoId)
     {
+        _toastQueue.Cancel(memoId);
         foreach (MemoPopoutWindow popout in _memoPopouts.Where(window => window.Memo.Id == memoId).ToArray())
         {
             popout.CloseBecauseSourceDeleted();
@@ -396,6 +475,9 @@ public partial class App : System.Windows.Application
         {
             TraySingleClickToShow = _settings.TraySingleClickToShow
         };
+        _trayIcon.BalloonClicked += OnBalloonClicked;
+        _trayIcon.BalloonDismissed += OnBalloonDismissed;
+        _toastQueue.Sink = _trayIcon;
 
         _hotkeyService = new GlobalHotkeyService();
         _hotkeyService.RestoreRequested += OnRestoreRequested;
@@ -428,7 +510,15 @@ public partial class App : System.Windows.Application
 
         WindowsTrayIcon? trayIcon = _trayIcon;
         _trayIcon = null;
-        trayIcon?.Dispose();
+        if (trayIcon is not null)
+        {
+            trayIcon.BalloonClicked -= OnBalloonClicked;
+            trayIcon.BalloonDismissed -= OnBalloonDismissed;
+            trayIcon.Dispose();
+        }
+
+        _toastQueue.Sink = null;
+        _toastQueue.Clear();
     }
 
     private void OnRestoreRequested()

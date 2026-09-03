@@ -706,6 +706,47 @@ internal sealed class MemoPopoutDockController : IDisposable
     private WpfRect DefaultFloatingBounds() =>
         new(_window.Left, _window.Top, MemoWindowPlacement.DefaultWidthDip, MemoWindowPlacement.DefaultHeightDip);
 
+    // —— 程序化弹出 ——
+
+    /// <summary>
+    /// 程序化退出贴边（点击系统通知等无指针手势的外部入口）：还原贴边前的浮动
+    /// rect，播放与手动脱离相同的还原 morph；morph 不锚定指针，完成后恢复浮动
+    /// 尺寸约束即结束，不接回拖动。浮动态、手势进行中或已释放时返回 false。
+    /// </summary>
+    internal bool PopOutFromDock()
+    {
+        if (_disposed != 0
+            || !IsEdgeDocked
+            || _phase != MemoPopoutDragPhase.None)
+        {
+            return false;
+        }
+
+        WpfRect floatingSnapshot = _floatingBounds ?? DefaultFloatingBounds();
+        _mode = MemoPopoutDockMode.Floating;
+        _phase = MemoPopoutDragPhase.UndockMorph;
+        // 无指针可锚定：按窗口当前所在显示器重 clamp 快照，换屏/改布局后仍落在工作区内。
+        WpfRect target = MemoWindowPlacement.ClampFloatingBoundsDip(
+            floatingSnapshot,
+            MonitorForWindow());
+        BeginOpacityFade(1, MotionPreferences.FastDuration);
+        _window.ShowTabVisual(showTab: false, MotionPreferences.FastDuration);
+        RestoreFloatingChrome();
+        WpfRect tabBounds = LeaveStripMode();
+        BeginMorph(
+            target,
+            MotionPreferences.FastDuration,
+            MotionEasing.CubicEaseOut,
+            pointerAnchored: false,
+            from: tabBounds,
+            completed: () =>
+            {
+                _phase = MemoPopoutDragPhase.None;
+                RestoreFloatingSizeConstraints();
+            });
+        return true;
+    }
+
     // —— 窗口 chrome ——
 
     private void EnterDockChrome()
