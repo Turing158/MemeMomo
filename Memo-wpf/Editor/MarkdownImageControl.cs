@@ -6,9 +6,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit.Rendering;
 using Memo.Markdown;
+using Memo.UI;
 using Application = System.Windows.Application;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
@@ -53,6 +55,11 @@ internal sealed class MarkdownImageControl : Border
     private const double PlaceholderWidth = 132;
     private const double PlaceholderHeight = 72;
     private const double ImageMargin = 2;
+    private const double SpinnerSize = 16;
+    private const double SpinnerStrokeThickness = 2;
+    private const double SpinnerSweepDegrees = 285;
+    private const double SpinnerTextGap = 6;
+    private const double SpinnerRotationMilliseconds = 900;
     private const double ToolbarCloseDelayMilliseconds = 300;
     private const double ToolbarEdgeGap = 2;
     private const double ToolbarAnimationMilliseconds = 120;
@@ -79,6 +86,7 @@ internal sealed class MarkdownImageControl : Border
     private Point _lastToolbarPlacement;
     private BitmapSource? _bitmap;
     private Image? _image;
+    private Shape? _spinner;
     private CancellationTokenSource? _cancellation;
     private bool _loading;
     private int _loadGeneration;
@@ -125,17 +133,105 @@ internal sealed class MarkdownImageControl : Border
 
         MinWidth = PlaceholderWidth;
         MinHeight = PlaceholderHeight;
-        Child = new TextBlock
+        Child = BuildLoadingPlaceholder(span.AltText);
+    }
+
+    internal string ImageUri { get; }
+
+    /// <summary>
+    /// Builds the placeholder shown until the bitmap arrives: a spinning arc over the
+    /// alt text. The arc rotates only while in the visual tree — swapping the child in
+    /// <see cref="ApplyBitmap"/> unloads it and thereby stops its animation clock.
+    /// </summary>
+    private FrameworkElement BuildLoadingPlaceholder(string? altText)
+    {
+        TextBlock text = new()
         {
-            Text = string.IsNullOrWhiteSpace(span.AltText) ? "图片" : span.AltText,
-            Margin = new Thickness(8),
+            Text = string.IsNullOrWhiteSpace(altText) ? "图片" : altText,
+            Margin = new Thickness(8, 0, 8, 8),
             TextWrapping = TextWrapping.Wrap,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
+        StackPanel panel = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        panel.Children.Add(CreateSpinner());
+        panel.Children.Add(text);
+        return panel;
     }
 
-    internal string ImageUri { get; }
+    private Shape CreateSpinner()
+    {
+        double half = SpinnerSize / 2;
+        double radius = half - (SpinnerStrokeThickness / 2);
+        double sweepRadians = SpinnerSweepDegrees * Math.PI / 180;
+        PathFigure figure = new()
+        {
+            // Start at 12 o'clock and sweep clockwise, leaving the gap where a
+            // classic indeterminate spinner keeps its tail.
+            StartPoint = new Point(half, half - radius),
+            Segments =
+            {
+                new ArcSegment
+                {
+                    Point = new Point(
+                        half + (radius * Math.Sin(sweepRadians)),
+                        half - (radius * Math.Cos(sweepRadians))),
+                    Size = new Size(radius, radius),
+                    IsLargeArc = SpinnerSweepDegrees > 180,
+                    SweepDirection = SweepDirection.Clockwise
+                }
+            }
+        };
+        Path spinner = new()
+        {
+            Width = SpinnerSize,
+            Height = SpinnerSize,
+            Data = new PathGeometry([figure]),
+            StrokeThickness = SpinnerStrokeThickness,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            RenderTransform = new RotateTransform(0, half, half),
+            Margin = new Thickness(0, 0, 0, SpinnerTextGap),
+            IsHitTestVisible = false
+        };
+        spinner.SetResourceReference(Shape.StrokeProperty, "AccentPrimaryBrush");
+        spinner.Loaded += OnSpinnerLoaded;
+        spinner.Unloaded += OnSpinnerUnloaded;
+        _spinner = spinner;
+        return spinner;
+    }
+
+    private void OnSpinnerLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Path { RenderTransform: RotateTransform rotation } &&
+            MotionPreferences.AnimationsEnabled)
+        {
+            rotation.BeginAnimation(
+                RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(SpinnerRotationMilliseconds))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                });
+        }
+    }
+
+    private void OnSpinnerUnloaded(object sender, RoutedEventArgs e) => StopSpinnerAnimation();
+
+    /// <summary>
+    /// Halts the arc's rotation. Besides the arc's own Unloaded this runs on load
+    /// failure: a failed placeholder stays visible and must not keep implying progress.
+    /// </summary>
+    private void StopSpinnerAnimation()
+    {
+        if (_spinner?.RenderTransform is RotateTransform rotation)
+        {
+            rotation.BeginAnimation(RotateTransform.AngleProperty, null);
+        }
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -176,6 +272,10 @@ internal sealed class MarkdownImageControl : Border
             MarkdownImageLoadResult result = await _loader.LoadAsync(ImageUri, _cancellation.Token);
             if (!result.IsSuccess || generation != _loadGeneration)
             {
+                if (generation == _loadGeneration && !result.IsSuccess)
+                {
+                    StopSpinnerAnimation();
+                }
                 return;
             }
             // AvalonEdit can raise Loaded while the TextView is in its render pass, so
@@ -203,6 +303,7 @@ internal sealed class MarkdownImageControl : Border
     private void ApplyBitmap(BitmapSource bitmap)
     {
         _bitmap = bitmap;
+        StopSpinnerAnimation();
         if (_image is null)
         {
             _image = new Image

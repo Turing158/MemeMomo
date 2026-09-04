@@ -132,6 +132,28 @@ internal sealed class MemoPopoutDockController : IDisposable
 
     public bool IsEdgeDocked => _mode is MemoPopoutDockMode.Docked or MemoPopoutDockMode.DockedExpanded;
 
+    /// <summary>贴边功能开关（设置中的“便签贴边”）。关闭时拖到屏幕边缘不再触发贴边。</summary>
+    public bool EdgeDockEnabled { get; private set; } = true;
+
+    /// <summary>
+    /// 应用设置中的贴边开关。关闭时已贴边的便签立即程序化还原为浮动窗口
+    /// （与主窗口关闭贴边开关时立即还原展开态的行为一致）；手势进行中无法
+    /// 打断则保持现状，用户可手动拖出。
+    /// </summary>
+    public void SetEdgeDockEnabled(bool enabled)
+    {
+        if (EdgeDockEnabled == enabled)
+        {
+            return;
+        }
+
+        EdgeDockEnabled = enabled;
+        if (!enabled)
+        {
+            PopOutFromDock();
+        }
+    }
+
     /// <summary>挂接事件与原生钩子。须在窗口 Loaded 后调用（模板元素与 HWND 均已就绪）。</summary>
     internal void Attach()
     {
@@ -223,6 +245,12 @@ internal sealed class MemoPopoutDockController : IDisposable
 
     private void TryEnterPreviewFromDrag()
     {
+        // 设置关闭贴边时浮动拖动保持普通拖动：不到边缘判定，也不会进入贴边预览。
+        if (!EdgeDockEnabled)
+        {
+            return;
+        }
+
         // 与主窗口一致：按指针到工作区左/右边的距离判定贴边，与窗口位置无关。
         PixelMonitorInfo monitor = _monitors.FromPoint(_latestPointerPixels);
         MainWindowDockEdge? edge = MemoPopoutDockOptions.DetectSnapEdge(_latestPointerPixels, monitor.WorkingArea);

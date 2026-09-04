@@ -9,7 +9,7 @@ public class AppSettings
     public const int DefaultMainWindowDockSize = 44;
 
     public ThemeMode ThemeMode { get; set; } = ThemeMode.FollowSystem;
-    public MotionMode MotionMode { get; set; } = MotionMode.AlwaysOn;
+    public MotionMode MotionMode { get; set; } = MotionMode.FollowSystem;
     public CloseButtonAction CloseButtonAction { get; set; } = CloseButtonAction.MinimizeToTray;
     public bool HasAskedCloseButtonAction { get; set; }
     public HotkeySetting ToggleTopmostHotkey { get; set; } = new() { Key = "T", Ctrl = true, Alt = true };
@@ -28,9 +28,13 @@ public class AppSettings
     /// <summary>是否在独立便签标题栏显示任务栏图标开关。开启后每个窗口默认显示图标。</summary>
     public bool ShowMemoWindowTaskbarIcon { get; set; }
     /// <summary>快速添加后自动显示便签：依赖 QuickMemoEnabled，仅在启用快速粘贴时才生效。</summary>
-    public bool QuickMemoShowPopoutAfterAdd { get; set; }
+    public bool QuickMemoShowPopoutAfterAdd { get; set; } = true;
+    /// <summary>新建便签窗口默认置顶。已有便签的置顶状态由用户在窗口上单独控制，不持久化。</summary>
+    public bool MemoWindowTopmostByDefault { get; set; } = true;
     /// <summary>提醒到期时的投递方式：系统通知 / 应用内窗口 / 两者。旧 settings.json 无此键时回落 SystemToast。</summary>
     public ReminderNotificationMode ReminderNotification { get; set; } = ReminderNotificationMode.SystemToast;
+    /// <summary>便签贴边：拖动便签到屏幕左右边缘时收起为半圆标签。默认开启，旧 settings.json 无此键时同样视为开启。</summary>
+    public bool PopoutDockEnabled { get; set; } = true;
 
     public bool MainWindowDockEnabled { get; set; } = true;
     public bool MainWindowDocked { get; set; }
@@ -46,12 +50,12 @@ public class AppSettings
     public int MainWindowExpandedY { get; set; }
     public double MainWindowExpandedWidth { get; set; } = 420;
     public double MainWindowExpandedHeight { get; set; } = 680;
-    public bool MainWindowTopmost { get; set; }
+    public bool MainWindowTopmost { get; set; } = true;
 
     /// <summary>便签贴边状态（按 memo id 共享），存 settings.json 而非 memos.json。</summary>
     public PopoutDockSettings PopoutDock { get; set; } = new();
 
-    public static AppSettings CreateDefault() => new() { MotionMode = MotionMode.AlwaysOn };
+    public static AppSettings CreateDefault() => new();
 
     /// <summary>
     /// Copies every persisted and runtime setting into <paramref name="target"/>.
@@ -84,7 +88,9 @@ public class AppSettings
         target.ShowMainWindowTaskbarIcon = ShowMainWindowTaskbarIcon;
         target.ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarIcon;
         target.QuickMemoShowPopoutAfterAdd = QuickMemoShowPopoutAfterAdd;
+        target.MemoWindowTopmostByDefault = MemoWindowTopmostByDefault;
         target.ReminderNotification = ReminderNotification;
+        target.PopoutDockEnabled = PopoutDockEnabled;
         target.MainWindowDockEnabled = MainWindowDockEnabled;
         target.MainWindowDockSize = MainWindowDockSize;
     }
@@ -129,7 +135,9 @@ public class AppSettings
         ShowMainWindowTaskbarIcon = ShowMainWindowTaskbarIcon,
         ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarIcon,
         QuickMemoShowPopoutAfterAdd = QuickMemoShowPopoutAfterAdd,
+        MemoWindowTopmostByDefault = MemoWindowTopmostByDefault,
         ReminderNotification = ReminderNotification,
+        PopoutDockEnabled = PopoutDockEnabled,
         MainWindowDockEnabled = MainWindowDockEnabled,
         MainWindowDocked = MainWindowDocked,
         MainWindowDockSize = MainWindowDockSize,

@@ -124,12 +124,16 @@
                 ui:InteractionAnimations.HoverScale="1.04"
                 ui:InteractionAnimations.PressedScale="0.95"
                 MouseLeftButtonUp="OnTimeClick">
+            <!-- 容器宽度由更宽的 FullTimeText 撑开，两个文本需各自右对齐，
+                 否则简短日期会顶在容器左缘、与右边界脱开。 -->
             <TextBlock x:Name="RelativeTimeText"
+                       HorizontalAlignment="Right"
                        Foreground="{DynamicResource TextTertiaryBrush}"
                        FontSize="10.5"
                        Text=""
                        Opacity="1" />
             <TextBlock x:Name="FullTimeText"
+                       HorizontalAlignment="Right"
                        Foreground="{DynamicResource TextTertiaryBrush}"
                        FontSize="10.5"
                        Text=""

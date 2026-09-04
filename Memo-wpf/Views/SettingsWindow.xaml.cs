@@ -72,6 +72,8 @@ public partial class SettingsWindow : BorderlessWindow
     internal WpfButton ToggleMemoTaskbarHotkeyButtonPart => ToggleMemoTaskbarHotkeyButton;
     internal AnimatedSlider DockSizeSliderPart => DockSizeSlider;
     internal AnimatedCheckBox QuickMemoEnabledCheckBoxPart => QuickMemoEnabledCheckBox;
+    internal AnimatedCheckBox PopoutDockEnabledCheckBoxPart => PopoutDockEnabledCheckBox;
+    internal AnimatedCheckBox MemoWindowTopmostCheckBoxPart => MemoWindowTopmostCheckBox;
     internal void CloseImmediatelyForTest() => CloseImmediately();
 
     public static bool FindFirstDuplicatePair(AppSettings settings, out string fieldA, out string fieldB) =>
@@ -174,8 +176,10 @@ public partial class SettingsWindow : BorderlessWindow
             QuickMemoShowPopoutCheckBox.IsChecked = _settings.QuickMemoShowPopoutAfterAdd;
             DuplicateMemoCheckBox.IsChecked = _settings.DuplicateMemoEnabled;
             DockEnabledCheckBox.IsChecked = _settings.MainWindowDockEnabled;
+            PopoutDockEnabledCheckBox.IsChecked = _settings.PopoutDockEnabled;
             ShowMainWindowTaskbarCheckBox.IsChecked = _settings.ShowMainWindowTaskbarIcon;
             ShowMemoWindowTaskbarCheckBox.IsChecked = _settings.ShowMemoWindowTaskbarIcon;
+            MemoWindowTopmostCheckBox.IsChecked = _settings.MemoWindowTopmostByDefault;
             TrayClickToggle.Value = !_settings.TraySingleClickToShow;
             DockSizeSlider.Value = _settings.MainWindowDockSize;
         }
@@ -365,6 +369,14 @@ public partial class SettingsWindow : BorderlessWindow
         CommitChange();
     }
 
+    private void OnPopoutDockEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_applyingUi) return;
+        _settings.PopoutDockEnabled = PopoutDockEnabledCheckBox.IsChecked == true;
+        // 已打开便签的即时还原由 App 的 PreviewSettings → ApplySettings 下发，此处只落设置。
+        CommitChange();
+    }
+
     private void OnShowMainWindowTaskbarChanged(object sender, RoutedEventArgs e)
     {
         if (_applyingUi) return;
@@ -377,6 +389,13 @@ public partial class SettingsWindow : BorderlessWindow
         if (_applyingUi) return;
         _settings.ShowMemoWindowTaskbarIcon = ShowMemoWindowTaskbarCheckBox.IsChecked == true;
         UpdateDependentSections();
+        CommitChange();
+    }
+
+    private void OnMemoWindowTopmostChanged(object sender, RoutedEventArgs e)
+    {
+        if (_applyingUi) return;
+        _settings.MemoWindowTopmostByDefault = MemoWindowTopmostCheckBox.IsChecked == true;
         CommitChange();
     }
 

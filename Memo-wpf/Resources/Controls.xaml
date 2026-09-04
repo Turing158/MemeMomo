@@ -107,6 +107,10 @@
     </Style.Triggers>
   </Style>
 
+  <!-- 备忘录卡片。悬停时的强调边框不直接改卡片 BorderBrush（那会瞬时跳变），
+       而是由模板内的 MemoCardBorderLayer 层承担：引擎把 hover 与 pressed 层
+       透明度都指向该层，于是悬停淡入、按住保持、移出淡出。卡片自身边框
+       保持默认色，仅保留编辑态（非悬停）与按压底色的瞬时切换。 -->
   <Style x:Key="MemoCardStyle" TargetType="{x:Type Border}">
     <Setter Property="Background" Value="{DynamicResource SurfacePrimaryBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
@@ -118,10 +122,11 @@
     <Setter Property="ui:InteractionAnimations.TargetName" Value="MemoCardMotionSurface" />
     <Setter Property="ui:InteractionAnimations.HoverScale" Value="1.003" />
     <Setter Property="ui:InteractionAnimations.PressedScale" Value="0.99" />
+    <Setter Property="ui:InteractionAnimations.SurfaceHoverLayerName" Value="MemoCardBorderLayer" />
+    <Setter Property="ui:InteractionAnimations.SurfacePressedLayerName" Value="MemoCardBorderLayer" />
     <Style.Triggers>
       <Trigger Property="IsMouseOver" Value="True">
         <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderEmphasisBrush}" />
       </Trigger>
       <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsPressed), RelativeSource={RelativeSource Self}}" Value="True">
         <Setter Property="Background" Value="{DynamicResource SurfaceActiveBrush}" />
@@ -131,10 +136,19 @@
         <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
       </DataTrigger>
-      <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsSelected), RelativeSource={RelativeSource Self}}" Value="True">
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
-      </DataTrigger>
     </Style.Triggers>
+  </Style>
+
+  <!-- 备忘录卡片悬停边框层：默认 Opacity 0，由 InteractionAnimations 引擎随
+       hover/press 驱动淡入淡出。Margin -1 抵消卡片 1px 边框内缩，使描边
+       精确覆盖卡片原边框；不参与命中测试，避免影响点击与拖拽。 -->
+  <Style x:Key="MemoCardBorderLayerStyle" TargetType="{x:Type Border}">
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Margin" Value="-1" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Opacity" Value="0" />
   </Style>
 
   <Style x:Key="DeleteButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource TitleBarButtonStyle}">

@@ -176,7 +176,7 @@ internal sealed class MarkdownTableControl : Border
             new System.Windows.Input.KeyEventHandler(OnCellKeyDown), handledEventsToo: true);
         textBox.GotKeyboardFocus += OnCellGotKeyboardFocus;
         textBox.LostKeyboardFocus += OnCellLostKeyboardFocus;
-        textBox.ContextMenu = CreateCellContextMenu(cell);
+        textBox.ContextMenu = CreateCellContextMenu(cell, textBox);
         _cellGrid.Children.Add(textBox);
         _cells[(cell.Row, cell.Column)] = textBox;
     }
@@ -299,13 +299,16 @@ internal sealed class MarkdownTableControl : Border
             + cell.BorderThickness.Left + cell.BorderThickness.Right;
     }
 
-    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell)
+    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell, System.Windows.Controls.TextBox targetCell)
     {
         ContextMenu menu = new()
         {
             Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuPresenterTheme") as Style
         };
         ContextMenuAnimations.SetIsEnabled(menu, true);
+        // 剪切/复制/粘贴放在结构操作的最顶部，与主编辑区右键菜单一致；单元格只支持
+        // 文本粘贴，剪贴板只有图片时不显示粘贴项。
+        EditorClipboardMenu.PrependToCellMenu(menu, targetCell);
         AddMenu("上方插入行", () => MutateTable(cell, rowInsertBefore: true, rowInsertAfter: false, rowDelete: false, columnInsertBefore: false, columnInsertAfter: false, columnDelete: false));
         AddMenu("下方插入行", () => MutateTable(cell, rowInsertBefore: false, rowInsertAfter: true, rowDelete: false, columnInsertBefore: false, columnInsertAfter: false, columnDelete: false));
         AddMenu("删除行", () => MutateTable(cell, rowInsertBefore: false, rowInsertAfter: false, rowDelete: true, columnInsertBefore: false, columnInsertAfter: false, columnDelete: false));

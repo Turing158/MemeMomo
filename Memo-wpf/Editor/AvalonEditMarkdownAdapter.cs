@@ -1,5 +1,6 @@
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Input;
@@ -7,12 +8,15 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
+using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
+using ICSharpCode.AvalonEdit.Utils;
 using Memo.Markdown;
 using Memo.Services;
 using Memo.UI;
 using Memo.UI.Popup;
 using Application = System.Windows.Application;
+using DataObject = System.Windows.DataObject;
 using Brushes = System.Windows.Media.Brushes;
 using Image = System.Windows.Controls.Image;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
@@ -132,6 +136,11 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             () => CancelRequested?.Invoke(this, EventArgs.Empty),
             () => LinkEditRequested?.Invoke(this, EventArgs.Empty),
             () => PasteImagesRequested?.Invoke(this, EventArgs.Empty));
+        Editor.TextArea.ContextMenu = EditorClipboardMenu.CreateForTextArea(
+            Editor.TextArea,
+            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty));
+        Editor.TextArea.MouseRightButtonDown += OnTextAreaMouseRightButtonDown;
+        Editor.TextArea.AddHandler(DataObject.CopyingEvent, new DataObjectCopyingEventHandler(OnClipboardCopy));
         RefreshProjection(clearUndo: true, selectionStart: 0, selectionEnd: 0);
     }
 
@@ -284,6 +293,9 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.Caret.PositionChanged -= OnCaretPositionChanged;
         Editor.TextArea.PreviewMouseLeftButtonDown -= OnTextAreaPreviewMouseLeftButtonDown;
         Editor.TextArea.PreviewTextInput -= OnTextAreaPreviewTextInput;
+        Editor.TextArea.MouseRightButtonDown -= OnTextAreaMouseRightButtonDown;
+        Editor.TextArea.RemoveHandler(DataObject.CopyingEvent, new DataObjectCopyingEventHandler(OnClipboardCopy));
+        Editor.TextArea.ContextMenu = null;
         Editor.Unloaded -= OnUnloaded;
         _inputController.Dispose();
         _imageLoader.Dispose();
@@ -607,6 +619,150 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         {
             _ruleInteraction.TryExit(RuleExitDirection.Down);
         }
+    }
+
+    /// <summary>
+    /// 复制/剪切（AvalonEdit 的剪切内部走同一条复制路径）写剪贴板前在此事件里改写文本：
+    /// 图片在投影里只是单个 U+FFFC 占位符，不改写就会把"￼"复制出去。占位符按投影 span
+    /// 还原成完整图片源码（"![名称](路径)"），其余字符保持原样。空选区复制对应 AvalonEdit
+    /// 的 CutCopyWholeLine 整行复制，同样参与还原。表格单元格的复制由 TextBox 自己发起，
+    /// 事件只冒泡路过本 TextArea，按 OriginalSource 区分跳过；矩形选择每行一段、文本
+    /// 拼接顺序特殊，不做还原。
+    /// </summary>
+    private void OnClipboardCopy(object sender, DataObjectCopyingEventArgs e)
+    {
+        if (_updatingProjection || Volatile.Read(ref _disposed) != 0 ||
+            !ReferenceEquals(e.OriginalSource, Editor.TextArea))
+        {
+            return;
+        }
+
+        TextArea textArea = Editor.TextArea;
+        int visibleStart;
+        int visibleEnd;
+        if (textArea.Selection.IsEmpty)
+        {
+            DocumentLine line = textArea.Document.GetLineByNumber(textArea.Caret.Line);
+            visibleStart = line.Offset;
+            visibleEnd = line.Offset + line.TotalLength;
+        }
+        else
+        {
+            SelectionSegment? segment = null;
+            foreach (SelectionSegment current in textArea.Selection.Segments)
+            {
+                if (segment is not null)
+                {
+                    return;
+                }
+                segment = current;
+            }
+            if (segment is not { } value)
+            {
+                return;
+            }
+            visibleStart = value.StartOffset;
+            visibleEnd = value.EndOffset;
+        }
+
+        string? mapped = RestoreImageSources(visibleStart, visibleEnd);
+        if (mapped is null || e.DataObject is not DataObject dataObject)
+        {
+            return;
+        }
+        dataObject.SetText(mapped);
+        dataObject.SetData(typeof(string).FullName!, mapped);
+    }
+
+    /// <summary>把 [visibleStart, visibleEnd) 内的图片占位符还原成完整图片源码；无占位符时返回 null。</summary>
+    private string? RestoreImageSources(int visibleStart, int visibleEnd)
+    {
+        string visible = _model.VisibleText;
+        int start = Math.Clamp(Math.Min(visibleStart, visibleEnd), 0, visible.Length);
+        int end = Math.Clamp(Math.Max(visibleStart, visibleEnd), 0, visible.Length);
+        // 占位符恒为单字符，图片 span 互不重叠且按位置有序，逐个消费即可。
+        MarkdownVisualSpan[] images = _model.Spans
+            .Where(span => span.Kind == MarkdownVisualKind.Image && span.Start < end && span.End > start)
+            .OrderBy(span => span.Start)
+            .ToArray();
+        if (images.Length == 0)
+        {
+            return null;
+        }
+        StringBuilder mapped = new(end - start);
+        int imageIndex = 0;
+        for (int index = start; index < end; index++)
+        {
+            if (imageIndex < images.Length && images[imageIndex].Start == index)
+            {
+                mapped.Append(_model.Markdown, images[imageIndex].SourceStart, images[imageIndex].SourceLength);
+                imageIndex++;
+                continue;
+            }
+            mapped.Append(visible[index]);
+        }
+        return TextUtilities.NormalizeNewLines(mapped.ToString(), Environment.NewLine);
+    }
+
+    private void OnTextAreaMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Volatile.Read(ref _disposed) != 0 ||
+            IsInsideTableCell(e.OriginalSource as DependencyObject) ||
+            !Editor.TextArea.TextView.VisualLinesValid)
+        {
+            return;
+        }
+        TryPlaceCaretForRightClick(e.GetPosition(Editor));
+    }
+
+    /// <summary>
+    /// 右键与 TextBox 一致地把光标带到点击处，剪切/粘贴就地生效；点击落在既有选区内时
+    /// 保留选区以便直接复制。落点在原子对象（表格/分割线）内时由 OnCaretPositionChanged
+    /// 的重定向逻辑把光标挪出。返回是否移动了光标。落点紧贴图片（点击图片本体时命中点
+    /// 只会映射到占位符前后两个位置）时整体选中图片占位符，剪切/复制经 OnClipboardCopy
+    /// 得到完整图片源码。
+    /// </summary>
+    internal bool TryPlaceCaretForRightClick(Point pointToEditor)
+    {
+        if (Volatile.Read(ref _disposed) != 0 ||
+            !Editor.TextArea.TextView.VisualLinesValid ||
+            !TryGetVisibleOffset(pointToEditor, out int offset))
+        {
+            return false;
+        }
+        int selectionStart = Editor.SelectionStart;
+        if (Editor.SelectionLength > 0 &&
+            offset > selectionStart && offset < selectionStart + Editor.SelectionLength)
+        {
+            return false;
+        }
+        if (_model.Spans
+                .Where(span => span.Kind == MarkdownVisualKind.Image &&
+                    span.Start <= offset && offset <= span.End)
+                .Select(span => (MarkdownVisualSpan?)span)
+                .FirstOrDefault() is { } image)
+        {
+            Editor.Select(image.Start, image.Length);
+            return true;
+        }
+        Editor.Select(offset, 0);
+        return true;
+    }
+
+    /// <summary>右键落在表格单元格内时不动隐藏编辑器光标：单元格有自己的右键菜单。</summary>
+    private static bool IsInsideTableCell(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is MarkdownTableControl)
+            {
+                return true;
+            }
+            source = source is System.Windows.Media.Visual
+                ? System.Windows.Media.VisualTreeHelper.GetParent(source)
+                : LogicalTreeHelper.GetParent(source);
+        }
+        return false;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)

@@ -10,7 +10,6 @@ using ICSharpCode.AvalonEdit.Rendering;
 using Memo.Components.Dialogs;
 using Memo.Markdown;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using Clipboard = System.Windows.Clipboard;
 
 namespace Memo.Editor;
 
@@ -98,7 +97,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             e.Handled = true;
             return;
         }
-        if (control && e.Key == Key.V && HasClipboardImageData())
+        if (control && e.Key == Key.V && EditorClipboardMenu.HasClipboardImageData())
         {
             _pasteImages();
             e.Handled = true;
@@ -1171,18 +1170,6 @@ internal sealed partial class MarkdownInputController : IDisposable
     {
         string result = markdown[..start] + replacement + markdown[end..];
         _applyEdit(new MarkdownEditResult(result, caret, caret, undoCaret), false);
-    }
-
-    private static bool HasClipboardImageData()
-    {
-        try
-        {
-            return Clipboard.ContainsImage() || Clipboard.ContainsFileDropList();
-        }
-        catch (System.Runtime.InteropServices.ExternalException)
-        {
-            return false;
-        }
     }
 
     // 与投影层 ListLinePrefix 一致：占位符只含标记后的一个空格（任务框同理），

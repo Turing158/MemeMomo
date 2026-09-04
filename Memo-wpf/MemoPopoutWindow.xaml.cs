@@ -37,6 +37,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
     private bool _showTaskbarIcon = true;
     private bool _showPreviewToolbar;
     private bool _showFullTime;
+    private bool _popoutDockEnabled = true;
+    private bool _defaultPinApplied;
     private bool _sourceDeleted;
     private bool _loadedOnce;
     private bool _cleanupDone;
@@ -102,6 +104,16 @@ public partial class MemoPopoutWindow : BorderlessWindow
         ArgumentNullException.ThrowIfNull(settings);
         _taskbarButtonEnabled = settings.ShowMemoWindowTaskbarIcon;
         UpdateTaskbarButtonVisual();
+        // 控制器在 Loaded 时才创建，开关先落字段，加载时再同步。
+        _popoutDockEnabled = settings.PopoutDockEnabled;
+        _dockController?.SetEdgeDockEnabled(_popoutDockEnabled);
+        // 默认置顶只在首次下发时生效：之后用户可能已用图钉切换过，
+        // 设置窗口的批量 ApplySettings 不得重置已有便签的置顶状态。
+        if (!_defaultPinApplied)
+        {
+            _defaultPinApplied = true;
+            SetPinned(settings.MemoWindowTopmostByDefault);
+        }
     }
 
     /// <summary>注入贴边弹出长度的持久化回调（App 层接到 settings.json）。须在窗口 Loaded 前调用。</summary>
@@ -189,6 +201,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
             _animationFrames,
             _dockPopLengthLoader,
             _dockPopLengthSaver);
+        _dockController.SetEdgeDockEnabled(_popoutDockEnabled);
         _dockController.Attach();
         await BeginEditAsync();
     }

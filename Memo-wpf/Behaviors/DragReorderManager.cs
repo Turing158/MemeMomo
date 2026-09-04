@@ -44,6 +44,10 @@ internal enum DragInterruptionAction
     CompleteRelease
 }
 
+/// <summary>Placement of the drag preview popup: DIP offsets for the pre-HWND
+/// fallback and physical pixel coordinates for SetWindowPos.</summary>
+internal readonly record struct DragPopupPlacement(double OffsetXDip, double OffsetYDip, int PixelLeft, int PixelTop);
+
 /// <summary>
 /// Owns memo card drag/reorder interaction.
 ///
@@ -90,6 +94,7 @@ public sealed class DragReorderManager : IDisposable
     private Border? _floatingOuter;
     private Image? _floatingImage;
     private BitmapSource? _floatingBitmap;
+    private (int Left, int Top)? _lastAppliedPopupPixelPosition;
     private bool _renderingSubscribed;
     private bool _inputTrackingSubscribed;
     private TimeSpan? _lastRenderingTime;
@@ -643,6 +648,7 @@ public sealed class DragReorderManager : IDisposable
                 Child = _floatingOuter
             };
             _floatingPopup.Opened += OnFloatingPopupOpened;
+            SeedFallbackPopupOffset();
             _floatingPopup.IsOpen = true;
             TryAttachPopupHandle();
         }
@@ -694,6 +700,7 @@ public sealed class DragReorderManager : IDisposable
 
         _floatingPopup = null;
         _floatingPopupHandle = nint.Zero;
+        _lastAppliedPopupPixelPosition = null;
         _floatingOuter = null;
         _floatingImage = null;
         _floatingBitmap = null;
@@ -716,27 +723,35 @@ public sealed class DragReorderManager : IDisposable
         }
 
         TryAttachPopupHandle();
-        PixelMonitorInfo monitor = _monitorService.FromPoint(screenPoint);
-        Point popupTopLeftPixels = CalculatePreviewTopLeftPixels(screenPoint, _cursorOffset, monitor.Dpi);
+        DragPopupPlacement placement = CalculatePopupPlacement(screenPoint, _cursorOffset, _monitorService.FromPoint(screenPoint).Dpi);
 
-        // Popup placement is expressed in logical units, while the pointer
-        // service reports physical pixels. SetWindowPos keeps the preview
-        // aligned when the pointer crosses a mixed-DPI monitor; the offset is
-        // retained as a fallback for headless/non-Windows environments.
-        Point popupTopLeftDip = monitor.Dpi.PixelsToDip(popupTopLeftPixels);
-        _floatingPopup.HorizontalOffset = popupTopLeftDip.X;
-        _floatingPopup.VerticalOffset = popupTopLeftDip.Y;
-        if (_floatingPopupHandle != nint.Zero)
+        // While the popup HWND is still unavailable, the DIP offsets are the
+        // only placement mechanism. Once the handle exists, SetWindowPos must
+        // be the single mover: offset changes make WPF reposition the popup
+        // itself, and WPF nudges a popup back inside the monitor when it
+        // crosses a screen edge, so the two mechanisms fight and flicker the
+        // preview at the edge.
+        if (_floatingPopupHandle == nint.Zero)
         {
-            SetWindowPos(
-                _floatingPopupHandle,
-                HwndTop,
-                (int)Math.Round(popupTopLeftPixels.X),
-                (int)Math.Round(popupTopLeftPixels.Y),
-                0,
-                0,
-                SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder | SwpShowWindow);
+            _floatingPopup.HorizontalOffset = placement.OffsetXDip;
+            _floatingPopup.VerticalOffset = placement.OffsetYDip;
+            return;
         }
+
+        if (_lastAppliedPopupPixelPosition == (placement.PixelLeft, placement.PixelTop))
+        {
+            return;
+        }
+
+        _lastAppliedPopupPixelPosition = (placement.PixelLeft, placement.PixelTop);
+        SetWindowPos(
+            _floatingPopupHandle,
+            HwndTop,
+            placement.PixelLeft,
+            placement.PixelTop,
+            0,
+            0,
+            SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder | SwpShowWindow);
     }
 
     internal static Point CalculatePreviewTopLeftPixels(
@@ -750,9 +765,40 @@ public sealed class DragReorderManager : IDisposable
             screenPointPixels.Y - cursorOffsetPixels.Y - (ShadowPad * dpi.ScaleY));
     }
 
+    internal static DragPopupPlacement CalculatePopupPlacement(
+        Point screenPointPixels,
+        Point cursorOffsetDip,
+        DpiScale2 dpi)
+    {
+        Point popupTopLeftPixels = CalculatePreviewTopLeftPixels(screenPointPixels, cursorOffsetDip, dpi);
+        Point popupTopLeftDip = dpi.PixelsToDip(popupTopLeftPixels);
+        return new DragPopupPlacement(
+            popupTopLeftDip.X,
+            popupTopLeftDip.Y,
+            (int)Math.Round(popupTopLeftPixels.X),
+            (int)Math.Round(popupTopLeftPixels.Y));
+    }
+
+    // The popup opens before its HWND can be located; seed the DIP offsets so
+    // the preview appears at the cursor instead of the screen origin.
+    private void SeedFallbackPopupOffset()
+    {
+        if (_floatingPopup is null || _lastScreenPoint is not Point screenPoint)
+        {
+            return;
+        }
+
+        DragPopupPlacement placement = CalculatePopupPlacement(screenPoint, _cursorOffset, _monitorService.FromPoint(screenPoint).Dpi);
+        _floatingPopup.HorizontalOffset = placement.OffsetXDip;
+        _floatingPopup.VerticalOffset = placement.OffsetYDip;
+    }
+
     private void OnFloatingPopupOpened(object? sender, EventArgs e)
     {
         TryAttachPopupHandle();
+        // The open sequence may have nudged the popup back on-screen from the
+        // seeded offsets; force the next request to reposition from pixels.
+        _lastAppliedPopupPixelPosition = null;
         if (_lastScreenPoint is Point screenPoint)
         {
             UpdateFloatingPositionOnScreen(screenPoint);
