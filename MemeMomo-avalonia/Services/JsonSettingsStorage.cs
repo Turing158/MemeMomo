@@ -1,0 +1,54 @@
+using MemeMomo.Models;
+using System;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace MemeMomo.Services;
+
+public class JsonSettingsStorage {
+    private readonly string _filePath;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    public JsonSettingsStorage() {
+        var dir = MemoDataPaths.RootDirectory;
+        Directory.CreateDirectory(dir);
+        _filePath = Path.Combine(dir, "settings.json");
+    }
+
+    public async Task<AppSettings> LoadAsync() {
+        try {
+            if (!File.Exists(_filePath)) return AppSettings.CreateDefault();
+            var json = await File.ReadAllTextAsync(_filePath);
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
+            if (!Enum.IsDefined(settings.ThemeMode)) settings.ThemeMode = ThemeMode.FollowSystem;
+            if (!Enum.IsDefined(settings.MotionMode)) settings.MotionMode = MotionMode.AlwaysOn;
+            settings.MainWindowDockSize = Math.Clamp(
+                settings.MainWindowDockSize,
+                AppSettings.MinimumMainWindowDockSize,
+                AppSettings.MaximumMainWindowDockSize);
+            if (!settings.MainWindowDockEnabled) settings.MainWindowDocked = false;
+            return settings;
+        }
+        catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine($"[SettingsStorage] Load failed: {ex.Message}");
+            return AppSettings.CreateDefault();
+        }
+    }
+
+    public async Task SaveAsync(AppSettings settings) {
+        await _semaphore.WaitAsync();
+        try {
+            var json = JsonSerializer.Serialize(settings, JsonOptions);
+            await File.WriteAllTextAsync(_filePath, json);
+        }
+        catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine($"[SettingsStorage] Save failed: {ex.Message}");
+        }
+        finally {
+            _semaphore.Release();
+        }
+    }
+}

@@ -1,0 +1,914 @@
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using MemeMomo.Components;
+using MemeMomo.Components.Dialogs;
+using MemeMomo.Models;
+using MemeMomo.UI;
+using MemeMomo.Utils;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
+namespace MemeMomo.Views;
+
+public partial class SettingsWindow : Window
+{
+    private AppSettings _settings = AppSettings.CreateDefault();
+    private Action<AppSettings> _previewSettings = _ => { };
+    private Func<AppSettings, Task> _saveSettingsAsync = _ => Task.CompletedTask;
+    private HotkeySetting? _capturingHotkey;
+    private Button? _capturingButton;
+    private Button? _conflictingButton;
+    private readonly HashSet<string> _captureHeldKeys = new();
+    private string? _captureMainKey;
+    private readonly HotkeySetting _captureSnapshot = new();
+    private WindowTransitionController? _transition;
+    private bool _isClosingAfterTransition;
+    private Task _saveChain = Task.CompletedTask;
+    private readonly object _saveLock = new();
+    private bool _isApplyingSelectorState;
+    private bool _isApplyingDockSizeState;
+    private bool _isApplyingDockEnabledState;
+    private bool _isApplyingTaskbarIconState;
+
+    internal enum HotkeyField { ToggleTopmost, ToggleMemoTaskbar, Minimize, ShowWindow, QuickMemo }
+
+    internal readonly record struct HotkeyConflict(HotkeyField Field, Button ConflictingButton);
+
+    internal readonly record struct HotkeySettingsSnapshot(
+        HotkeySetting? ToggleTopmost, Button ToggleTopmostButton,
+        HotkeySetting? ToggleMemoTaskbar, Button ToggleMemoTaskbarButton,
+        HotkeySetting? Minimize, Button MinimizeButton,
+        HotkeySetting? ShowWindow, Button ShowWindowButton,
+        HotkeySetting? QuickMemo, Button QuickMemoButton);
+
+    public SettingsWindow()
+    {
+        InitializeComponent();
+        InitializeSegmentedSelectors();
+        Loaded += (_, _) => this.AssignResizeCursors();
+        _transition = new WindowTransitionController(this, this.FindControl<Border>("_settingsShell")!);
+        _transition.PrepareOpen();
+        Opened += (_, _) => _transition.PlayOpen();
+        Closed += OnWindowClosed;
+        MotionPreferences.Changed += OnMotionPreferencesChanged;
+        KeyDown += OnWindowKeyDown;
+        KeyUp += OnWindowKeyUp;
+        ApplySettingsToUi();
+
+        var dockSizeSliderInit = this.FindControl<AnimatedSlider>("_dockSizeSlider")!;
+        dockSizeSliderInit.ValueChanged += OnDockSizeValueChanged;
+        dockSizeSliderInit.ValueCommitted += OnDockSizeValueCommitted;
+
+        var trayClickToggleInit = this.FindControl<LabeledToggleSwitch>("_trayClickToggle");
+        if (trayClickToggleInit != null)
+        {
+            trayClickToggleInit.ValueChanged += v =>
+            {
+                _settings.TraySingleClickToShow = !v;
+                AutoSave();
+            };
+        }
+
+        var tt = this.FindControl<Button>("_toggleTopmostHotkeyButton")!;
+        var mt = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!;
+        var mn = this.FindControl<Button>("_minimizeHotkeyButton")!;
+        var sw = this.FindControl<Button>("_showWindowHotkeyButton")!;
+        var qm = this.FindControl<Button>("_quickMemoHotkeyButton")!;
+        tt.PointerPressed += OnHotkeyButtonPointerPressed;
+        mt.PointerPressed += OnHotkeyButtonPointerPressed;
+        mn.PointerPressed += OnHotkeyButtonPointerPressed;
+        sw.PointerPressed += OnHotkeyButtonPointerPressed;
+        qm.PointerPressed += OnHotkeyButtonPointerPressed;
+    }
+
+    public SettingsWindow(
+        AppSettings settings,
+        Action<AppSettings> previewSettings,
+        Func<AppSettings, Task> saveSettingsAsync)
+        : this()
+    {
+        _settings = settings.Clone();
+        _previewSettings = previewSettings;
+        _saveSettingsAsync = saveSettingsAsync;
+        ApplySettingsToUi();
+    }
+
+    private void ApplySettingsToUi()
+    {
+        _isApplyingSelectorState = true;
+        try
+        {
+            this.FindControl<SegmentedSelector>("_closeActionSelector")!.SelectedKey =
+                _settings.CloseButtonAction.ToString();
+            this.FindControl<SegmentedSelector>("_themeSelector")!.SelectedKey =
+                _settings.ThemeMode.ToString();
+            this.FindControl<SegmentedSelector>("_motionSelector")!.SelectedKey =
+                _settings.MotionMode.ToString();
+        }
+        finally
+        {
+            _isApplyingSelectorState = false;
+        }
+
+        var enabledCheckBox = this.FindControl<AnimatedCheckBox>("_quickMemoEnabledCheckBox");
+        if (enabledCheckBox != null)
+        {
+            enabledCheckBox.IsChecked = _settings.QuickMemoEnabled;
+        }
+
+        var duplicateCheckBox = this.FindControl<AnimatedCheckBox>("_duplicateMemoCheckBox");
+        if (duplicateCheckBox != null)
+        {
+            duplicateCheckBox.IsChecked = _settings.DuplicateMemoEnabled;
+        }
+
+        _isApplyingTaskbarIconState = true;
+        try
+        {
+            var showMainWindowTaskbarIconCheckBox =
+                this.FindControl<AnimatedCheckBox>("_showMainWindowTaskbarIconCheckBox");
+            if (showMainWindowTaskbarIconCheckBox != null)
+            {
+                showMainWindowTaskbarIconCheckBox.IsChecked = _settings.ShowMainWindowTaskbarIcon;
+            }
+
+            var showMemoWindowTaskbarIconCheckBox =
+                this.FindControl<AnimatedCheckBox>("_showMemoWindowTaskbarIconCheckBox");
+            if (showMemoWindowTaskbarIconCheckBox != null)
+            {
+                showMemoWindowTaskbarIconCheckBox.IsChecked = _settings.ShowMemoWindowTaskbarIcon;
+            }
+        }
+        finally
+        {
+            _isApplyingTaskbarIconState = false;
+        }
+
+        var showPopoutCheckBox = this.FindControl<AnimatedCheckBox>("_quickMemoShowPopoutAfterAddCheckBox");
+        if (showPopoutCheckBox != null)
+        {
+            showPopoutCheckBox.IsChecked = _settings.QuickMemoShowPopoutAfterAdd;
+        }
+
+        _isApplyingDockEnabledState = true;
+        try
+        {
+            this.FindControl<AnimatedCheckBox>("_dockEnabledCheckBox")!.IsChecked =
+                _settings.MainWindowDockEnabled;
+        }
+        finally
+        {
+            _isApplyingDockEnabledState = false;
+        }
+        UpdateDockDependentUi();
+
+        var trayClickToggle = this.FindControl<LabeledToggleSwitch>("_trayClickToggle");
+        if (trayClickToggle != null)
+        {
+            trayClickToggle.Value = !_settings.TraySingleClickToShow;
+        }
+
+        _settings.MainWindowDockSize = Math.Clamp(
+            _settings.MainWindowDockSize,
+            AppSettings.MinimumMainWindowDockSize,
+            AppSettings.MaximumMainWindowDockSize);
+        _isApplyingDockSizeState = true;
+        try
+        {
+            this.FindControl<AnimatedSlider>("_dockSizeSlider")!.Value = _settings.MainWindowDockSize;
+        }
+        finally
+        {
+            _isApplyingDockSizeState = false;
+        }
+
+        UpdateHotkeyButtons();
+        UpdateMemoTaskbarHotkeyUi();
+        UpdateQuickMemoDependentUi();
+        UpdateMotionUi();
+    }
+
+    private void UpdateMotionUi()
+    {
+        _isApplyingSelectorState = true;
+        try
+        {
+            this.FindControl<SegmentedSelector>("_motionSelector")!.SelectedKey =
+                _settings.MotionMode.ToString();
+        }
+        finally
+        {
+            _isApplyingSelectorState = false;
+        }
+
+        var status = this.FindControl<TextBlock>("_motionSystemStatus")!;
+        status.Text = MotionPreferences.SystemAnimationsEnabled
+            ? "系统当前已开启动画"
+            : "系统当前已减少动画";
+        this.FindControl<CollapsibleSection>("_motionSystemStatusSection")!.IsExpanded =
+            _settings.MotionMode == MotionMode.FollowSystem;
+    }
+
+    private void SetMotionMode(MotionMode mode)
+    {
+        if (_settings.MotionMode == mode)
+        {
+            UpdateMotionUi();
+            return;
+        }
+        _settings.MotionMode = mode;
+        MotionPreferences.ApplyMode(mode);
+        UpdateMotionUi();
+        AutoSave();
+    }
+
+    private void OnMotionPreferencesChanged(object? sender, EventArgs e) => UpdateMotionUi();
+
+    private void OnDockSizeValueChanged(object? sender, SliderValueChangedEventArgs e)
+    {
+        if (_isApplyingDockSizeState || _settings.MainWindowDockSize == e.NewValue) return;
+        _settings.MainWindowDockSize = e.NewValue;
+        _previewSettings(_settings.Clone());
+    }
+
+    private void OnDockSizeValueCommitted(object? sender, SliderValueChangedEventArgs e)
+    {
+        if (_isApplyingDockSizeState) return;
+        _settings.MainWindowDockSize = e.NewValue;
+        AutoSave();
+    }
+
+    private void InitializeSegmentedSelectors()
+    {
+        var themeSelector = this.FindControl<SegmentedSelector>("_themeSelector")!;
+        themeSelector.Options = new[]
+        {
+            new SegmentedSelectorOption(nameof(ThemeMode.FollowSystem), "跟随系统"),
+            new SegmentedSelectorOption(nameof(ThemeMode.Light), "亮色"),
+            new SegmentedSelectorOption(nameof(ThemeMode.Dark), "暗色"),
+        };
+        themeSelector.SelectionChanged += OnThemeSelectionChanged;
+
+        var closeActionSelector = this.FindControl<SegmentedSelector>("_closeActionSelector")!;
+        closeActionSelector.Options = new[]
+        {
+            new SegmentedSelectorOption(nameof(CloseButtonAction.MinimizeToTray), "最小化托盘"),
+            new SegmentedSelectorOption(nameof(CloseButtonAction.Close), "关闭"),
+        };
+        closeActionSelector.SelectionChanged += OnCloseActionSelectionChanged;
+
+        var motionSelector = this.FindControl<SegmentedSelector>("_motionSelector")!;
+        motionSelector.Options = new[]
+        {
+            new SegmentedSelectorOption(nameof(MotionMode.FollowSystem), "跟随系统"),
+            new SegmentedSelectorOption(nameof(MotionMode.AlwaysOn), "始终开启"),
+            new SegmentedSelectorOption(nameof(MotionMode.Off), "关闭"),
+        };
+        motionSelector.SelectionChanged += OnMotionSelectionChanged;
+    }
+
+    private void OnCloseActionSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
+    {
+        if (_isApplyingSelectorState
+            || !Enum.TryParse<CloseButtonAction>(e.NewKey, out var action)
+            || _settings.CloseButtonAction == action) return;
+
+        _settings.CloseButtonAction = action;
+        _settings.HasAskedCloseButtonAction = true;
+        AutoSave();
+    }
+
+    private void OnThemeSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
+    {
+        if (_isApplyingSelectorState
+            || !Enum.TryParse<ThemeMode>(e.NewKey, out var mode)
+            || _settings.ThemeMode == mode) return;
+
+        _settings.ThemeMode = mode;
+        ThemePreferences.ApplyMode(mode);
+        AutoSave();
+    }
+
+    private void OnMotionSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
+    {
+        if (_isApplyingSelectorState || !Enum.TryParse<MotionMode>(e.NewKey, out var mode)) return;
+        SetMotionMode(mode);
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        MotionPreferences.Changed -= OnMotionPreferencesChanged;
+        _transition?.Cancel();
+    }
+
+    // 自动保存：把当前 _settings 串行地落盘并生效（apply + 持久化），
+    // 避免快速连续编辑产生并发写。失败时弹窗提示用户。
+    private void AutoSave()
+    {
+        var snapshot = _settings.Clone();
+        lock (_saveLock)
+        {
+            _saveChain = _saveChain
+                .ContinueWith(_ => SaveSnapshotAsync(snapshot), TaskScheduler.Default)
+                .Unwrap();
+        }
+    }
+
+    private async Task SaveSnapshotAsync(AppSettings snapshot)
+    {
+        try
+        {
+            // 热键注册和窗口状态复制必须在创建 NativeWindow 的 UI 线程上执行。
+            await Dispatcher.UIThread.InvokeAsync(() => _saveSettingsAsync(snapshot));
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.UIThread.Post(async () =>
+                await new ConfirmDialog("保存设置失败", $"无法保存设置：{ex.Message}").ShowDialog(this));
+        }
+    }
+
+    private void UpdateHotkeyButtons()
+    {
+        this.FindControl<Button>("_toggleTopmostHotkeyButton")!.Content = _settings.ToggleTopmostHotkey.ToString();
+        this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!.Content = _settings.ToggleMemoTaskbarHotkey.ToString();
+        this.FindControl<Button>("_minimizeHotkeyButton")!.Content = _settings.MinimizeHotkey.ToString();
+        this.FindControl<Button>("_showWindowHotkeyButton")!.Content = _settings.ShowWindowHotkey.ToString();
+        var quickMemoButton = this.FindControl<Button>("_quickMemoHotkeyButton");
+        if (quickMemoButton != null)
+        {
+            quickMemoButton.Content = _settings.QuickMemoHotkey.ToString();
+        }
+    }
+
+    private void UpdateMemoTaskbarHotkeyUi()
+    {
+        var section = this.FindControl<CollapsibleSection>("_memoTaskbarHotkeySection");
+        if (section != null)
+        {
+            section.IsExpanded = _settings.ShowMemoWindowTaskbarIcon;
+        }
+
+        var button = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton");
+        if (!_settings.ShowMemoWindowTaskbarIcon
+            && ReferenceEquals(_capturingButton, button))
+        {
+            ClearHotkeyValidation();
+            ClearConflict();
+            EndCapture();
+        }
+    }
+
+    private void UpdateQuickMemoDependentUi()
+    {
+        var button = this.FindControl<Button>("_quickMemoHotkeyButton");
+        if (button != null)
+        {
+            button.IsEnabled = _settings.QuickMemoEnabled;
+            button.Opacity = _settings.QuickMemoEnabled ? 1.0 : 0.45;
+        }
+
+        var section = this.FindControl<CollapsibleSection>("_quickMemoPopoutSection");
+        if (section != null)
+        {
+            section.IsExpanded = _settings.QuickMemoEnabled;
+        }
+    }
+
+    private void UpdateDockDependentUi()
+    {
+        var section = this.FindControl<CollapsibleSection>("_dockSizeSection");
+        if (section != null) section.IsExpanded = _settings.MainWindowDockEnabled;
+    }
+
+
+    private void StartCapture(HotkeySetting hotkey, Button button)
+    {
+        _capturingHotkey = hotkey;
+        _capturingButton = button;
+        _captureHeldKeys.Clear();
+        _captureMainKey = null;
+        button.Content = "按下快捷键...";
+        ClearHotkeyValidation();
+        ClearConflict();
+        Focus();
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_capturingHotkey == null || _capturingButton == null) return;
+
+        e.Handled = true;
+        if (e.Key == Key.Escape)
+        {
+            ClearHotkey(_capturingHotkey);
+            ClearHotkeyValidation();
+            ClearConflict();
+            EndCapture();
+            return;
+        }
+
+        var key = NormalizeKey(e.Key);
+        if (key == null) return;
+
+        // 修饰键只记录按下状态，不在此处立即确认，等主键松开后再整体保存与校验
+        if (IsModifierKey(key))
+        {
+            _captureHeldKeys.Add(key);
+            UpdateCapturePreview();
+            return;
+        }
+
+        // 非修饰键作为主键：按下这一刻的快照即为用户想要的完整组合，
+        // 修饰标志读取此时已按下的修饰键状态，松开后 ApplyCapture 再统一保存/冲突检测
+        _captureMainKey = key;
+        CaptureSnapshotFromModifiers(e.KeyModifiers, key);
+        UpdateCapturePreview();
+    }
+
+    private void OnWindowKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_capturingHotkey == null || _capturingButton == null) return;
+
+        var key = NormalizeKey(e.Key);
+        if (key != null && IsModifierKey(key))
+        {
+            _captureHeldKeys.Remove(key);
+            UpdateCapturePreview();
+        }
+
+        // 主键松开才真正确认；若从未按下主键（仅点了修饰键）则取消录入，恢复原值
+        if (key != null && key == _captureMainKey)
+        {
+            ApplyCapture();
+            return;
+        }
+
+        if (_captureMainKey == null && _captureHeldKeys.Count == 0)
+        {
+            ClearHotkeyValidation();
+            ClearConflict();
+            EndCapture();
+        }
+    }
+
+    private void ApplyCapture()
+    {
+        if (_capturingHotkey == null || _capturingButton == null) return;
+
+        var siblings = BuildSiblings(_capturingHotkey);
+        if (!ValidateHotkey(_captureSnapshot, siblings, out var error))
+        {
+            ShowHotkeyValidation(error);
+            if (FindConflict(_captureSnapshot, siblings) is { } c) MarkConflict(c.ConflictingButton);
+            EndCapture();
+            return;
+        }
+
+        _capturingHotkey.Key = _captureSnapshot.Key;
+        _capturingHotkey.Ctrl = _captureSnapshot.Ctrl;
+        _capturingHotkey.Alt = _captureSnapshot.Alt;
+        _capturingHotkey.Shift = _captureSnapshot.Shift;
+        _capturingHotkey.Win = _captureSnapshot.Win;
+        ClearHotkeyValidation();
+        ClearConflict();
+        EndCapture();
+        AutoSave();
+    }
+
+    private void EndCapture()
+    {
+        _capturingHotkey = null;
+        _capturingButton = null;
+        _captureHeldKeys.Clear();
+        _captureMainKey = null;
+        UpdateHotkeyButtons();
+    }
+
+    private static bool IsModifierKey(string key) =>
+        key is "Ctrl" or "Alt" or "Shift" or "Win";
+
+    private void CaptureSnapshotFromModifiers(KeyModifiers modifiers, string mainKey)
+    {
+        _captureSnapshot.Key = mainKey;
+        _captureSnapshot.Ctrl = modifiers.HasFlag(KeyModifiers.Control) && mainKey != "Ctrl";
+        _captureSnapshot.Alt = modifiers.HasFlag(KeyModifiers.Alt) && mainKey != "Alt";
+        _captureSnapshot.Shift = modifiers.HasFlag(KeyModifiers.Shift) && mainKey != "Shift";
+        _captureSnapshot.Win = modifiers.HasFlag(KeyModifiers.Meta) && mainKey != "Win";
+    }
+
+    private void UpdateCapturePreview()
+    {
+        if (_capturingButton == null) return;
+        var parts = new List<string>();
+        if (_captureHeldKeys.Contains("Ctrl")) parts.Add("Ctrl");
+        if (_captureHeldKeys.Contains("Alt")) parts.Add("Alt");
+        if (_captureHeldKeys.Contains("Shift")) parts.Add("Shift");
+        if (_captureHeldKeys.Contains("Win")) parts.Add("Win");
+        parts.Add(_captureMainKey ?? "?");
+        _capturingButton.Content = string.Join(" + ", parts);
+    }
+
+    private HotkeySettingsSnapshot BuildSiblings(HotkeySetting? capturing)
+    {
+        var tt = this.FindControl<Button>("_toggleTopmostHotkeyButton")!;
+        var mt = this.FindControl<Button>("_toggleMemoTaskbarHotkeyButton")!;
+        var mn = this.FindControl<Button>("_minimizeHotkeyButton")!;
+        var sw = this.FindControl<Button>("_showWindowHotkeyButton")!;
+        var qm = this.FindControl<Button>("_quickMemoHotkeyButton")!;
+        return new HotkeySettingsSnapshot(
+            capturing != _settings.ToggleTopmostHotkey ? _settings.ToggleTopmostHotkey : null, tt,
+            (_settings.ShowMemoWindowTaskbarIcon && capturing != _settings.ToggleMemoTaskbarHotkey)
+                ? _settings.ToggleMemoTaskbarHotkey : null, mt,
+            capturing != _settings.MinimizeHotkey ? _settings.MinimizeHotkey : null, mn,
+            capturing != _settings.ShowWindowHotkey ? _settings.ShowWindowHotkey : null, sw,
+            (_settings.QuickMemoEnabled && capturing != _settings.QuickMemoHotkey) ? _settings.QuickMemoHotkey : null, qm);
+    }
+
+    private static void ClearHotkey(HotkeySetting hotkey)
+    {
+        hotkey.Key = string.Empty;
+        hotkey.Ctrl = false;
+        hotkey.Alt = false;
+        hotkey.Shift = false;
+        hotkey.Win = false;
+    }
+
+    private void ShowHotkeyValidation(string message)
+    {
+        var text = this.FindControl<TextBlock>("_hotkeyValidationText");
+        if (text == null) return;
+
+        text.Text = message;
+        this.FindControl<CollapsibleSection>("_hotkeyValidationSection")!.IsExpanded = true;
+    }
+
+    private void ClearHotkeyValidation()
+    {
+        // 收起时保留文本，避免内容高度瞬间归零导致收起动画失效；下次显示会覆盖
+        this.FindControl<CollapsibleSection>("_hotkeyValidationSection")!.IsExpanded = false;
+    }
+
+    private void MarkConflict(Button button)
+    {
+        ClearConflict();
+        _conflictingButton = button;
+        button.Classes.Add("Conflict");
+    }
+
+    private void ClearConflict()
+    {
+        if (_conflictingButton != null)
+        {
+            _conflictingButton.Classes.Remove("Conflict");
+            _conflictingButton = null;
+        }
+    }
+
+    private static bool ValidateHotkey(HotkeySetting hotkey, HotkeySettingsSnapshot siblings, out string error)
+    {
+        var modifierCount = (hotkey.Ctrl ? 1 : 0)
+            + (hotkey.Alt ? 1 : 0)
+            + (hotkey.Shift ? 1 : 0)
+            + (hotkey.Win ? 1 : 0);
+
+        if (modifierCount == 0)
+        {
+            error = "快捷键不能只设置单个按键，请使用 Ctrl、Alt 或 Shift 加一个主键的两键及以上组合。";
+            return false;
+        }
+
+        if (IsSystemReservedHotkey(hotkey))
+        {
+            error = "该组合是系统快捷键或容易被 Windows 保留，不能设置为应用快捷键。";
+            return false;
+        }
+
+        var conflict = FindConflict(hotkey, siblings);
+        if (conflict.HasValue)
+        {
+            error = $"该快捷键已被「{ActionName(conflict.Value.Field)}」功能占用，请选择其他组合。";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private static bool IsSystemReservedHotkey(HotkeySetting hotkey)
+    {
+        var key = hotkey.Key;
+
+        if (hotkey.Win) return true;
+        if (key is "Ctrl" or "Alt" or "Shift" or "Win") return true;
+        if (hotkey.Ctrl && hotkey.Alt && key == "Delete") return true;
+        if (hotkey.Alt && key is "Tab" or "F4" or "Space" or "Esc") return true;
+        if (hotkey.Ctrl && key is "Esc" or "Tab") return true;
+        if (hotkey.Ctrl && hotkey.Shift && key == "Esc") return true;
+        if (hotkey.Ctrl && key is "C" or "V" or "X" or "Z" or "Y" or "A" or "S" or "P" or "F" or "N" or "O" or "W") return true;
+
+        return false;
+    }
+
+    private static string ActionName(HotkeyField f) => f switch
+    {
+        HotkeyField.ToggleTopmost => "置顶",
+        HotkeyField.ToggleMemoTaskbar => "切换便签任务栏图标",
+        HotkeyField.Minimize => "最小化",
+        HotkeyField.ShowWindow => "显示软件",
+        HotkeyField.QuickMemo => "快速添加（剪贴板）",
+        _ => "其他功能",
+    };
+
+    private static bool HotkeySettingEquals(HotkeySetting a, HotkeySetting b) =>
+        a.Ctrl == b.Ctrl && a.Alt == b.Alt && a.Shift == b.Shift && a.Win == b.Win
+        && string.Equals(a.Key, b.Key, StringComparison.OrdinalIgnoreCase);
+
+    private static HotkeyConflict? FindConflict(HotkeySetting candidate, HotkeySettingsSnapshot s)
+    {
+        if (candidate.IsEmpty) return null;
+        if (s.ToggleTopmost is { } toggle && HotkeySettingEquals(candidate, toggle)) return new(HotkeyField.ToggleTopmost, s.ToggleTopmostButton);
+        if (s.ToggleMemoTaskbar is { } taskbar && HotkeySettingEquals(candidate, taskbar)) return new(HotkeyField.ToggleMemoTaskbar, s.ToggleMemoTaskbarButton);
+        if (s.Minimize is { } minimize && HotkeySettingEquals(candidate, minimize)) return new(HotkeyField.Minimize, s.MinimizeButton);
+        if (s.ShowWindow is { } showWindow && HotkeySettingEquals(candidate, showWindow)) return new(HotkeyField.ShowWindow, s.ShowWindowButton);
+        if (s.QuickMemo is { } quickMemo && HotkeySettingEquals(candidate, quickMemo)) return new(HotkeyField.QuickMemo, s.QuickMemoButton);
+        return null;
+    }
+
+    internal static bool FindFirstDuplicatePair(AppSettings settings, out string fieldA, out string fieldB)
+    {
+        var list = new List<(string Name, HotkeySetting H)> {
+            ("置顶", settings.ToggleTopmostHotkey),
+            ("最小化", settings.MinimizeHotkey),
+            ("显示软件", settings.ShowWindowHotkey),
+        };
+        if (settings.ShowMemoWindowTaskbarIcon) list.Add(("切换便签任务栏图标", settings.ToggleMemoTaskbarHotkey));
+        if (settings.QuickMemoEnabled) list.Add(("快速添加（剪贴板）", settings.QuickMemoHotkey));
+        var present = list.Where(e => !e.H.IsEmpty).ToList();
+        for (int i = 0; i < present.Count; i++)
+            for (int j = i + 1; j < present.Count; j++)
+                if (HotkeySettingEquals(present[i].H, present[j].H)) { fieldA = present[i].Name; fieldB = present[j].Name; return true; }
+        fieldA = fieldB = string.Empty;
+        return false;
+    }
+
+    private static string? NormalizeKey(Key key)
+    {
+        return key switch
+        {
+            >= Key.A and <= Key.Z => key.ToString(),
+            >= Key.D0 and <= Key.D9 => key.ToString()[1..],
+            >= Key.NumPad0 and <= Key.NumPad9 => key.ToString().Replace("NumPad", "NumPad"),
+            >= Key.F1 and <= Key.F24 => key.ToString(),
+            Key.LeftCtrl or Key.RightCtrl => "Ctrl",
+            Key.LeftAlt or Key.RightAlt => "Alt",
+            Key.LeftShift or Key.RightShift => "Shift",
+            Key.LWin or Key.RWin => "Win",
+            Key.Tab => "Tab",
+            Key.CapsLock => "CapsLock",
+            Key.Space => "Space",
+            Key.OemTilde => "`",
+            Key.OemMinus => "-",
+            Key.OemPlus => "=",
+            Key.OemOpenBrackets => "[",
+            Key.OemCloseBrackets => "]",
+            Key.OemPipe => "\\",
+            Key.OemSemicolon => ";",
+            Key.OemQuotes => "'",
+            Key.OemComma => ",",
+            Key.OemPeriod => ".",
+            Key.OemQuestion => "/",
+            Key.OemBackslash => "\\",
+            Key.Add => "NumPad+",
+            Key.Subtract => "NumPad-",
+            Key.Multiply => "NumPad*",
+            Key.Divide => "NumPad/",
+            Key.Decimal => "NumPad.",
+            Key.Insert => "Insert",
+            Key.Delete => "Delete",
+            Key.Home => "Home",
+            Key.End => "End",
+            Key.PageUp => "PageUp",
+            Key.PageDown => "PageDown",
+            Key.Up => "Up",
+            Key.Down => "Down",
+            Key.Left => "Left",
+            Key.Right => "Right",
+            _ => null,
+        };
+    }
+
+    private void OnToggleTopmostHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.ToggleTopmostHotkey, (Button)sender!);
+    }
+
+    private void OnToggleMemoTaskbarHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.ToggleMemoTaskbarHotkey, (Button)sender!);
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (TitleBarDragHelper.CanStartDrag(this, e))
+        {
+            BeginMoveDrag(e);
+        }
+    }
+
+    // —— 边缘/四角拖拽缩放窗口 ——
+    // 8 个透明手柄（4 边 + 4 角）共用一个 handler，靠 Tag 区分要缩放的哪条边/哪个角。
+    private void OnResizeHandlePointerPressed(object? sender, PointerPressedEventArgs e) {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (sender is not Border handle || handle.Tag is not string tag) return;
+        var edge = tag switch {
+            "Top"         => WindowEdge.North,
+            "Bottom"      => WindowEdge.South,
+            "Left"        => WindowEdge.West,
+            "Right"       => WindowEdge.East,
+            "TopLeft"     => WindowEdge.NorthWest,
+            "TopRight"    => WindowEdge.NorthEast,
+            "BottomLeft"  => WindowEdge.SouthWest,
+            "BottomRight" => WindowEdge.SouthEast,
+            _             => WindowEdge.North
+        };
+        BeginResizeDrag(edge, e);
+    }
+
+    private void OnMinimizeHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.MinimizeHotkey, (Button)sender!);
+    }
+
+    private void OnShowWindowHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.ShowWindowHotkey, (Button)sender!);
+    }
+
+    private void OnQuickMemoHotkeyClick(object? sender, RoutedEventArgs e)
+    {
+        StartCapture(_settings.QuickMemoHotkey, (Button)sender!);
+    }
+
+    private void OnHotkeyButtonPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_capturingHotkey == null) return;
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed) return;
+
+        _capturingButton!.Content = _capturingHotkey.ToString();
+        ClearHotkeyValidation();
+        ClearConflict();
+        e.Handled = true;
+        EndCapture();
+    }
+
+    private void OnDockEnabledChecked(object? sender, RoutedEventArgs e) =>
+        SetDockEnabled(true);
+
+    private void OnDockEnabledUnchecked(object? sender, RoutedEventArgs e) =>
+        SetDockEnabled(false);
+
+    private void SetDockEnabled(bool enabled)
+    {
+        if (_isApplyingDockEnabledState) return;
+        if (_settings.MainWindowDockEnabled == enabled)
+        {
+            UpdateDockDependentUi();
+            return;
+        }
+
+        _settings.MainWindowDockEnabled = enabled;
+        UpdateDockDependentUi();
+        _previewSettings(_settings.Clone());
+        AutoSave();
+    }
+
+    private void OnQuickMemoEnabledChecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.QuickMemoEnabled = true;
+        UpdateQuickMemoDependentUi();
+        AutoSave();
+    }
+
+    private void OnQuickMemoEnabledUnchecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.QuickMemoEnabled = false;
+        UpdateQuickMemoDependentUi();
+        AutoSave();
+    }
+
+    private void OnQuickMemoShowPopoutAfterAddChecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.QuickMemoShowPopoutAfterAdd = true;
+        AutoSave();
+    }
+
+    private void OnQuickMemoShowPopoutAfterAddUnchecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.QuickMemoShowPopoutAfterAdd = false;
+        AutoSave();
+    }
+
+    private void OnShowMainWindowTaskbarIconChecked(object? sender, RoutedEventArgs e) =>
+        SetShowMainWindowTaskbarIcon(true);
+
+    private void OnShowMainWindowTaskbarIconUnchecked(object? sender, RoutedEventArgs e) =>
+        SetShowMainWindowTaskbarIcon(false);
+
+    private void SetShowMainWindowTaskbarIcon(bool show)
+    {
+        if (_isApplyingTaskbarIconState || _settings.ShowMainWindowTaskbarIcon == show) return;
+        _settings.ShowMainWindowTaskbarIcon = show;
+        _previewSettings(_settings.Clone());
+        AutoSave();
+    }
+
+    private void OnShowMemoWindowTaskbarIconChecked(object? sender, RoutedEventArgs e) =>
+        SetShowMemoWindowTaskbarIcon(true);
+
+    private void OnShowMemoWindowTaskbarIconUnchecked(object? sender, RoutedEventArgs e) =>
+        SetShowMemoWindowTaskbarIcon(false);
+
+    private void SetShowMemoWindowTaskbarIcon(bool show)
+    {
+        if (_isApplyingTaskbarIconState) return;
+        if (_settings.ShowMemoWindowTaskbarIcon == show)
+        {
+            UpdateMemoTaskbarHotkeyUi();
+            return;
+        }
+        _settings.ShowMemoWindowTaskbarIcon = show;
+        UpdateMemoTaskbarHotkeyUi();
+        _previewSettings(_settings.Clone());
+        AutoSave();
+    }
+
+    private async void OnResetClick(object? sender, RoutedEventArgs e)
+    {
+        var confirm = new ConfirmDialog("重置设置", "确定要恢复默认设置吗？");
+        var result = await confirm.ShowDialog<bool>(this);
+        if (!result) return;
+
+        var defaults = AppSettings.CreateDefault();
+        _settings.CloseButtonAction = defaults.CloseButtonAction;
+        _settings.HasAskedCloseButtonAction = defaults.HasAskedCloseButtonAction;
+        _settings.ToggleTopmostHotkey = defaults.ToggleTopmostHotkey.Clone();
+        _settings.ToggleMemoTaskbarHotkey = defaults.ToggleMemoTaskbarHotkey.Clone();
+        _settings.MinimizeHotkey = defaults.MinimizeHotkey.Clone();
+        _settings.ShowWindowHotkey = defaults.ShowWindowHotkey.Clone();
+        _settings.QuickMemoHotkey = defaults.QuickMemoHotkey.Clone();
+        _settings.QuickMemoEnabled = defaults.QuickMemoEnabled;
+        _settings.DuplicateMemoEnabled = defaults.DuplicateMemoEnabled;
+        _settings.TraySingleClickToShow = defaults.TraySingleClickToShow;
+        _settings.ShowMainWindowTaskbarIcon = defaults.ShowMainWindowTaskbarIcon;
+        _settings.ShowMemoWindowTaskbarIcon = defaults.ShowMemoWindowTaskbarIcon;
+        _settings.QuickMemoShowPopoutAfterAdd = defaults.QuickMemoShowPopoutAfterAdd;
+        _settings.ThemeMode = defaults.ThemeMode;
+        _settings.MotionMode = defaults.MotionMode;
+        _settings.MainWindowDockEnabled = defaults.MainWindowDockEnabled;
+        _settings.MainWindowDockSize = defaults.MainWindowDockSize;
+        ThemePreferences.ApplyMode(_settings.ThemeMode);
+        MotionPreferences.ApplyMode(_settings.MotionMode);
+        ApplySettingsToUi();
+        AutoSave();
+    }
+
+    private void OnTutorialClick(object? sender, RoutedEventArgs e) {
+        // 作为独立非模态窗口打开，与备忘录弹出窗同构，不阻塞主窗体 / 设置面板。
+        var app = (App)Avalonia.Application.Current!;
+        app.OpenTutorial(_settings);
+    }
+
+    private void OnCloseClick(object? sender, RoutedEventArgs e)
+    {
+        CloseWithTransition();
+    }
+
+    private void OnDuplicateMemoChecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.DuplicateMemoEnabled = true;
+        AutoSave();
+    }
+
+    private void OnDuplicateMemoUnchecked(object? sender, RoutedEventArgs e)
+    {
+        _settings.DuplicateMemoEnabled = false;
+        AutoSave();
+    }
+
+    private void CloseWithTransition()
+    {
+        if (_isClosingAfterTransition) return;
+        _isClosingAfterTransition = true;
+        if (_transition == null)
+        {
+            Close();
+            return;
+        }
+        _transition.CloseAfterTransition(() => Close());
+    }
+}

@@ -1,0 +1,504 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:comp="clr-namespace:MemeMomo.Components"
+        x:Class="MemeMomo.Views.SettingsWindow"
+        Title="设置"
+        Icon="/Assets/appicon.ico"
+        Width="380" Height="430"
+        MinWidth="360" MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        ShowInTaskbar="False"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+  <Window.Styles>
+    <Style Selector="Button.SettingsIconBtn">
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+    </Style>
+    <Style Selector="Border.SettingsCard">
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="14"/>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn">
+      <Setter Property="MinWidth" Value="126"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Padding" Value="10,0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity"
+                            Duration="{DynamicResource MotionStandardDuration}"
+                            Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn.Conflict /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn.Conflict:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.ResetBtn">
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Padding" Value="14,0"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource DangerPrimaryBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.SecondaryBtn">
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.PrimaryBtn">
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Background" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFastDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn PathIcon">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.SettingsIconBtn:pointerover PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource IconHoverBrush}"/>
+    </Style>
+
+    <Style Selector="Button.HotkeyCaptureBtn /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderEmphasisBrush}"/>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+    </Style>
+    <Style Selector="Button.HotkeyCaptureBtn:disabled">
+      <Setter Property="Cursor" Value="Arrow"/>
+      <Setter Property="Opacity" Value="0.48"/>
+    </Style>
+
+    <Style Selector="Button.ResetBtn">
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.ResetBtn /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.ResetBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerPrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.ResetBtn:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+    </Style>
+    <Style Selector="Button.ResetBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource DangerHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.ResetBtn:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+    </Style>
+
+    <Style Selector="Button.SecondaryBtn /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.SecondaryBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.SecondaryBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderEmphasisBrush}"/>
+    </Style>
+    <Style Selector="Button.SecondaryBtn:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+    </Style>
+
+    <Style Selector="Button.PrimaryBtn /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.PrimaryBtn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.PrimaryBtn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+    </Style>
+    <Style Selector="Button.PrimaryBtn:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+  </Window.Styles>
+
+  <!--
+    窗体边缘/四角拖拽缩放手柄样式（与 MainWindow 同构）：
+    外壳 Border 内部叠放内容层 + 8 个透明手柄（4 边 + 4 角）。
+    边厚 6px；四角 14×14 对齐外壳 CornerRadius=14 的圆角弧线。
+    一个共享 handler 通过每个手柄的 Tag 区分要缩放的哪条边/哪个角。
+  -->
+  <Window.Styles>
+    <Style Selector="Border.ResizeEdge">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Panel.ZIndex" Value="10"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.ResizeCorner">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="Panel.ZIndex" Value="20"/>
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="_settingsShell"
+          Background="{StaticResource BgPrimaryBrush}"
+          BorderBrush="{StaticResource BorderSubtleBrush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          RenderTransformOrigin="0.5%,0.5%">
+    <Border.RenderTransform>
+      <ScaleTransform ScaleX="1" ScaleY="1"/>
+    </Border.RenderTransform>
+    <Grid RowDefinitions="48,*">
+      <Border Grid.Row="0"
+              Background="{StaticResource SurfacePrimaryBrush}"
+              BorderBrush="{StaticResource BorderSubtleBrush}"
+              BorderThickness="0,0,0,1"
+              CornerRadius="14,14,0,0"
+              PointerPressed="OnTitleBarPointerPressed">
+        <Grid ColumnDefinitions="*,Auto" Margin="16,0,10,0">
+          <Border Background="Transparent">
+            <TextBlock Text="设置" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+          </Border>
+          <Button Grid.Column="1" Classes="SettingsIconBtn" Click="OnCloseClick">
+            <PathIcon Data="{StaticResource CloseIcon}" Width="15" Height="15" Foreground="{StaticResource IconDefaultBrush}"/>
+          </Button>
+        </Grid>
+      </Border>
+
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16" Spacing="12">
+          <Border Classes="SettingsCard">
+            <StackPanel Spacing="10">
+              <TextBlock Text="关闭按钮操作" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+              <comp:SegmentedSelector x:Name="_closeActionSelector"
+                                      AutomationProperties.Name="关闭按钮操作"/>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="SettingsCard">
+            <StackPanel Spacing="10">
+              <TextBlock Text="功能设置" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+              <comp:AnimatedCheckBox x:Name="_quickMemoEnabledCheckBox"
+                                     IsChecked="True"
+                                     AutomationProperties.Name="快速添加剪贴板内容"
+                                     Checked="OnQuickMemoEnabledChecked"
+                                     Unchecked="OnQuickMemoEnabledUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="快速添加剪贴板内容" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="通过快捷键将剪贴板内容快速添加为备忘录" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+              <comp:CollapsibleSection x:Name="_quickMemoPopoutSection" SpacingCompensation="10">
+                <comp:AnimatedCheckBox x:Name="_quickMemoShowPopoutAfterAddCheckBox"
+                                       IsChecked="False"
+                                       AutomationProperties.Name="快速添加后自动显示便签"
+                                       Checked="OnQuickMemoShowPopoutAfterAddChecked"
+                                       Unchecked="OnQuickMemoShowPopoutAfterAddUnchecked">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="快速添加后自动显示便签" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="快速添加后在鼠标位置弹出便签窗口" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                  </StackPanel>
+                </comp:AnimatedCheckBox>
+              </comp:CollapsibleSection>
+              <comp:AnimatedCheckBox x:Name="_duplicateMemoCheckBox"
+                                     IsChecked="False"
+                                     AutomationProperties.Name="重复便签"
+                                     Checked="OnDuplicateMemoChecked"
+                                     Unchecked="OnDuplicateMemoUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="重复便签" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="关闭时移动已有窗体，开启时总是创建新窗体" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+              <comp:AnimatedCheckBox x:Name="_dockEnabledCheckBox"
+                                     IsChecked="True"
+                                     AutomationProperties.Name="启用贴边"
+                                     Checked="OnDockEnabledChecked"
+                                     Unchecked="OnDockEnabledUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="启用贴边" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="拖动主窗口到屏幕边缘时收起为方块" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+              <comp:AnimatedCheckBox x:Name="_showMainWindowTaskbarIconCheckBox"
+                                     IsChecked="False"
+                                     AutomationProperties.Name="显示主界面任务栏图标"
+                                     Checked="OnShowMainWindowTaskbarIconChecked"
+                                     Unchecked="OnShowMainWindowTaskbarIconUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="主界面任务栏图标" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="主界面窗口显示时在 Windows 任务栏中显示图标" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+              <comp:AnimatedCheckBox x:Name="_showMemoWindowTaskbarIconCheckBox"
+                                     IsChecked="False"
+                                     AutomationProperties.Name="显示便签窗口任务栏图标"
+                                     Checked="OnShowMemoWindowTaskbarIconChecked"
+                                     Unchecked="OnShowMemoWindowTaskbarIconUnchecked">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="便签窗口任务栏图标" TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="在标题栏显示按钮，可单独控制每个便签的任务栏图标" TextWrapping="Wrap" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+              </comp:AnimatedCheckBox>
+
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="托盘图标点击习惯" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="设置单击还是双击托盘图标显示主界面" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+                <comp:LabeledToggleSwitch Grid.Column="1" x:Name="_trayClickToggle"
+                                          VerticalAlignment="Center"
+                                          MinWidth="80"
+                                          LeftLabel="单击"
+                                          RightLabel="双击"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <comp:CollapsibleSection x:Name="_dockSizeSection" SpacingCompensation="12">
+            <Border x:Name="_dockSizeCard" Classes="SettingsCard">
+              <StackPanel Spacing="2">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="贴边方块大小" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                  <TextBlock Text="调整主窗口贴边收起后的方块尺寸" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+                </StackPanel>
+                <comp:AnimatedSlider x:Name="_dockSizeSlider"
+                                     Minimum="30"
+                                     Maximum="75"
+                                     Step="1"
+                                     ValueSuffix="px"
+                                     AutomationProperties.Name="贴边方块大小"/>
+              </StackPanel>
+            </Border>
+          </comp:CollapsibleSection>
+
+          <Border Classes="SettingsCard">
+            <StackPanel Spacing="10">
+              <TextBlock Text="主题颜色" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+              <comp:SegmentedSelector x:Name="_themeSelector"
+                                      AutomationProperties.Name="主题颜色"/>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="SettingsCard">
+            <StackPanel Spacing="10">
+              <StackPanel Spacing="2">
+                <TextBlock Text="界面动效" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="控制窗口和界面微交互动画" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+              </StackPanel>
+              <comp:SegmentedSelector x:Name="_motionSelector"
+                                      AutomationProperties.Name="界面动效"/>
+              <comp:CollapsibleSection x:Name="_motionSystemStatusSection" SpacingCompensation="10" IsExpanded="False">
+                <TextBlock x:Name="_motionSystemStatus"
+                           FontSize="11.5"
+                           Foreground="{StaticResource TextTertiaryBrush}"/>
+              </comp:CollapsibleSection>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="SettingsCard">
+            <StackPanel Spacing="12">
+              <StackPanel Spacing="2">
+                <TextBlock Text="快捷键设置" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="点击后按快捷键，按 Esc 留空，右键取消" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Text="置顶" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <Button Grid.Row="0" Grid.Column="1" x:Name="_toggleTopmostHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnToggleTopmostHotkeyClick"/>
+
+                <TextBlock Grid.Row="1" Text="最小化" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
+                <Button Grid.Row="1" Grid.Column="1" x:Name="_minimizeHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnMinimizeHotkeyClick" Margin="0,8,0,0"/>
+
+                <TextBlock Grid.Row="2" Text="显示软件" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
+                <Button Grid.Row="2" Grid.Column="1" x:Name="_showWindowHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnShowWindowHotkeyClick" Margin="0,8,0,0"/>
+
+                <TextBlock Grid.Row="3" Text="快速添加（剪贴板）" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
+                <Button Grid.Row="3" Grid.Column="1" x:Name="_quickMemoHotkeyButton" Classes="HotkeyCaptureBtn" Click="OnQuickMemoHotkeyClick" Margin="0,8,0,0"/>
+
+                <comp:CollapsibleSection Grid.Row="4"
+                                         Grid.ColumnSpan="2"
+                                         x:Name="_memoTaskbarHotkeySection"
+                                         IsExpanded="False">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                    <TextBlock Text="切换便签任务栏图标"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Button Grid.Column="1"
+                            x:Name="_toggleMemoTaskbarHotkeyButton"
+                            Classes="HotkeyCaptureBtn"
+                            AutomationProperties.Name="切换便签任务栏图标快捷键"
+                            Click="OnToggleMemoTaskbarHotkeyClick"/>
+                  </Grid>
+                </comp:CollapsibleSection>
+              </Grid>
+              <comp:CollapsibleSection x:Name="_hotkeyValidationSection" SpacingCompensation="12" IsExpanded="False">
+                <TextBlock x:Name="_hotkeyValidationText"
+                           FontSize="11.5"
+                           Foreground="{StaticResource DangerPrimaryBrush}"
+                           TextWrapping="Wrap"/>
+              </comp:CollapsibleSection>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="SettingsCard">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="教程" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="查看使用教程" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Classes="SecondaryBtn" Content="教程" Click="OnTutorialClick"/>
+            </Grid>
+          </Border>
+
+          <Border Classes="SettingsCard">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="重置设置" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="恢复关闭行为和快捷键默认值" FontSize="11.5" Foreground="{StaticResource TextTertiaryBrush}"/>
+              </StackPanel>
+              <Button Grid.Column="1" Classes="ResetBtn" Content="重置" Click="OnResetClick"/>
+            </Grid>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- 边缘/四角缩放手柄（覆盖在内容之上，RowSpan 横跨 48,* 两行） -->
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Top"
+              Height="6" VerticalAlignment="Top" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Bottom"
+              Height="6" VerticalAlignment="Bottom" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Left"
+              Width="6" HorizontalAlignment="Left" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Right"
+              Width="6" HorizontalAlignment="Right" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="TopLeft"
+              Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="TopRight"
+              Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Top"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="BottomLeft"
+              Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="BottomRight"
+              Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+    </Grid>
+  </Border>
+</Window>

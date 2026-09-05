@@ -1,0 +1,162 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DesignWidth="380" d:DesignHeight="360"
+        x:Class="MemeMomo.Views.TutorialWindow"
+        Title="教程"
+        Icon="/Assets/appicon.ico"
+        Width="380" Height="360"
+        MinWidth="300" MinHeight="220"
+        ShowInTaskbar="False"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+  <Window.Styles>
+    <Style Selector="Border.PopoutNoteSurface">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="12.5"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionStandardDuration}" Easing="CubicEaseOut"/>
+        </Transitions>
+      </Setter>
+    </Style>
+  </Window.Styles>
+
+  <!--
+    窗体边缘/四角拖拽缩放手柄样式（与 MainWindow / MemoPopoutWindow 同构）：
+    外壳 Border 内部叠放内容层 + 8 个透明手柄（4 边 + 4 角）。
+    边厚 6px；四角 14×14 对齐外壳 CornerRadius=14 的圆角弧线。
+    一个共享 handler 通过每个手柄的 Tag 区分要缩放的哪条边/哪个角。
+  -->
+  <Window.Styles>
+    <Style Selector="Border.ResizeEdge">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Panel.ZIndex" Value="10"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Border.ResizeCorner">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="0"/>
+      <Setter Property="Panel.ZIndex" Value="20"/>
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="_popoutShell"
+          Background="{StaticResource BgPrimaryBrush}"
+          BorderBrush="{StaticResource BorderSubtleBrush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          RenderTransformOrigin="0.5,0.5">
+    <Border.RenderTransform>
+      <ScaleTransform ScaleX="1" ScaleY="1"/>
+    </Border.RenderTransform>
+
+    <Grid RowDefinitions="38,*">
+      <Border Grid.Row="0"
+              x:Name="_titleBarDrag"
+              Background="{StaticResource BgPrimaryBrush}"
+              BorderBrush="{StaticResource BorderSubtleBrush}"
+              BorderThickness="0,0,0,1"
+              CornerRadius="14,14,0,0"
+              PointerPressed="OnTitleBarPointerPressed">
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,0,8,0">
+          <StackPanel Grid.Column="0"
+                      Orientation="Horizontal"
+                      VerticalAlignment="Center"
+                      Spacing="8">
+            <Image Source="/Assets/appicon.png" Width="18" Height="18"/>
+            <TextBlock x:Name="_titleText"
+                       Text="教程"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       FontSize="13"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="190"/>
+          </StackPanel>
+
+          <Border Grid.Column="1"
+                  Background="Transparent"/>
+
+          <StackPanel Grid.Column="2"
+                      Orientation="Horizontal"
+                      VerticalAlignment="Center"
+                      Spacing="2">
+            <Button Classes="TitleBarBtn" CornerRadius="6" Click="OnPinToggle" x:Name="_pinButton" ToolTip.Tip="置顶" Width="26" Height="26" MinWidth="26" MinHeight="26">
+              <PathIcon Data="{StaticResource PinIcon}" Width="13" Height="13" Foreground="{StaticResource IconDefaultBrush}">
+                <PathIcon.RenderTransform>
+                  <RotateTransform Angle="0"/>
+                </PathIcon.RenderTransform>
+              </PathIcon>
+            </Button>
+            <Button Classes="TitleBarBtn CloseBtn" CornerRadius="6" Click="OnCloseClick" ToolTip.Tip="关闭" Width="26" Height="26" MinWidth="26" MinHeight="26">
+              <PathIcon Data="{StaticResource CloseIcon}" Width="13" Height="13" Foreground="{StaticResource IconDefaultBrush}"/>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="1"
+              Background="{StaticResource BgPrimaryBrush}"
+              CornerRadius="0,0,14,14">
+        <Border x:Name="_noteSurface"
+                Classes="PopoutNoteSurface">
+          <ScrollViewer x:Name="_contentViewer"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
+            <TextBlock x:Name="_tutorialContent"
+                       FontSize="13"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       TextWrapping="Wrap"
+                       LineHeight="21"/>
+          </ScrollViewer>
+        </Border>
+      </Border>
+
+      <!-- 边缘/四角缩放手柄（覆盖在内容之上，RowSpan 横跨 38,* 两行） -->
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Top"
+              Height="6" VerticalAlignment="Top" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Bottom"
+              Height="6" VerticalAlignment="Bottom" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Left"
+              Width="6" HorizontalAlignment="Left" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeEdge" Grid.Row="0" Grid.RowSpan="2"
+              Tag="Right"
+              Width="6" HorizontalAlignment="Right" Margin="0"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="TopLeft"
+              Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="TopRight"
+              Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Top"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="BottomLeft"
+              Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+      <Border Classes="ResizeCorner" Grid.Row="0" Grid.RowSpan="2"
+              Tag="BottomRight"
+              Width="14" Height="14" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+              PointerPressed="OnResizeHandlePointerPressed"/>
+    </Grid>
+  </Border>
+</Window>

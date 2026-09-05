@@ -1,0 +1,72 @@
+<windows:BorderlessWindow x:Class="MemeMomo.Views.ReminderWindow"
+                          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                          xmlns:windows="clr-namespace:MemeMomo.UI.Windows"
+                          xmlns:components="clr-namespace:MemeMomo.Components"
+                          xmlns:ui="clr-namespace:MemeMomo.UI"
+                          Title="设置提醒"
+                          Width="360"
+                          Height="400"
+                          ResizeMode="NoResize"
+                          WindowStartupLocation="CenterOwner"
+                          ShowInTaskbar="False"
+                          UseBuiltInTitleBar="False"
+                          TitleBarHeight="0"
+                          CornerRadius="14"
+                          PreviewKeyDown="OnWindowPreviewKeyDown">
+  <Grid x:Name="WindowRoot" Background="{DynamicResource BgPrimaryBrush}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="48" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Background="{DynamicResource SurfacePrimaryBrush}"
+            BorderBrush="{DynamicResource BorderSubtleBrush}"
+            BorderThickness="0,0,0,1"
+            CornerRadius="14,14,0,0"
+            MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+      <Grid Margin="16,0,10,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBlock Text="设置提醒" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" x:Name="CloseButton" Width="34" Height="34" Padding="0" Style="{StaticResource TitleBarButtonStyle}" ToolTip="关闭" AutomationProperties.Name="关闭提醒设置" Click="OnCloseClick">
+          <Path Width="15" Height="15" Stretch="Uniform" Data="{DynamicResource CloseIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+        </Button>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" Margin="16,14,16,16">
+      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+      <StackPanel>
+        <TextBlock x:Name="MemoTitleText" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+        <TextBlock x:Name="CurrentReminderText" Margin="0,3,0,0" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" Visibility="Collapsed" />
+      </StackPanel>
+
+      <Border Grid.Row="1" Margin="0,10,0,0" Padding="12" Background="{DynamicResource SurfacePrimaryBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="12">
+        <StackPanel>
+          <UniformGrid Columns="4">
+            <Button Content="1分钟后" Tag="60" Margin="0,0,3,0" Style="{StaticResource MemoBaseButtonStyle}" Height="32" Padding="4,0" Click="OnQuickTimeClick" AutomationProperties.Name="设置为1分钟后" />
+            <Button Content="10分钟后" Tag="600" Margin="3,0" Style="{StaticResource MemoBaseButtonStyle}" Height="32" Padding="4,0" Click="OnQuickTimeClick" AutomationProperties.Name="设置为10分钟后" />
+            <Button Content="半小时后" Tag="1800" Margin="3,0" Style="{StaticResource MemoBaseButtonStyle}" Height="32" Padding="4,0" Click="OnQuickTimeClick" AutomationProperties.Name="设置为半小时后" />
+            <Button Content="1小时后" Tag="3600" Margin="3,0,0,0" Style="{StaticResource MemoBaseButtonStyle}" Height="32" Padding="4,0" Click="OnQuickTimeClick" AutomationProperties.Name="设置为1小时后" />
+          </UniformGrid>
+
+          <components:DateFieldSelector x:Name="DateField"
+                                        Margin="0,10,0,0"
+                                        SelectedDateChanged="OnSelectedDateChanged"
+                                        AutomationProperties.Name="提醒日期" />
+          <components:TimeWheelSelector x:Name="TimeWheel" Margin="0,10,0,0" AutomationProperties.Name="提醒时间" />
+        </StackPanel>
+      </Border>
+
+      <TextBlock Grid.Row="2" x:Name="ErrorText" MinHeight="18" Margin="0,6" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource DangerPrimaryBrush}" />
+
+      <Grid Grid.Row="3">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Button x:Name="CancelReminderButton" Content="取消提醒" Visibility="Collapsed" Height="34" Padding="14,0" Foreground="{DynamicResource DangerPrimaryBrush}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerPrimaryBrush}" BorderThickness="1" Click="OnCancelReminderClick" AutomationProperties.Name="取消当前提醒" />
+        <Button Grid.Column="1" Content="取消" Margin="8,0,0,0" Height="34" Padding="14,0" Style="{StaticResource DialogSecondaryActionButtonStyle}" Click="OnCloseClick" />
+        <Button Grid.Column="2" x:Name="ScheduleButton" Content="设置提醒" Margin="8,0,0,0" Height="34" Padding="14,0" Style="{StaticResource DialogPrimaryActionButtonStyle}" Click="OnScheduleClick" />
+      </Grid>
+    </Grid>
+  </Grid>
+</windows:BorderlessWindow>

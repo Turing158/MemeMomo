@@ -1,0 +1,308 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MemeMomo.Components.Dialogs.ImageUrlDialog"
+        Title="插入网络图片"
+        Width="460" Height="260"
+        MinWidth="380" MinHeight="260"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        KeyDown="OnDialogKeyDown">
+  <Window.Resources>
+    <StreamGeometry x:Key="DialogRemoteImageIcon">M3,5A2,2 0 0 1 5,3H15A2,2 0 0 1 17,5V9.1C15.8,9.5 14.8,10.1 14,11L12.5,9L9,13.5L7,11L3,16V5M15.5,10A5.5,5.5 0 1 1 15.5,21A5.5,5.5 0 0 1 15.5,10M12,15H14C14.1,13.9 14.4,13 15,12.4C13.5,12.6 12.3,13.6 12,15M16,12.4C16.6,13 16.9,13.9 17,15H19C18.7,13.6 17.5,12.6 16,12.4M12,16.5C12.3,17.9 13.5,18.9 15,19.1C14.4,18.5 14.1,17.6 14,16.5H12M15.5,12.5C15,13.1 14.7,13.9 14.6,15H16.4C16.3,13.9 16,13.1 15.5,12.5M14.6,16.5C14.7,17.6 15,18.4 15.5,19C16,18.4 16.3,17.6 16.4,16.5H14.6M17,16.5C16.9,17.6 16.6,18.5 16,19.1C17.5,18.9 18.7,17.9 19,16.5H17Z</StreamGeometry>
+    <StreamGeometry x:Key="DialogLinkIcon">M10.59,13.41C11,13.8 11,14.4 10.59,14.82L8.82,16.59C7.26,18.15 4.73,18.15 3.17,16.59C1.61,15.03 1.61,12.5 3.17,10.94L6.71,7.4C8.27,5.84 10.8,5.84 12.36,7.4C12.77,7.81 12.77,8.44 12.36,8.83C11.97,9.22 11.34,9.22 10.95,8.83C10.17,8.05 8.9,8.05 8.12,8.83L4.58,12.37C3.8,13.15 3.8,14.42 4.58,15.2C5.36,15.98 6.63,15.98 7.41,15.2L9.18,13.41C9.57,13.02 10.2,13.02 10.59,13.41M20.83,7.41C22.39,8.97 22.39,11.5 20.83,13.06L17.29,16.6C15.73,18.16 13.2,18.16 11.64,16.6C11.23,16.19 11.23,15.56 11.64,15.17C12.03,14.78 12.66,14.78 13.05,15.17C13.83,15.95 15.1,15.95 15.88,15.17L19.42,11.63C20.2,10.85 20.2,9.58 19.42,8.8C18.64,8.02 17.37,8.02 16.59,8.8L14.82,10.59C14.43,10.98 13.8,10.98 13.41,10.59C13,10.2 13,9.6 13.41,9.18L15.18,7.41C16.74,5.85 19.27,5.85 20.83,7.41Z</StreamGeometry>
+    <StreamGeometry x:Key="DialogCloseIcon">M6.7,5.3L12,10.6L17.3,5.3L18.7,6.7L13.4,12L18.7,17.3L17.3,18.7L12,13.4L6.7,18.7L5.3,17.3L10.6,12L5.3,6.7Z</StreamGeometry>
+    <StreamGeometry x:Key="DialogLockIcon">M12,17A2,2 0 1 0 12,13A2,2 0 0 0 12,17M18,8A2,2 0 0 1 20,10V20A2,2 0 0 1 18,22H6A2,2 0 0 1 4,20V10A2,2 0 0 1 6,8H7V6A5,5 0 0 1 17,6V8H18M12,3A3,3 0 0 0 9,6V8H15V6A3,3 0 0 0 12,3Z</StreamGeometry>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Border.ImageUrlInput">
+      <Setter Property="Height" Value="44"/>
+      <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.ImageUrlInput:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+    </Style>
+    <Style Selector="Border.ImageUrlInput:focus-within">
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+    </Style>
+    <Style Selector="Border.ImageUrlInput.invalid">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="TextBox.ImageUrlTextBox">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="SelectionBrush" Value="{StaticResource TextSelectionBrush}"/>
+      <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.ImageUrlTextBox /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="Button.ImageUrlIconButton">
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="MinWidth" Value="34"/>
+      <Setter Property="MinHeight" Value="34"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource IconDefaultBrush}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.ImageUrlIconButton:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource IconHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlIconButton:pressed">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlIconButton.close:pointerover">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlIconButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+
+    <Style Selector="Button.ImageUrlAction">
+      <Setter Property="Height" Value="38"/>
+      <Setter Property="MinWidth" Value="84"/>
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.secondary">
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.secondary:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.secondary:pressed">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.primary">
+      <Setter Property="MinWidth" Value="116"/>
+      <Setter Property="Background" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.primary:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction.primary:pressed">
+      <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentPressedBrush}"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    <Style Selector="Button.ImageUrlAction:disabled">
+      <Setter Property="Background" Value="{StaticResource BgTertiaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}"/>
+      <Setter Property="Cursor" Value="Arrow"/>
+      <Setter Property="Opacity" Value="0.78"/>
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="_dialogShell"
+          Background="{StaticResource SurfacePrimaryBrush}"
+          BorderBrush="{StaticResource BorderEmphasisBrush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          ClipToBounds="True"
+          RenderTransformOrigin="50%,50%">
+    <Border.RenderTransform>
+      <ScaleTransform ScaleX="1" ScaleY="1"/>
+    </Border.RenderTransform>
+
+    <Grid RowDefinitions="64,1,*,1,70">
+      <Grid x:Name="_titleBar"
+            Grid.Row="0"
+            ColumnDefinitions="Auto,*,Auto"
+            Margin="20,0,12,0"
+            Background="{StaticResource TransparentBrush}"
+            PointerPressed="OnTitleBarPointerPressed">
+        <Border Width="34" Height="34"
+                VerticalAlignment="Center"
+                Background="{StaticResource AccentSubtleBrush}"
+                BorderBrush="{StaticResource AccentMutedBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+          <PathIcon Data="{StaticResource DialogRemoteImageIcon}"
+                    Width="17" Height="17"
+                    Foreground="{StaticResource AccentPrimaryBrush}"/>
+        </Border>
+        <TextBlock Grid.Column="1"
+                   Margin="11,0,0,0"
+                   VerticalAlignment="Center"
+                   Text="插入网络图片"
+                   FontSize="15.5"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}"/>
+        <Button Grid.Column="2"
+                Classes="ImageUrlIconButton close"
+                AutomationProperties.Name="关闭网络图片面板"
+                ToolTip.Tip="关闭"
+                Click="OnCancelClick">
+          <PathIcon Data="{StaticResource DialogCloseIcon}" Width="14" Height="14"/>
+        </Button>
+      </Grid>
+
+      <Border Grid.Row="1" Background="{StaticResource BorderSubtleBrush}"/>
+
+      <StackPanel Grid.Row="2" Margin="22,18,22,14" Spacing="6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="图片地址"
+                     FontSize="12.5"
+                     FontWeight="SemiBold"
+                     Foreground="{StaticResource TextSecondaryBrush}"/>
+          <TextBlock Grid.Column="1"
+                     Text="必填"
+                     FontSize="10.5"
+                     Foreground="{StaticResource TextTertiaryBrush}"/>
+        </Grid>
+
+        <Border x:Name="_urlInputRoot" Classes="ImageUrlInput">
+          <Grid ColumnDefinitions="42,*,36">
+            <Border Background="{StaticResource AccentSubtleBrush}"
+                    BorderBrush="{StaticResource BorderSubtleBrush}"
+                    BorderThickness="0,0,1,0"
+                    CornerRadius="8,0,0,8">
+              <PathIcon Data="{StaticResource DialogLinkIcon}"
+                        Width="15" Height="15"
+                        Foreground="{StaticResource AccentPrimaryBrush}"/>
+            </Border>
+            <TextBox x:Name="_urlBox"
+                     Grid.Column="1"
+                     Classes="ImageUrlTextBox"
+                     Margin="11,0,4,0"
+                     Watermark="https://example.com/image.png"
+                     AutomationProperties.Name="网络图片地址"
+                     TextChanged="OnUrlTextChanged"/>
+            <Button x:Name="_clearUrlButton"
+                    Grid.Column="2"
+                    Classes="ImageUrlIconButton"
+                    Width="30" Height="30"
+                    MinWidth="30" MinHeight="30"
+                    Margin="0,0,4,0"
+                    IsVisible="False"
+                    AutomationProperties.Name="清空图片地址"
+                    ToolTip.Tip="清空"
+                    Click="OnClearUrlClick">
+              <PathIcon Data="{StaticResource DialogCloseIcon}" Width="12" Height="12"/>
+            </Button>
+          </Grid>
+        </Border>
+
+        <Grid Height="20">
+          <StackPanel x:Name="_helperContent"
+                      Orientation="Horizontal"
+                      Spacing="5"
+                      VerticalAlignment="Center">
+            <PathIcon Data="{StaticResource DialogLockIcon}"
+                      Width="11" Height="11"
+                      Foreground="{StaticResource TextTertiaryBrush}"/>
+            <TextBlock Text="仅支持 HTTPS 安全地址"
+                       FontSize="11.5"
+                       Foreground="{StaticResource TextTertiaryBrush}"/>
+            <StackPanel.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="{DynamicResource MotionFastDuration}"/>
+              </Transitions>
+            </StackPanel.Transitions>
+          </StackPanel>
+          <TextBlock x:Name="_errorText"
+                     VerticalAlignment="Center"
+                     Text="请输入有效的 HTTPS 图片地址"
+                     FontSize="11.5"
+                     Foreground="{StaticResource DangerPrimaryBrush}"
+                     Opacity="0"
+                     AutomationProperties.Name="图片地址错误">
+            <TextBlock.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="{DynamicResource MotionFastDuration}"/>
+              </Transitions>
+            </TextBlock.Transitions>
+          </TextBlock>
+        </Grid>
+      </StackPanel>
+
+      <Border Grid.Row="3" Background="{StaticResource BorderSubtleBrush}"/>
+
+      <Grid Grid.Row="4"
+            ColumnDefinitions="*,Auto,Auto"
+            Margin="22,0"
+            Background="{StaticResource TransparentBrush}">
+        <Button Grid.Column="1"
+                Classes="ImageUrlAction secondary"
+                Margin="0,0,9,0"
+                Content="取消"
+                AutomationProperties.Name="取消"
+                Click="OnCancelClick"/>
+        <Button x:Name="_submitButton"
+                Grid.Column="2"
+                Classes="ImageUrlAction primary"
+                IsEnabled="False"
+                AutomationProperties.Name="插入网络图片"
+                Click="OnInsertClick">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <PathIcon Data="{StaticResource DialogRemoteImageIcon}" Width="14" Height="14"/>
+            <TextBlock Text="插入图片"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

@@ -1,12 +1,12 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    发布 Memo (WPF) 单文件 exe，并尽可能压缩体积。
+    发布 MemeMomo (WPF) 单文件 exe，并尽可能压缩体积。
 
 .DESCRIPTION
     两种体积档位：
 
-      Framework      框架依赖单文件。exe 里只打包 Memo + AvalonEdit + Markdig，
+      Framework      框架依赖单文件。exe 里只打包 MemeMomo + AvalonEdit + Markdig，
                      体积最小（个位数 MB），但目标机器需要装 .NET 8 桌面运行时。
       SelfContained  自包含单文件。不依赖运行时，体积大得多；脚本会开启单文件
                      压缩、关闭 ReadyToRun、剔除卫星语言资源来尽量压缩。
@@ -19,7 +19,7 @@
     -m sc  自包含（约 63 MB）
     长写法 Framework / SelfContained 也接受。
 
-    两个档位都输出到同一个 artifacts\single\Memo.exe，换档位会覆盖上一次的产物。
+    两个档位都输出到同一个 artifacts\single\MemeMomo.exe，换档位会覆盖上一次的产物。
     要并排保留就自己指定 -o <目录>。
 
 .PARAMETER Invariant
@@ -72,7 +72,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot 'Memo-wpf\Memo.csproj'
+$project = Join-Path $repoRoot 'MemeMomo-wpf\MemeMomo.csproj'
 
 if (-not (Test-Path -LiteralPath $project)) {
     throw "找不到项目文件: $project"
@@ -83,7 +83,7 @@ $selfContained = ($Mode -in @('sc', 'SelfContained'))
 # 归一成长名字，只用于显示。
 $modeLabel = if ($selfContained) { 'SelfContained' } else { 'Framework' }
 
-# 单文件产物只有一个 Memo.exe，不按档位分目录；换档位直接覆盖同一个输出目录。
+# 单文件产物只有一个 MemeMomo.exe，不按档位分目录；换档位直接覆盖同一个输出目录。
 if ([string]::IsNullOrWhiteSpace($Output)) {
     $Output = Join-Path $repoRoot 'artifacts\single'
 }
@@ -118,7 +118,7 @@ if ($Trim) {
 }
 
 if ($Clean) {
-    foreach ($dir in @($Output, (Join-Path $repoRoot 'Memo-wpf\obj\Release'), (Join-Path $repoRoot 'Memo-wpf\bin\Release'))) {
+    foreach ($dir in @($Output, (Join-Path $repoRoot 'MemeMomo-wpf\obj\Release'), (Join-Path $repoRoot 'MemeMomo-wpf\bin\Release'))) {
         if (Test-Path -LiteralPath $dir) {
             Write-Host "清理 $dir"
             Remove-Item -LiteralPath $dir -Recurse -Force
@@ -154,7 +154,7 @@ $publishArgs = @(
 & dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败 (exit $LASTEXITCODE)" }
 
-$exe = Join-Path $Output 'Memo.exe'
+$exe = Join-Path $Output 'MemeMomo.exe'
 if (-not (Test-Path -LiteralPath $exe)) {
     throw "发布结束但找不到 $exe"
 }
@@ -171,7 +171,7 @@ $totalMb = [math]::Round(((Get-ChildItem -LiteralPath $Output -Recurse -File |
     Measure-Object -Property Length -Sum).Sum / 1MB), 2)
 
 Write-Host ''
-Write-Host ('Memo.exe    : {0} MB' -f $exeMb)
+Write-Host ('MemeMomo.exe    : {0} MB' -f $exeMb)
 Write-Host ('输出总大小  : {0} MB' -f $totalMb)
 Write-Host ''
 Write-Host '随包文件:'

@@ -1,0 +1,324 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MemeMomo.Components.Dialogs.LinkEditDialog"
+        Title="插入链接"
+        Width="460" Height="356"
+        MinWidth="380" MinHeight="356"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        KeyDown="OnDialogKeyDown">
+  <Window.Resources>
+    <StreamGeometry x:Key="DialogLinkIcon">M10.59,13.41C11,13.8 11,14.4 10.59,14.82L8.82,16.59C7.26,18.15 4.73,18.15 3.17,16.59C1.61,15.03 1.61,12.5 3.17,10.94L6.71,7.4C8.27,5.84 10.8,5.84 12.36,7.4C12.77,7.81 12.77,8.44 12.36,8.83C11.97,9.22 11.34,9.22 10.95,8.83C10.17,8.05 8.9,8.05 8.12,8.83L4.58,12.37C3.8,13.15 3.8,14.42 4.58,15.2C5.36,15.98 6.63,15.98 7.41,15.2L9.18,13.41C9.57,13.02 10.2,13.02 10.59,13.41M20.83,7.41C22.39,8.97 22.39,11.5 20.83,13.06L17.29,16.6C15.73,18.16 13.2,18.16 11.64,16.6C11.23,16.19 11.23,15.56 11.64,15.17C12.03,14.78 12.66,14.78 13.05,15.17C13.83,15.95 15.1,15.95 15.88,15.17L19.42,11.63C20.2,10.85 20.2,9.58 19.42,8.8C18.64,8.02 17.37,8.02 16.59,8.8L14.82,10.59C14.43,10.98 13.8,10.98 13.41,10.59C13,10.2 13,9.6 13.41,9.18L15.18,7.41C16.74,5.85 19.27,5.85 20.83,7.41Z</StreamGeometry>
+    <StreamGeometry x:Key="DialogCloseIcon">M6.7,5.3L12,10.6L17.3,5.3L18.7,6.7L13.4,12L18.7,17.3L17.3,18.7L12,13.4L6.7,18.7L5.3,17.3L10.6,12L5.3,6.7Z</StreamGeometry>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Border.LinkDialogInput">
+      <Setter Property="Height" Value="44"/>
+      <Setter Property="Background" Value="{StaticResource BgSecondaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.LinkDialogInput:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+    </Style>
+    <Style Selector="Border.LinkDialogInput:focus-within">
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+    </Style>
+    <Style Selector="Border.LinkDialogInput.invalid">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+
+    <Style Selector="TextBox.LinkDialogTextBox">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="CaretBrush" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="SelectionBrush" Value="{StaticResource TextSelectionBrush}"/>
+      <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.LinkDialogTextBox /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="Button.LinkDialogIconButton">
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="MinWidth" Value="34"/>
+      <Setter Property="MinHeight" Value="34"/>
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Foreground" Value="{StaticResource IconDefaultBrush}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.LinkDialogIconButton:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource IconHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogIconButton:pressed">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogIconButton.close:pointerover">
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource DangerPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogIconButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+
+    <Style Selector="Button.LinkDialogAction">
+      <Setter Property="Height" Value="38"/>
+      <Setter Property="MinWidth" Value="84"/>
+      <Setter Property="Padding" Value="16,0"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="BorderBrush" Duration="{DynamicResource MotionFastDuration}"/>
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.secondary">
+      <Setter Property="Background" Value="{StaticResource SurfacePrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.secondary:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderHoverBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.secondary:pressed">
+      <Setter Property="Background" Value="{StaticResource SurfaceActiveBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.primary">
+      <Setter Property="MinWidth" Value="112"/>
+      <Setter Property="Background" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentPrimaryBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.primary:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentHoverBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentHoverBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction.primary:pressed">
+      <Setter Property="Background" Value="{StaticResource AccentPressedBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource AccentPressedBrush}"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderFocusBrush}"/>
+      <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+    <Style Selector="Button.LinkDialogAction:disabled">
+      <Setter Property="Background" Value="{StaticResource BgTertiaryBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderDefaultBrush}"/>
+      <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}"/>
+      <Setter Property="Cursor" Value="Arrow"/>
+      <Setter Property="Opacity" Value="0.78"/>
+    </Style>
+
+    <Style Selector="TextBlock.LinkDialogError">
+      <Setter Property="Height" Value="17"/>
+      <Setter Property="FontSize" Value="11.5"/>
+      <Setter Property="Foreground" Value="{StaticResource DangerPrimaryBrush}"/>
+      <Setter Property="Opacity" Value="0"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{DynamicResource MotionFastDuration}"/>
+        </Transitions>
+      </Setter>
+    </Style>
+  </Window.Styles>
+
+  <Border x:Name="_dialogShell"
+          Background="{StaticResource SurfacePrimaryBrush}"
+          BorderBrush="{StaticResource BorderEmphasisBrush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          ClipToBounds="True"
+          RenderTransformOrigin="50%,50%">
+    <Border.RenderTransform>
+      <ScaleTransform ScaleX="1" ScaleY="1"/>
+    </Border.RenderTransform>
+
+    <Grid RowDefinitions="64,1,*,1,70">
+      <Grid x:Name="_titleBar"
+            Grid.Row="0"
+            ColumnDefinitions="Auto,*,Auto"
+            Margin="20,0,12,0"
+            Background="{StaticResource TransparentBrush}"
+            PointerPressed="OnTitleBarPointerPressed">
+        <Border Width="34" Height="34"
+                VerticalAlignment="Center"
+                Background="{StaticResource AccentSubtleBrush}"
+                BorderBrush="{StaticResource AccentMutedBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+          <PathIcon Data="{StaticResource DialogLinkIcon}"
+                    Width="17" Height="17"
+                    Foreground="{StaticResource AccentPrimaryBrush}"/>
+        </Border>
+        <TextBlock x:Name="_titleText"
+                   Grid.Column="1"
+                   Margin="11,0,0,0"
+                   VerticalAlignment="Center"
+                   Text="插入链接"
+                   FontSize="15.5"
+                   FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimaryBrush}"/>
+        <Button Grid.Column="2"
+                Classes="LinkDialogIconButton close"
+                AutomationProperties.Name="关闭链接面板"
+                ToolTip.Tip="关闭"
+                Click="OnCancel">
+          <PathIcon Data="{StaticResource DialogCloseIcon}" Width="14" Height="14"/>
+        </Button>
+      </Grid>
+
+      <Border Grid.Row="1" Background="{StaticResource BorderSubtleBrush}"/>
+
+      <StackPanel Grid.Row="2" Margin="22,18,22,16" Spacing="9">
+        <StackPanel Spacing="4">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="链接文本"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1"
+                       Text="必填"
+                       FontSize="10.5"
+                       Foreground="{StaticResource TextTertiaryBrush}"/>
+          </Grid>
+          <Border x:Name="_labelInputRoot" Classes="LinkDialogInput">
+            <Grid ColumnDefinitions="40,*">
+              <Border BorderBrush="{StaticResource BorderSubtleBrush}"
+                      BorderThickness="0,0,1,0">
+                <TextBlock Text="Aa"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource IconDefaultBrush}"/>
+              </Border>
+              <TextBox x:Name="_labelBox"
+                       Grid.Column="1"
+                       Classes="LinkDialogTextBox"
+                       Margin="11,0,12,0"
+                       Watermark="输入显示文字"
+                       AutomationProperties.Name="链接文本"
+                       TextChanged="OnInputTextChanged"/>
+            </Grid>
+          </Border>
+          <TextBlock x:Name="_labelErrorText"
+                     Classes="LinkDialogError"
+                     AutomationProperties.Name="链接文本错误"/>
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="链接地址"
+                       FontSize="12.5"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1"
+                       Text="必填"
+                       FontSize="10.5"
+                       Foreground="{StaticResource TextTertiaryBrush}"/>
+          </Grid>
+          <Border x:Name="_urlInputRoot" Classes="LinkDialogInput">
+            <Grid ColumnDefinitions="40,*,36">
+              <Border BorderBrush="{StaticResource BorderSubtleBrush}"
+                      BorderThickness="0,0,1,0">
+                <PathIcon Data="{StaticResource DialogLinkIcon}"
+                          Width="15" Height="15"
+                          Foreground="{StaticResource IconDefaultBrush}"/>
+              </Border>
+              <TextBox x:Name="_urlBox"
+                       Grid.Column="1"
+                       Classes="LinkDialogTextBox"
+                       Margin="11,0,4,0"
+                       Watermark="https://example.com"
+                       AutomationProperties.Name="链接地址"
+                       TextChanged="OnInputTextChanged"/>
+              <Button x:Name="_clearUrlButton"
+                      Grid.Column="2"
+                      Classes="LinkDialogIconButton"
+                      Width="30" Height="30"
+                      MinWidth="30" MinHeight="30"
+                      Margin="0,0,4,0"
+                      IsVisible="False"
+                      AutomationProperties.Name="清空链接地址"
+                      ToolTip.Tip="清空"
+                      Click="OnClearUrl">
+                <PathIcon Data="{StaticResource DialogCloseIcon}" Width="12" Height="12"/>
+              </Button>
+            </Grid>
+          </Border>
+          <TextBlock x:Name="_urlErrorText"
+                     Classes="LinkDialogError"
+                     AutomationProperties.Name="链接地址错误"/>
+        </StackPanel>
+      </StackPanel>
+
+      <Border Grid.Row="3" Background="{StaticResource BorderSubtleBrush}"/>
+
+      <Grid Grid.Row="4"
+            ColumnDefinitions="*,Auto,Auto"
+            Margin="22,0"
+            Background="{StaticResource TransparentBrush}">
+        <Button Grid.Column="1"
+                Classes="LinkDialogAction secondary"
+                Margin="0,0,9,0"
+                Content="取消"
+                AutomationProperties.Name="取消"
+                Click="OnCancel"/>
+        <Button x:Name="_submitButton"
+                Grid.Column="2"
+                Classes="LinkDialogAction primary"
+                AutomationProperties.Name="插入链接"
+                Click="OnConfirm">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <PathIcon Data="{StaticResource DialogLinkIcon}" Width="14" Height="14"/>
+            <TextBlock x:Name="_submitButtonText" Text="插入链接"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

@@ -1,0 +1,87 @@
+<UserControl x:Class="MemeMomo.Components.LabeledToggleSwitch"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:MemeMomo.UI"
+             Background="{DynamicResource TransparentBrush}"
+             Focusable="True"
+             FocusVisualStyle="{x:Null}"
+             Cursor="Hand"
+             ui:InteractionAnimations.Profile="Button"
+             ui:InteractionAnimations.TargetName="Thumb"
+             ui:InteractionAnimations.HoverScale="1.03"
+             ui:InteractionAnimations.PressedScale="0.95"
+             ui:InteractionAnimations.SurfaceHoverLayerName="TrackHoverLayer"
+             ui:InteractionAnimations.SurfacePressedLayerName="TrackPressedLayer">
+  <Border x:Name="Track"
+          Height="26"
+          Background="{DynamicResource BgSecondaryBrush}"
+          BorderBrush="{DynamicResource BorderDefaultBrush}"
+          BorderThickness="1"
+          CornerRadius="9"
+          ClipToBounds="True">
+    <Border.Style>
+      <Style TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource BgSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+        <Style.Triggers>
+          <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+          </DataTrigger>
+        </Style.Triggers>
+      </Style>
+    </Border.Style>
+    <Grid>
+      <Border x:Name="TrackHoverLayer" CornerRadius="9" Background="{DynamicResource SurfaceHoverBrush}" IsHitTestVisible="False" Opacity="0" />
+      <Border x:Name="TrackPressedLayer" CornerRadius="9" Background="{DynamicResource SurfaceActiveBrush}" IsHitTestVisible="False" Opacity="0" />
+      <Border Padding="2" Background="Transparent">
+        <Grid x:Name="OptionsGrid">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="LeftLabelText"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 FontSize="11"
+                 FontWeight="Medium"
+                 Foreground="{DynamicResource TextTertiaryBrush}" />
+      <TextBlock x:Name="RightLabelText"
+                 Grid.Column="1"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center"
+                 FontSize="11"
+                 FontWeight="Medium"
+                 Foreground="{DynamicResource TextTertiaryBrush}" />
+      <Border x:Name="Thumb"
+              Grid.ColumnSpan="2"
+              HorizontalAlignment="Left"
+              Background="{DynamicResource AccentPrimaryBrush}"
+              CornerRadius="6">
+        <Border.Style>
+          <Style TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource AccentPrimaryBrush}" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsPressed), RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <Border.RenderTransform>
+          <TranslateTransform x:Name="ThumbTransform" />
+        </Border.RenderTransform>
+        <TextBlock x:Name="ThumbLabelText"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="11"
+                   FontWeight="Medium"
+                   Foreground="{DynamicResource TextOnAccentBrush}" />
+      </Border>
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</UserControl>

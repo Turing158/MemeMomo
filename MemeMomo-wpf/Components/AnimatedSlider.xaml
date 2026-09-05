@@ -1,0 +1,164 @@
+<UserControl x:Class="MemeMomo.Components.AnimatedSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource TransparentBrush}">
+  <UserControl.Resources>
+    <Style x:Key="AnimatedSliderRepeatButtonStyle" TargetType="RepeatButton">
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="IsTabStop" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RepeatButton">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="AnimatedSliderInnerStyle" TargetType="Slider">
+      <Setter Property="Height" Value="44" />
+      <Setter Property="MinHeight" Value="44" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Focusable" Value="True" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Slider">
+            <Grid Height="44" Background="{TemplateBinding Background}">
+              <Track x:Name="PART_Track"
+                     VerticalAlignment="Center"
+                     IsDirectionReversed="False"
+                     Maximum="{TemplateBinding Maximum}"
+                     Minimum="{TemplateBinding Minimum}"
+                     Orientation="Horizontal"
+                     Value="{TemplateBinding Value}">
+                <Track.DecreaseRepeatButton>
+                  <RepeatButton Command="{x:Static Slider.DecreaseLarge}"
+                                Style="{StaticResource AnimatedSliderRepeatButtonStyle}" />
+                </Track.DecreaseRepeatButton>
+                <Track.Thumb>
+                  <Thumb Width="44"
+                         Height="44"
+                         Cursor="Hand"
+                         Focusable="False"
+                         Background="{DynamicResource TransparentBrush}"
+                         BorderThickness="0"
+                         RenderTransformOrigin="0.5,0.5">
+                    <Thumb.Template>
+                      <ControlTemplate TargetType="Thumb">
+                        <Grid Width="44" Height="44" Background="{DynamicResource TransparentBrush}">
+                          <Border x:Name="ThumbVisual"
+                                  Width="18"
+                                  Height="18"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Background="{DynamicResource AccentSubtleBrush}"
+                                  BorderBrush="{DynamicResource AccentPrimaryBrush}"
+                                  BorderThickness="2"
+                                  CornerRadius="9" />
+                          <Border x:Name="ThumbFillVisual"
+                                  Width="14"
+                                  Height="14"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Background="{DynamicResource SurfacePrimaryBrush}"
+                                  CornerRadius="9"
+                                  IsHitTestVisible="False"
+                                  Opacity="1" />
+                        </Grid>
+                      </ControlTemplate>
+                    </Thumb.Template>
+                  </Thumb>
+                </Track.Thumb>
+                <Track.IncreaseRepeatButton>
+                  <RepeatButton Command="{x:Static Slider.IncreaseLarge}"
+                                Style="{StaticResource AnimatedSliderRepeatButtonStyle}" />
+                </Track.IncreaseRepeatButton>
+              </Track>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Grid ClipToBounds="False">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="44" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Popup x:Name="TooltipPopup"
+           Placement="Custom"
+           AllowsTransparency="True"
+           Focusable="False"
+           IsHitTestVisible="False"
+           StaysOpen="True">
+      <Border x:Name="TooltipBubble"
+              MinWidth="38"
+              Height="26"
+              Padding="8,0"
+              Background="{DynamicResource TextPrimaryBrush}"
+              BorderBrush="{DynamicResource BorderEmphasisBrush}"
+              BorderThickness="1"
+              CornerRadius="7"
+              IsHitTestVisible="False"
+              Opacity="0"
+              RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+          <TranslateTransform x:Name="TooltipTransform" Y="3" />
+        </Border.RenderTransform>
+        <TextBlock x:Name="TooltipText"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   FontSize="11.5"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextOnAccentBrush}" />
+      </Border>
+    </Popup>
+    <Grid>
+      <Grid x:Name="BarTrack"
+            Height="6"
+            Margin="22,0"
+            VerticalAlignment="Center"
+            ClipToBounds="True"
+            IsHitTestVisible="False">
+        <Border Background="{DynamicResource BgTertiaryBrush}"
+                BorderBrush="{DynamicResource BorderHoverBrush}"
+                BorderThickness="1"
+                CornerRadius="3" />
+        <Border x:Name="BarProgress"
+                Width="0"
+                Height="6"
+                HorizontalAlignment="Left"
+                Background="{DynamicResource AccentPrimaryBrush}"
+                CornerRadius="3" />
+      </Grid>
+      <Slider x:Name="InnerSlider"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Center"
+              AutomationProperties.Name="数值"
+              IsSnapToTickEnabled="True"
+              Style="{StaticResource AnimatedSliderInnerStyle}" />
+    </Grid>
+    <Grid Grid.Row="1" Margin="22,-10,22,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="MinimumText"
+                 HorizontalAlignment="Left"
+                 FontSize="11.5"
+                 Foreground="{DynamicResource TextTertiaryBrush}" />
+      <TextBlock x:Name="MaximumText"
+                 Grid.Column="1"
+                 HorizontalAlignment="Right"
+                 FontSize="11.5"
+                 Foreground="{DynamicResource TextTertiaryBrush}" />
+    </Grid>
+  </Grid>
+</UserControl>

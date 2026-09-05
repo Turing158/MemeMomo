@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="Memo-wpf/Assets/appicon.png" alt="Memo" width="96" height="96" />
+<img src="MemeMomo-wpf/Assets/appicon.png" alt="MemeMomo" width="96" height="96" />
 
-# Memo
+# MemeMomo
 
 **贴在桌面上的轻量 Markdown 备忘录，让每条想法都随手可见。**
 
@@ -24,7 +24,7 @@
 
 ## 这是什么？
 
-Memo 是一款专注于快速记录和持续查看的 Windows 桌面备忘录。它不是复杂的知识库，也不会把你的内容上传到云端：打开应用，写下一段 Markdown，之后让它安静地停在桌面边缘或变成一张独立便签。
+MemeMomo 是一款专注于快速记录和持续查看的 Windows 桌面备忘录。它不是复杂的知识库，也不会把你的内容上传到云端：打开应用，写下一段 Markdown，之后让它安静地停在桌面边缘或变成一张独立便签。
 
 你可以把它当成：**一个随时在手边的 Markdown 草稿本 + 一组可独立摆放的桌面便签**。
 
@@ -41,20 +41,20 @@ Memo 是一款专注于快速记录和持续查看的 Windows 桌面备忘录。
 | 🧲 | **贴边收起** | 主窗口靠近屏幕四边或角落时可收起为小方块，拖回屏幕内侧即可展开。位置和边缘状态会持久保存。 |
 | 🖥️ | **桌面集成** | 支持系统托盘、全局快捷键、窗口置顶、无边框圆角窗口、边缘/角落缩放和单实例唤起。 |
 | 🎨 | **界面偏好** | 支持浅色、深色和跟随系统主题，动效可跟随系统、始终开启或关闭；贴边方块大小也可调整。 |
-| 🔒 | **本地存储** | 备忘录、设置和图片保存在本机 `%AppData%/Memo/`，不会因为退出应用而丢失。 |
+| 🔒 | **本地存储** | 备忘录、设置和图片保存在本机 `%AppData%/MemeMomo/`，不会因为退出应用而丢失。 |
 
 ## 快速上手
 
 **1. 安装 .NET 8 SDK**
 
-Memo 当前面向 Windows，开发和运行需要 .NET 8 SDK。发布版本可直接运行生成的 Windows 程序；从源码启动请先安装 SDK。
+MemeMomo 当前面向 Windows，开发和运行需要 .NET 8 SDK。发布版本可直接运行生成的 Windows 程序；从源码启动请先安装 SDK。
 
-**2. 启动 Memo**
+**2. 启动 MemeMomo**
 
 在仓库根目录执行：
 
 ```powershell
-dotnet run --project Memo-wpf/Memo.csproj
+dotnet run --project MemeMomo-wpf/MemeMomo.csproj
 ```
 
 应用默认以紧凑的无边框窗口显示。首次使用时，可以从「设置 → 教程」查看当前快捷键和窗口操作。
@@ -67,7 +67,7 @@ dotnet run --project Memo-wpf/Memo.csproj
 
 便签窗口适合把一条备忘录固定在工作区。标题栏中的图钉可以单独切换置顶，工具栏按钮可以显示或隐藏 Markdown 工具栏，点击时间戳可以在相对时间和完整时间之间切换。
 
-点击时钟按钮即可设置提醒。日期可以直接输入或从日历选择，时间通过时、分、秒滚轮设置，也可以使用「1 分钟后」「10 分钟后」「半小时后」「1 小时后」四个快捷选项。提醒由应用内计时器触发；完全退出 Memo 后不会在后台运行。
+点击时钟按钮即可设置提醒。日期可以直接输入或从日历选择，时间通过时、分、秒滚轮设置，也可以使用「1 分钟后」「10 分钟后」「半小时后」「1 小时后」四个快捷选项。提醒由应用内计时器触发；完全退出 MemeMomo 后不会在后台运行。
 
 ## 贴边收起
 
@@ -117,34 +117,34 @@ dotnet run --project Memo-wpf/Memo.csproj
 - 桌面应用使用 WPF（.NET 8）；
 - 不需要网络连接，不包含云同步或远程账户。
 
-Memo 不会替你调用外部 API。除非你主动插入远程图片地址，否则应用只处理你在本机输入或选择的内容。
+MemeMomo 不会替你调用外部 API。除非你主动插入远程图片地址，否则应用只处理你在本机输入或选择的内容。
 
 ## 数据存储
 
 应用会在用户目录创建：
 
 ```text
-%AppData%/Memo/
+%AppData%/MemeMomo/
 ├── memos.json       # 备忘录与提醒
 ├── settings.json    # 关闭行为、快捷键、贴边、主题和动效等设置
 └── assets/          # 粘贴、拖入或选择的本地图片，按 SHA-256 去重
 ```
 
-JSON 使用 camelCase 和缩进格式异步保存，并通过信号量保证并发写入安全。加载失败时会静默回退到默认值；删除上述文件后，Memo 会在下次启动时重新创建空数据和默认设置。
+JSON 使用 camelCase 和缩进格式异步保存，并通过信号量保证并发写入安全。加载失败时会静默回退到默认值；删除上述文件后，MemeMomo 会在下次启动时重新创建空数据和默认设置。
 
 ## 给开发者
 
-主项目是位于 `Memo-wpf/` 的 WPF 实现，后续开发都在这里进行。`Memo-avalonia/` 是早期的 Avalonia 实现，已停止更新，仅作为历史参考保留。项目不依赖解决方案文件，可直接调用项目文件：
+主项目是位于 `MemeMomo-wpf/` 的 WPF 实现，后续开发都在这里进行。`MemeMomo-avalonia/` 是早期的 Avalonia 实现，已停止更新，仅作为历史参考保留。项目不依赖解决方案文件，可直接调用项目文件：
 
 ```powershell
 # 构建
-dotnet build Memo-wpf/Memo.csproj
+dotnet build MemeMomo-wpf/MemeMomo.csproj
 
 # 运行
-dotnet run --project Memo-wpf/Memo.csproj
+dotnet run --project MemeMomo-wpf/MemeMomo.csproj
 
 # 发布 Windows 程序
-dotnet publish Memo-wpf/Memo.csproj -c Release -r win-x64 --self-contained false
+dotnet publish MemeMomo-wpf/MemeMomo.csproj -c Release -r win-x64 --self-contained false
 ```
 
 主要依赖：
@@ -157,7 +157,7 @@ dotnet publish Memo-wpf/Memo.csproj -c Release -r win-x64 --self-contained false
 目录职责如下：
 
 ```text
-Memo-wpf/
+MemeMomo-wpf/
 ├── Views/                 # 主窗口、便签、提醒、设置、教程与托盘菜单
 ├── Components/            # 控件和自定义对话框
 ├── Editor/                # Markdown 编辑器宿主

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="Memo-wpf/Assets/appicon.png" alt="Memo" width="96" height="96" />
+<img src="MemeMomo-wpf/Assets/appicon.png" alt="MemeMomo" width="96" height="96" />
 
-# Memo
+# MemeMomo
 
 **A lightweight Markdown memo that keeps every idea within reach on your desktop.**
 
@@ -24,7 +24,7 @@ Pop-out notes, reminders, global hotkeys, and edge docking · Built for Windows
 
 ## What is it?
 
-Memo is a Windows desktop memo focused on quick capture and constant visibility. It is not a heavy knowledge base and it does not upload your notes to the cloud: open the app, write Markdown, then leave it at the edge of your screen or turn it into an independent desktop note.
+MemeMomo is a Windows desktop memo focused on quick capture and constant visibility. It is not a heavy knowledge base and it does not upload your notes to the cloud: open the app, write Markdown, then leave it at the edge of your screen or turn it into an independent desktop note.
 
 Think of it as **a Markdown scratchpad that is always nearby, plus a set of movable desktop notes**.
 
@@ -37,24 +37,24 @@ Think of it as **a Markdown scratchpad that is always nearby, plus a set of mova
 | 💾 | **Auto-save** | Changes save after about 500 ms of inactivity. `Ctrl + Enter` saves immediately; `Esc` restores the content from the current edit session. |
 | 🔀 | **Drag to reorder** | Drag cards to reorder them. Drop a card outside the main window to open it as a pop-out note. |
 | 📌 | **Pop-out notes** | Every memo can become an independent editable window with pinning, taskbar visibility, timestamp switching, and close animations. |
-| ⏰ | **Reminders** | Set reminders accurate to the second. They still fire while Memo is in the tray, and overdue reminders are triggered when the app starts again. |
+| ⏰ | **Reminders** | Set reminders accurate to the second. They still fire while the app is in the tray, and overdue reminders are triggered when it starts again. |
 | 🧲 | **Edge docking** | Dock the main window to any screen edge or corner as a small rounded tile, then drag it inward to restore it. |
 | 🖥️ | **Desktop integration** | System tray, global hotkeys, always-on-top, borderless rounded windows, edge/corner resizing, and single-instance activation. |
 | 🎨 | **Appearance controls** | Light, dark, or system theme; motion follows the system, stays on, or turns off. The dock tile size is adjustable too. |
-| 🔒 | **Local storage** | Memos, settings, and images stay in `%AppData%/Memo/` on your computer. |
+| 🔒 | **Local storage** | Memos, settings, and images stay in `%AppData%/MemeMomo/` on your computer. |
 
 ## Quick start
 
 **1. Install the .NET 8 SDK**
 
-Memo targets Windows and requires the .NET 8 SDK for source builds and development. Published Windows output can run directly.
+MemeMomo targets Windows and requires the .NET 8 SDK for source builds and development. Published Windows output can run directly.
 
-**2. Start Memo**
+**2. Start MemeMomo**
 
 From the repository root:
 
 ```powershell
-dotnet run --project Memo-wpf/Memo.csproj
+dotnet run --project MemeMomo-wpf/MemeMomo.csproj
 ```
 
 The app opens as a compact borderless window. Open **Settings → Tutorial** to review the current shortcuts and window gestures.
@@ -67,7 +67,7 @@ Type in the top editor and press `Ctrl + Enter`. Double-click an existing card t
 
 Pop-out notes are useful for keeping one memo visible in your workspace. The title-bar pin toggles always-on-top for that note, the toolbar button shows or hides the Markdown toolbar, and clicking the timestamp switches between relative and full time.
 
-Click the clock button to set a reminder. Pick a date from the calendar or type it directly, then select hours, minutes, and seconds with the wheel controls. Four quick offsets are available: **1 minute**, **10 minutes**, **30 minutes**, and **1 hour**. Reminders run on the in-app timer; after a full exit, Memo does not run in the background.
+Click the clock button to set a reminder. Pick a date from the calendar or type it directly, then select hours, minutes, and seconds with the wheel controls. Four quick offsets are available: **1 minute**, **10 minutes**, **30 minutes**, and **1 hour**. Reminders run on the in-app timer; after a full exit, MemeMomo does not run in the background.
 
 ## Edge docking
 
@@ -81,7 +81,7 @@ Drag the main window within about 40 pixels of a screen edge and it collapses in
 | --- | --- | --- |
 | Toggle always-on-top | `Ctrl + Alt + T` | Toggle the most recently active main, pop-out, or tutorial window. |
 | Toggle pop-out taskbar button | `Ctrl + Alt + B` | Show or hide the taskbar button for the most recently active note. |
-| Minimize to tray | `Ctrl + Alt + M` | Hide the main window while leaving Memo in the tray. |
+| Minimize to tray | `Ctrl + Alt + M` | Hide the main window while leaving the app in the tray. |
 | Show main window | `Ctrl + Alt + N` | Bring the main window back. |
 | Quick add clipboard | `Ctrl + Alt + C` | Add clipboard text as a memo; configurable in Settings. |
 
@@ -108,35 +108,35 @@ Settings are saved automatically and applied immediately. You can configure the 
 - WPF on .NET 8;
 - No network connection, cloud sync, or account is required.
 
-Memo does not call external APIs. Unless you explicitly insert a remote image URL, it only handles content you enter or select locally.
+MemeMomo does not call external APIs. Unless you explicitly insert a remote image URL, it only handles content you enter or select locally.
 
 ## Data storage
 
-Memo creates this directory:
+MemeMomo creates this directory:
 
 ```text
-%AppData%/Memo/
+%AppData%/MemeMomo/
 ├── memos.json       # Memos and reminders
 ├── settings.json    # Close behavior, hotkeys, docking, theme, and motion
 └── assets/          # Local images, deduplicated by SHA-256
 ```
 
-JSON is written asynchronously with camelCase names and indentation. A semaphore protects concurrent writes. If loading fails, Memo silently falls back to defaults; deleting these files resets the app on the next launch.
+JSON is written asynchronously with camelCase names and indentation. A semaphore protects concurrent writes. If loading fails, the app silently falls back to defaults; deleting these files resets the app on the next launch.
 
 ## For developers
 
-The main project is the WPF implementation in `Memo-wpf/`, where all further development happens. `Memo-avalonia/` is the earlier Avalonia implementation, no longer updated and kept only for reference. Build, run, and publish the project file directly:
+The main project is the WPF implementation in `MemeMomo-wpf/`, where all further development happens. `MemeMomo-avalonia/` is the earlier Avalonia implementation, no longer updated and kept only for reference. Build, run, and publish the project file directly:
 
 ```powershell
-dotnet build Memo-wpf/Memo.csproj
-dotnet run --project Memo-wpf/Memo.csproj
-dotnet publish Memo-wpf/Memo.csproj -c Release -r win-x64 --self-contained false
+dotnet build MemeMomo-wpf/MemeMomo.csproj
+dotnet run --project MemeMomo-wpf/MemeMomo.csproj
+dotnet publish MemeMomo-wpf/MemeMomo.csproj -c Release -r win-x64 --self-contained false
 ```
 
 Main dependencies are .NET 8 / C#, WPF, AvalonEdit 6.3.1.120, and Markdig 0.41.3.
 
 ```text
-Memo-wpf/
+MemeMomo-wpf/
 ├── Views/                 # Main, pop-out, reminder, settings, tutorial, and tray windows
 ├── Components/            # Controls and custom dialogs
 ├── Editor/                # Markdown editor host
