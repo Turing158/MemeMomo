@@ -334,7 +334,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        AutomationProperties.SetName(_adapter.View, "所见即所得 Markdown 编辑器");
+        MemeMomo.UI.Text.LocalizeExtension.Set(_adapter.View, AutomationProperties.NameProperty, "所见即所得 Markdown 编辑器");
         AttachOwnerWindow(Window.GetWindow(this));
         _toolbarController.UpdateResponsiveItems();
         UpdateActions();
@@ -644,7 +644,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
     {
         ContextMenuAnimations.Close(MoreMenu);
         TablePickerPopup.PlacementTarget = anchor;
-        TableSizeLabel.Text = "表格";
+        MemeMomo.UI.Text.LocalizeExtension.Set(TableSizeLabel, TextBlock.TextProperty, "表格");
         PopupAnimations.Open(TablePickerPopup, anchor);
     }
 
@@ -684,7 +684,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         {
             return;
         }
-        TableSizeLabel.Text = $"{size.Item1} × {size.Item2} 表格";
+        MemeMomo.UI.Text.LocalizeExtension.Set(TableSizeLabel, TextBlock.TextProperty, "{0} × {1} 表格", size.Item1, size.Item2);
         foreach (Button cell in TableSizeGrid.Children.OfType<Button>())
         {
             (int columns, int rows) = ((int, int))cell.Tag;
@@ -718,7 +718,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void OnTablePickerMouseLeave(object sender, MouseEventArgs e)
     {
-        TableSizeLabel.Text = "表格";
+        MemeMomo.UI.Text.LocalizeExtension.Set(TableSizeLabel, TextBlock.TextProperty, "表格");
         ResetTablePickerCellBackgrounds();
     }
 
@@ -747,7 +747,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         }
         int sourceStart = _adapter.SelectionStart;
         int sourceEnd = _adapter.SelectionEnd;
-        string label = sourceEnd > sourceStart ? Markdown[sourceStart..sourceEnd] : "链接文本";
+        string label = sourceEnd > sourceStart ? Markdown[sourceStart..sourceEnd] : LocalizationService.Get("链接文本");
         string url = string.Empty;
         int replaceStart = sourceStart;
         int replaceEnd = sourceEnd;
@@ -800,7 +800,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
             return;
         }
         _adapter.ApplyEdit(MarkdownFormatter.InsertImage(
-            Markdown, selectionStart, selectionEnd, "网络图片", url));
+            Markdown, selectionStart, selectionEnd, LocalizationService.Get("网络图片"), url));
         RestoreEditorFocus();
     }
 
@@ -843,10 +843,10 @@ public partial class MarkdownEditor : UserControl, IDisposable
     {
         OpenFileDialog dialog = new()
         {
-            Title = "插入图片",
+            Title = LocalizationService.Get("插入图片"),
             Multiselect = true,
             CheckFileExists = true,
-            Filter = "图片|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg"
+            Filter = LocalizationService.Get("图片|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg")
         };
         bool? accepted = dialog.ShowDialog(Window.GetWindow(this));
         if (accepted == true)
@@ -878,7 +878,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
             image.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
             stream.Position = 0;
             string stored = await _imageStore.StoreAsync(stream, ".png");
-            InsertStoredImages([("粘贴的图片", stored)]);
+            InsertStoredImages([(LocalizationService.Get("粘贴的图片"), stored)]);
         }
         catch (Exception exception)
         {
@@ -1041,7 +1041,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void ShowStatus(string message, bool isError, bool autoHide)
     {
         _statusTimer.Stop();
-        StatusText.Text = message;
+        MemeMomo.UI.Text.LocalizeExtension.Set(StatusText, TextBlock.TextProperty, message);
         StatusText.Foreground = FindBrush(isError ? "DangerPrimaryBrush" : "TextSecondaryBrush", Brushes.DimGray);
         StatusBadge.Background = FindBrush(isError ? "DangerSubtleBrush" : "BgTertiaryBrush", Brushes.WhiteSmoke);
         StatusBadge.Opacity = 1;

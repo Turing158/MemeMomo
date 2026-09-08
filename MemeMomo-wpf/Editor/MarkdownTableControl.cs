@@ -57,7 +57,7 @@ internal sealed class MarkdownTableControl : Border
         BorderThickness = new Thickness(1);
         Background = Brushes.Transparent;
         SetResourceReference(Border.BorderBrushProperty, "MarkdownTableBorderBrush");
-        AutomationProperties.SetName(this, "可编辑 Markdown 表格样片");
+        MemeMomo.UI.Text.LocalizeExtension.Set(this, AutomationProperties.NameProperty, "可编辑 Markdown 表格样片");
         _headerBackground.SetResourceReference(Border.BackgroundProperty, "MarkdownTableHeaderBrush");
         _headerLayer.Children.Add(_headerBackground);
         _cellGrid.LayoutUpdated += (_, _) =>
@@ -166,7 +166,7 @@ internal sealed class MarkdownTableControl : Border
             Tag = cell
         };
         textBox.SetResourceReference(WpfControl.BorderBrushProperty, "MarkdownTableDividerBrush");
-        AutomationProperties.SetName(textBox, $"表格第 {cell.Row + 1} 行第 {cell.Column + 1} 列");
+        MemeMomo.UI.Text.LocalizeExtension.Set(textBox, AutomationProperties.NameProperty, "表格第 {0} 行第 {1} 列", cell.Row + 1, cell.Column + 1);
         Grid.SetRow(textBox, cell.Row);
         Grid.SetColumn(textBox, cell.Column);
         textBox.TextChanged += OnCellTextChanged;
@@ -325,6 +325,7 @@ internal sealed class MarkdownTableControl : Border
                 Header = header,
                 Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuItemTheme") as Style
             };
+            MemeMomo.UI.Text.LocalizeExtension.Set(item, MenuItem.HeaderProperty, header);
             item.Click += (_, _) =>
             {
                 action();

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using MemeMomo.Models;
+using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Animation;
 using MemeMomo.UI.Windows;
@@ -13,10 +14,12 @@ using WpfButton = System.Windows.Controls.Button;
 public partial class TutorialWindow : BorderlessWindow
 {
     private bool _isPinned;
+    private AppSettings _settings = AppSettings.CreateDefault();
 
     public TutorialWindow()
     {
         InitializeComponent();
+        LocalizationService.LanguageChanged += OnLanguageChanged;
         Closed += OnClosed;
     }
 
@@ -24,6 +27,7 @@ public partial class TutorialWindow : BorderlessWindow
         : this()
     {
         ArgumentNullException.ThrowIfNull(settings);
+        _settings = settings.Clone();
         BuildContent(settings);
     }
 
@@ -69,7 +73,13 @@ public partial class TutorialWindow : BorderlessWindow
 
     private void OnPinClick(object sender, RoutedEventArgs e) => TogglePinned();
     private void OnCloseClick(object sender, RoutedEventArgs e) => CloseWithTransition();
-    private void OnClosed(object? sender, EventArgs e) => MotionAnimations.Cancel(PinIcon);
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
+        MotionAnimations.Cancel(PinIcon);
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) => BuildContent(_settings);
 
     private void BuildContent(AppSettings s)
     {
@@ -99,11 +109,11 @@ public partial class TutorialWindow : BorderlessWindow
             "点右上角图钉可置顶主窗口、便签或教程；主窗口关闭行为可在设置中选择。",
             "",
             "八、快捷键",
-            $"置顶主窗口：{FormatHotkey(s.ToggleTopmostHotkey, enabled: true)}",
-            $"切换最近便签任务栏图标：{FormatHotkey(s.ToggleMemoTaskbarHotkey, s.ShowMemoWindowTaskbarIcon)}",
-            $"最小化到托盘：{FormatHotkey(s.MinimizeHotkey, enabled: true)}",
-            $"显示软件：{FormatHotkey(s.ShowWindowHotkey, enabled: true)}",
-            $"快速添加（剪贴板）：{FormatHotkey(s.QuickMemoHotkey, s.QuickMemoEnabled)}"
+            LocalizationService.Format("置顶主窗口：{0}", FormatHotkey(s.ToggleTopmostHotkey, enabled: true)),
+            LocalizationService.Format("切换最近便签任务栏图标：{0}", FormatHotkey(s.ToggleMemoTaskbarHotkey, s.ShowMemoWindowTaskbarIcon)),
+            LocalizationService.Format("最小化到托盘：{0}", FormatHotkey(s.MinimizeHotkey, enabled: true)),
+            LocalizationService.Format("显示软件：{0}", FormatHotkey(s.ShowWindowHotkey, enabled: true)),
+            LocalizationService.Format("快速添加（剪贴板）：{0}", FormatHotkey(s.QuickMemoHotkey, s.QuickMemoEnabled))
         ];
 
         lines.AddRange(
@@ -117,9 +127,9 @@ public partial class TutorialWindow : BorderlessWindow
             "快速添加、动效、主题、贴边、任务栏图标等设置均会即时应用并自动保存。",
             "提醒到期默认逐条发送 Windows 系统通知（遵循系统免打扰设置）；可在设置的「提醒方式」中改为应用内窗口弹出。"
         ]);
-        TutorialContent.Text = string.Join("\n", lines);
+        TutorialContent.Text = string.Join("\n", lines.Select(LocalizationService.Get));
     }
 
     private static string FormatHotkey(HotkeySetting hotkey, bool enabled) =>
-        enabled ? hotkey.ToString() : "已禁用";
+        enabled ? hotkey.ToString() : LocalizationService.Get("已禁用");
 }

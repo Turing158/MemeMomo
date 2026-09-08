@@ -111,7 +111,7 @@ internal sealed class MarkdownImageControl : Border
             ?? Brushes.LightGray;
         Background = Application.Current?.TryFindResource("BgTertiaryBrush") as Brush
             ?? Brushes.WhiteSmoke;
-        AutomationProperties.SetName(this, $"图片：{span.AltText ?? string.Empty}");
+        MemeMomo.UI.Text.LocalizeExtension.Set(this, AutomationProperties.NameProperty, "图片：{0}", span.AltText ?? string.Empty);
         _toolbarCloseTimer.Tick += (_, _) => CloseToolbar();
         MouseEnter += OnImageMouseEnter;
         MouseLeave += OnImageMouseLeave;
@@ -158,6 +158,8 @@ internal sealed class MarkdownImageControl : Border
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
+        if (string.IsNullOrWhiteSpace(altText))
+            MemeMomo.UI.Text.LocalizeExtension.Set(text, TextBlock.TextProperty, "图片");
         panel.Children.Add(CreateSpinner());
         panel.Children.Add(text);
         return panel;
@@ -569,7 +571,7 @@ internal sealed class MarkdownImageControl : Border
         _toolbarTranslate = (TranslateTransform)surface.RenderTransform;
         surface.SetResourceReference(Border.BackgroundProperty, "SurfacePrimaryBrush");
         surface.SetResourceReference(Border.BorderBrushProperty, "BorderDefaultBrush");
-        AutomationProperties.SetName(surface, "图片宽度选项");
+        MemeMomo.UI.Text.LocalizeExtension.Set(surface, AutomationProperties.NameProperty, "图片宽度选项");
         surface.MouseEnter += (_, _) => _toolbarCloseTimer.IsEnabled = false;
         surface.MouseLeave += (_, _) => StartToolbarCloseTimer();
 
@@ -745,6 +747,8 @@ internal sealed class MarkdownImageControl : Border
     private Border CreateToolbarOption(string label, double? percent)
     {
         TextBlock text = new() { Text = label, FontSize = 10 };
+        if (percent is null)
+            MemeMomo.UI.Text.LocalizeExtension.Set(text, TextBlock.TextProperty, "自适应");
         text.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
         Border option = new()
         {
@@ -756,7 +760,8 @@ internal sealed class MarkdownImageControl : Border
             Cursor = Cursors.Hand,
             Tag = percent
         };
-        AutomationProperties.SetName(option, $"图片宽度：{label}");
+        MemeMomo.UI.Text.LocalizeExtension.Set(option, AutomationProperties.NameProperty,
+            percent is null ? "图片宽度：自适应" : "图片宽度：{0}", label);
         option.MouseEnter += (_, _) =>
         {
             if (!IsActiveOption(option))

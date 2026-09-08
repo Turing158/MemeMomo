@@ -1,6 +1,7 @@
 <UserControl x:Class="MemeMomo.Components.TimeWheelSelector"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:MemeMomo.UI.Text"
              xmlns:ui="clr-namespace:MemeMomo.UI">
   <UserControl.Resources>
     <Style x:Key="TimeWheelTrackStyle" TargetType="Border">
@@ -80,18 +81,18 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="98" />
     </Grid.RowDefinitions>
-    <TextBlock Style="{StaticResource TimeWheelLabelStyle}" Text="时" />
-    <TextBlock Grid.Column="2" Style="{StaticResource TimeWheelLabelStyle}" Text="分" />
-    <TextBlock Grid.Column="4" Style="{StaticResource TimeWheelLabelStyle}" Text="秒" />
+    <TextBlock Style="{StaticResource TimeWheelLabelStyle}" Text="{loc:Localize '时'}" />
+    <TextBlock Grid.Column="2" Style="{StaticResource TimeWheelLabelStyle}" Text="{loc:Localize '分'}" />
+    <TextBlock Grid.Column="4" Style="{StaticResource TimeWheelLabelStyle}" Text="{loc:Localize '秒'}" />
 
     <Border x:Name="HourTrack"
             Grid.Row="1"
             Tag="Hour"
-            AutomationProperties.Name="小时"
+            AutomationProperties.Name="{loc:Localize '小时'}"
             Focusable="True"
             FocusVisualStyle="{x:Null}"
             Style="{StaticResource TimeWheelTrackStyle}"
-            ToolTip="滚轮、上下拖动或方向键调整小时">
+            ToolTip="{loc:Localize '滚轮、上下拖动或方向键调整小时'}">
       <Grid ClipToBounds="True">
         <Border Height="32"
                 VerticalAlignment="Center"
@@ -102,13 +103,13 @@
         <Grid>
           <Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
           <Button Tag="Hour:-1"
-                  AutomationProperties.Name="上一小时"
+                  AutomationProperties.Name="{loc:Localize '上一小时'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="9,9,0,0"
                   Click="OnStepClick" />
           <Button Grid.Row="2"
                   Tag="Hour:1"
-                  AutomationProperties.Name="下一小时"
+                  AutomationProperties.Name="{loc:Localize '下一小时'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="0,0,9,9"
                   Click="OnStepClick" />
@@ -126,22 +127,22 @@
             Grid.Row="1"
             Grid.Column="2"
             Tag="Minute"
-            AutomationProperties.Name="分钟"
+            AutomationProperties.Name="{loc:Localize '分钟'}"
             Focusable="True"
             FocusVisualStyle="{x:Null}"
             Style="{StaticResource TimeWheelTrackStyle}"
-            ToolTip="滚轮、上下拖动或方向键调整分钟">
+            ToolTip="{loc:Localize '滚轮、上下拖动或方向键调整分钟'}">
       <Grid ClipToBounds="True">
         <Border Height="32" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="0,1" IsHitTestVisible="False" />
         <Grid><Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
           <Button Tag="Minute:-1"
-                  AutomationProperties.Name="上一分钟"
+                  AutomationProperties.Name="{loc:Localize '上一分钟'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="9,9,0,0"
                   Click="OnStepClick" />
           <Button Grid.Row="2"
                   Tag="Minute:1"
-                  AutomationProperties.Name="下一分钟"
+                  AutomationProperties.Name="{loc:Localize '下一分钟'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="0,0,9,9"
                   Click="OnStepClick" />
@@ -158,22 +159,22 @@
             Grid.Row="1"
             Grid.Column="4"
             Tag="Second"
-            AutomationProperties.Name="秒钟"
+            AutomationProperties.Name="{loc:Localize '秒钟'}"
             Focusable="True"
             FocusVisualStyle="{x:Null}"
             Style="{StaticResource TimeWheelTrackStyle}"
-            ToolTip="滚轮、上下拖动或方向键调整秒钟">
+            ToolTip="{loc:Localize '滚轮、上下拖动或方向键调整秒钟'}">
       <Grid ClipToBounds="True">
         <Border Height="32" VerticalAlignment="Center" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="0,1" IsHitTestVisible="False" />
         <Grid><Grid.RowDefinitions><RowDefinition Height="32" /><RowDefinition Height="32" /><RowDefinition Height="32" /></Grid.RowDefinitions>
           <Button Tag="Second:-1"
-                  AutomationProperties.Name="上一秒"
+                  AutomationProperties.Name="{loc:Localize '上一秒'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="9,9,0,0"
                   Click="OnStepClick" />
           <Button Grid.Row="2"
                   Tag="Second:1"
-                  AutomationProperties.Name="下一秒"
+                  AutomationProperties.Name="{loc:Localize '下一秒'}"
                   Style="{StaticResource TimeWheelStepStyle}"
                   ui:CornerRadiusProxy.Value="0,0,9,9"
                   Click="OnStepClick" />

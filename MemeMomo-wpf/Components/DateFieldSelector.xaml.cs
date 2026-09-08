@@ -7,6 +7,7 @@ using System.Windows.Media;
 using MemeMomo.UI;
 using MemeMomo.UI.Animation;
 using MemeMomo.UI.Popup;
+using MemeMomo.UI.Text;
 using WpfButton = System.Windows.Controls.Button;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfUserControl = System.Windows.Controls.UserControl;
@@ -260,12 +261,12 @@ public partial class DateFieldSelector : WpfUserControl
             WeekdayHeaderGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             TextBlock label = new()
             {
-                Text = WeekdayLabels[column],
                 FontSize = 12,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center,
                 Margin = new Thickness(0, 4, 0, 4),
             };
+            LocalizeExtension.Set(label, TextBlock.TextProperty, WeekdayLabels[column]);
             label.SetResourceReference(TextBlock.ForegroundProperty, "TextTertiaryBrush");
             Grid.SetColumn(label, column);
             WeekdayHeaderGrid.Children.Add(label);
@@ -379,9 +380,10 @@ public partial class DateFieldSelector : WpfUserControl
         FieldText.Text = SelectedDate is { } date
             ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             : string.Empty;
-        Field.SetValue(AutomationProperties.NameProperty, SelectedDate is { } named
-            ? $"提醒日期 {named:yyyy 年 M 月 d 日}"
-            : "提醒日期");
+        if (SelectedDate is { } named)
+            LocalizeExtension.Set(Field, AutomationProperties.NameProperty, "提醒日期 {0:yyyy 年 M 月 d 日}", named);
+        else
+            LocalizeExtension.Set(Field, AutomationProperties.NameProperty, "提醒日期");
     }
 
     private void RefreshMonth()
@@ -410,7 +412,7 @@ public partial class DateFieldSelector : WpfUserControl
             cell.SetResourceReference(
                 StyleProperty,
                 cellDate.Month == month.Month ? "CalendarDayCellStyle" : "CalendarAdjacentDayCellStyle");
-            cell.SetValue(AutomationProperties.NameProperty, $"{cellDate:yyyy 年 M 月 d 日}");
+            LocalizeExtension.Set(cell, AutomationProperties.NameProperty, "{0:yyyy 年 M 月 d 日}", cellDate);
 
             bool isSelected = selected == cellDate;
             InteractionState.SetIsSelected(cell, isSelected);
@@ -437,22 +439,22 @@ public partial class DateFieldSelector : WpfUserControl
 
         (string text, string automationName) = _viewLevel switch
         {
-            CalendarViewLevel.Month => ($"{month.Year} 年", "切换到年份选择"),
+            CalendarViewLevel.Month => ("{0:yyyy 年}", "切换到年份选择"),
             CalendarViewLevel.Year => (
                 $"{_decadeStart} - {_decadeStart + YearsPerDecade - 1}",
                 "返回月份选择"),
-            _ => ($"{month.Year} 年 {month.Month} 月", "切换到月份选择"),
+            _ => ("{0:yyyy 年 M 月}", "切换到月份选择"),
         };
 
-        MonthHeader.Text = text;
-        HeaderButton.SetValue(AutomationProperties.NameProperty, automationName);
-        PreviousMonthButton.SetValue(AutomationProperties.NameProperty, _viewLevel switch
+        LocalizeExtension.Set(MonthHeader, TextBlock.TextProperty, text, month);
+        LocalizeExtension.Set(HeaderButton, AutomationProperties.NameProperty, automationName);
+        LocalizeExtension.Set(PreviousMonthButton, AutomationProperties.NameProperty, _viewLevel switch
         {
             CalendarViewLevel.Month => "上一年",
             CalendarViewLevel.Year => "上十年",
             _ => "上一月",
         });
-        NextMonthButton.SetValue(AutomationProperties.NameProperty, _viewLevel switch
+        LocalizeExtension.Set(NextMonthButton, AutomationProperties.NameProperty, _viewLevel switch
         {
             CalendarViewLevel.Month => "下一年",
             CalendarViewLevel.Year => "下十年",
@@ -471,8 +473,9 @@ public partial class DateFieldSelector : WpfUserControl
 
             // 12 个月正好铺满 3×4，没有补位格。
             int monthNumber = index + 1;
-            cell.Content = $"{monthNumber} 月";
-            cell.SetValue(AutomationProperties.NameProperty, $"{month.Year} 年 {monthNumber} 月");
+            DateTime monthDate = new(month.Year, monthNumber, 1);
+            LocalizeExtension.Set(cell, WpfButton.ContentProperty, "{0:M 月}", monthDate);
+            LocalizeExtension.Set(cell, AutomationProperties.NameProperty, "{0:yyyy 年 M 月}", monthDate);
             cell.SetResourceReference(StyleProperty, "CalendarUnitCellStyle");
 
             // 月份层级表示当前正在浏览的月份，而不是仍可能停留在旧月份的
@@ -502,7 +505,7 @@ public partial class DateFieldSelector : WpfUserControl
             _yearCellValues[index] = year;
             cell.Content = inRange ? year.ToString(CultureInfo.InvariantCulture) : string.Empty;
             cell.IsEnabled = inRange;
-            cell.SetValue(AutomationProperties.NameProperty, inRange ? $"{year} 年" : string.Empty);
+            LocalizeExtension.Set(cell, AutomationProperties.NameProperty, inRange ? "{0} 年" : string.Empty, year);
             cell.SetResourceReference(
                 StyleProperty,
                 inDecade ? "CalendarUnitCellStyle" : "CalendarAdjacentUnitCellStyle");

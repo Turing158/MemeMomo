@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
@@ -10,7 +11,7 @@ public static partial class MarkdownSummary
     {
         var lines = ExtractLines(markdown, 1);
         if (lines.Count > 0) return lines[0];
-        return ContainsImage().IsMatch(markdown ?? string.Empty) ? "图片备忘录" : string.Empty;
+        return ContainsImage().IsMatch(markdown ?? string.Empty) ? LocalizationService.Get("图片备忘录") : string.Empty;
     }
 
     public static string GetSubtitle(string? markdown)

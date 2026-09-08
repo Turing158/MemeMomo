@@ -36,7 +36,7 @@ public sealed class MarkdownImageStore
     public async Task<string> StoreFileAsync(string sourcePath, CancellationToken cancellationToken = default)
     {
         if (!IsSupportedFile(sourcePath))
-            throw new NotSupportedException("不支持该图片格式。");
+            throw new NotSupportedException(LocalizationService.Get("不支持该图片格式。"));
 
         await using var stream = new FileStream(
             sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read,
@@ -51,7 +51,7 @@ public sealed class MarkdownImageStore
     {
         extension = NormalizeExtension(extension);
         if (!SupportedExtensions.Contains(extension))
-            throw new NotSupportedException("不支持该图片格式。");
+            throw new NotSupportedException(LocalizationService.Get("不支持该图片格式。"));
 
         var temporaryPath = Path.Combine(AssetsDirectory, $".{Guid.NewGuid():N}.tmp");
         try
@@ -68,7 +68,7 @@ public sealed class MarkdownImageStore
                 {
                     total += read;
                     if (total > MaximumImageBytes)
-                        throw new InvalidDataException("图片不能超过 20 MB。");
+                        throw new InvalidDataException(LocalizationService.Get("图片不能超过 20 MB。"));
                     hash.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                 }

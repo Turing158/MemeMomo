@@ -10,6 +10,7 @@ using System.Windows.Data;
 using System.Windows.Automation;
 using MemeMomo.UI.Animation;
 using MemeMomo.UI;
+using MemeMomo.UI.Text;
 using Button = System.Windows.Controls.Button;
 
 namespace MemeMomo.UI.Windows;
@@ -123,8 +124,15 @@ public class BorderlessWindow : Window
     /// 该窗口是否走 WPF 逐像素透明（layered）渲染。必须在构造期确定：透明窗口的
     /// 外形（抗锯齿圆角、贴边 D 形）由 WPF 自绘，不依赖原生 DWM 圆角或
     /// SetWindowRgn 裁剪（region 为二值掩码，弧边必然出现阶梯锯齿）。
+    ///
+    /// The default is per-pixel transparency because the shared window transition
+    /// animates the whole HWND from Opacity=0. A non-layered WPF HWND clears its
+    /// composition surface with black while that opacity is zero, which produces
+    /// a black flash before the themed shell fades in.
     /// </summary>
-    protected virtual bool UsePerPixelTransparency => false;
+    protected virtual bool UsePerPixelTransparency => true;
+
+    internal virtual WindowTransitionProfile TransitionProfile => WindowTransitionProfile.Default;
 
     /// <summary>Allows a derived window host to finish an approved close request.</summary>
     protected bool IsCloseApproved => _allowClose;
@@ -264,6 +272,14 @@ public class BorderlessWindow : Window
             UseAeroCaptionButtons = false
         };
         WindowChrome.SetWindowChrome(this, _chrome);
+        if (UsePerPixelTransparency
+            && PresentationSource.FromVisual(this) is HwndSource source)
+        {
+            // HwndTarget starts with a black clear color. Keep the transparent
+            // transition endpoint truly transparent even when the shell has
+            // not rendered its first frame yet.
+            source.CompositionTarget.BackgroundColor = Colors.Transparent;
+        }
         ApplyCustomNativeRegionState();
         ApplyBuiltInTitleBarState();
     }
@@ -342,7 +358,8 @@ public class BorderlessWindow : Window
         ApplyShellBrushes();
         ApplyCustomNativeRegionState();
         base.Content = _shell;
-        _transition = new WindowTransitionController(this, _shell);
+        _transition = new WindowTransitionController(this, _shell, TransitionProfile);
+        _transition.PrepareOpen();
         ApplyBuiltInTitleBarState();
         UpdatePinState();
     }
@@ -372,6 +389,8 @@ public class BorderlessWindow : Window
         };
         icon.SetBinding(Shape.FillProperty, new System.Windows.Data.Binding(nameof(Button.Foreground)) { Source = button });
         button.Content = icon;
+        LocalizeExtension.Set(button, ToolTipProperty, name);
+        LocalizeExtension.Set(button, AutomationProperties.NameProperty, name);
         button.Click += click;
         WindowChrome.SetIsHitTestVisibleInChrome(button, true);
         return button;
@@ -382,8 +401,10 @@ public class BorderlessWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildShell();
-        PrepareForOpen();
-        PlayOpenTransition();
+        if (_transition?.IsCloseRequested != true && !IsWindowTransitioning)
+        {
+            PlayOpenTransition();
+        }
     }
 
     private void OnClosed(object? sender, EventArgs e)

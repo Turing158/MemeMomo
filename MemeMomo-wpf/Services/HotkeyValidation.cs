@@ -29,19 +29,19 @@ public static class HotkeyValidation
             + (candidate.Win ? 1 : 0);
         if (candidate.IsEmpty || modifierCount == 0)
         {
-            return new(false, "快捷键不能只设置单个按键，请使用 Ctrl、Alt 或 Shift 加一个主键的两键及以上组合。", null);
+            return new(false, LocalizationService.Get("快捷键不能只设置单个按键，请使用 Ctrl、Alt 或 Shift 加一个主键的两键及以上组合。"), null);
         }
 
         if (IsSystemReserved(candidate))
         {
-            return new(false, "该组合是系统快捷键或容易被 Windows 保留，不能设置为应用快捷键。", null);
+            return new(false, LocalizationService.Get("该组合是系统快捷键或容易被 Windows 保留，不能设置为应用快捷键。"), null);
         }
 
         foreach ((HotkeyAction action, HotkeySetting hotkey) in EnabledHotkeys(settings))
         {
             if (action != current && Equals(candidate, hotkey))
             {
-                return new(false, $"该快捷键已被「{ActionName(action)}」功能占用，请选择其他组合。", action);
+                return new(false, LocalizationService.Format("该快捷键已被「{0}」功能占用，请选择其他组合。", ActionName(action)), action);
             }
         }
 
@@ -113,7 +113,7 @@ public static class HotkeyValidation
         _ => null,
     };
 
-    public static string ActionName(HotkeyAction action) => action switch
+    public static string ActionName(HotkeyAction action) => LocalizationService.Get(action switch
     {
         HotkeyAction.ToggleTopmost => "置顶",
         HotkeyAction.ToggleMemoTaskbar => "切换便签任务栏图标",
@@ -121,7 +121,7 @@ public static class HotkeyValidation
         HotkeyAction.ShowWindow => "显示软件",
         HotkeyAction.QuickMemo => "快速添加（剪贴板）",
         _ => "其他功能",
-    };
+    });
 
     public static bool IsModifierKey(string key) => key is "Ctrl" or "Alt" or "Shift" or "Win";
 

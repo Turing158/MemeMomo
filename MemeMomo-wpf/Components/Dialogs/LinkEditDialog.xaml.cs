@@ -1,8 +1,10 @@
+using MemeMomo.Services;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using MemeMomo.UI;
+using MemeMomo.UI.Text;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using TextBox = System.Windows.Controls.TextBox;
 
@@ -24,10 +26,10 @@ public partial class LinkEditDialog : MemoDialogWindow
         LabelBox.Text = label;
         UrlBox.Text = string.IsNullOrWhiteSpace(url) ? string.Empty : url;
         bool editing = !string.IsNullOrWhiteSpace(UrlBox.Text);
-        Title = editing ? "编辑链接" : "插入链接";
-        DialogTitleText.Text = Title;
-        SubmitButtonText.Text = editing ? "保存修改" : "插入链接";
-        AutomationProperties.SetName(SubmitButton, SubmitButtonText.Text);
+        LocalizeExtension.Set(this, TitleProperty, editing ? "编辑链接" : "插入链接");
+        LocalizeExtension.Set(DialogTitleText, TextBlock.TextProperty, editing ? "编辑链接" : "插入链接");
+        LocalizeExtension.Set(SubmitButtonText, TextBlock.TextProperty, editing ? "保存修改" : "插入链接");
+        LocalizeExtension.Set(SubmitButton, AutomationProperties.NameProperty, editing ? "保存修改" : "插入链接");
         _isInitializing = false;
         UpdateValidation(false);
         Loaded += OnDialogLoaded;
@@ -44,7 +46,7 @@ public partial class LinkEditDialog : MemoDialogWindow
     {
         string? normalizedLabel = label?.Trim();
         string? normalizedUrl = url?.Trim();
-        labelError = string.IsNullOrWhiteSpace(normalizedLabel) ? "请输入链接文本" : null;
+        labelError = string.IsNullOrWhiteSpace(normalizedLabel) ? LocalizationService.Get("请输入链接文本") : null;
         urlError = ValidateUrl(normalizedUrl);
         if (labelError is not null || urlError is not null)
         {
@@ -58,12 +60,12 @@ public partial class LinkEditDialog : MemoDialogWindow
 
     private static string? ValidateUrl(string? url)
     {
-        if (string.IsNullOrWhiteSpace(url) || string.Equals(url, "https://", StringComparison.OrdinalIgnoreCase) || string.Equals(url, "http://", StringComparison.OrdinalIgnoreCase)) return "请输入链接地址";
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return "请输入完整的链接地址";
+        if (string.IsNullOrWhiteSpace(url) || string.Equals(url, "https://", StringComparison.OrdinalIgnoreCase) || string.Equals(url, "http://", StringComparison.OrdinalIgnoreCase)) return LocalizationService.Get("请输入链接地址");
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return LocalizationService.Get("请输入完整的链接地址");
         bool web = (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) || uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrWhiteSpace(uri.Host);
         if (web) return null;
         if (uri.Scheme.Equals(Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase) && uri.OriginalString.Length > "mailto:".Length) return null;
-        return "仅支持 HTTP、HTTPS 或邮件地址";
+        return LocalizationService.Get("仅支持 HTTP、HTTPS 或邮件地址");
     }
 
     private void OnDialogLoaded(object sender, RoutedEventArgs e)

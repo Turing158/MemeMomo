@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System;
 
 namespace MemeMomo.Utils;
@@ -33,7 +34,7 @@ public static class DateTimeUtils
         if (diff.TotalDays < 1)
             return timeStr;
         if (diff.TotalDays < 2)
-            return "昨天 " + timeStr;
+            return LocalizationService.Get("昨天") + " " + timeStr;
         if (diff.TotalDays < 8)
         {
             var dayOfWeek = local.DayOfWeek switch
@@ -47,7 +48,7 @@ public static class DateTimeUtils
                 DayOfWeek.Sunday => "周日",
                 _ => ""
             };
-            return $"{dayOfWeek} {timeStr}";
+            return $"{LocalizationService.Get(dayOfWeek)} {timeStr}";
         }
         if (local.Year == now.Year)
             return local.ToString("MM-dd") + " " + timeStr;

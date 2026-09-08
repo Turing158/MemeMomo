@@ -58,6 +58,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
         MarkdownEditor.EditingCompleted += OnEditingCompleted;
         Loaded += OnWindowLoaded;
         Closed += OnWindowClosed;
+        LocalizationService.LanguageChanged += OnLanguageChanged;
     }
 
     public MemoPopoutWindow(
@@ -85,7 +86,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
         _animationFrames = animationFrames;
     }
 
-    public MemoItem Memo => _memo ?? throw new InvalidOperationException("便签尚未绑定备忘录。");
+    public MemoItem Memo => _memo ?? throw new InvalidOperationException(LocalizationService.Get("便签尚未绑定备忘录。"));
     internal bool IsMemoBound => _memo is not null;
     internal Grid RootElement => WindowRoot;
     internal MemoPopoutDockTab TabLayer => DockTabLayer;
@@ -282,7 +283,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
         if (e.PropertyName is nameof(MemoItem.Content) or nameof(MemoItem.Title))
         {
             UpdateMemoVisuals();
-            if (IsEditorOwner)
+            if (e.PropertyName == nameof(MemoItem.Content) && IsEditorOwner)
             {
                 MarkdownEditor.SetExternalMarkdown(_memo.Content);
             }
@@ -535,7 +536,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
             return;
         }
 
-        string title = string.IsNullOrWhiteSpace(_memo.Title) ? "备忘录" : _memo.Title;
+        string title = string.IsNullOrWhiteSpace(_memo.Title) ? LocalizationService.Get("备忘录") : _memo.Title;
         Title = title;
         TitleText.Text = title;
         DockTabLayer.TabTitle = title;
@@ -554,14 +555,14 @@ public partial class MemoPopoutWindow : BorderlessWindow
 
         bool active = _memo.ReminderAt is { } reminderAt && reminderAt > DateTimeUtils.Now;
         InteractionState.SetIsPinActive(ReminderButton, active);
-        string description = active ? $"提醒：{_memo.ReminderAt:yyyy-MM-dd HH:mm:ss}" : "设置提醒";
+        string description = active ? LocalizationService.Format("提醒：{0:yyyy-MM-dd HH:mm:ss}", _memo.ReminderAt) : LocalizationService.Get("设置提醒");
         ReminderButton.ToolTip = description;
         AutomationProperties.SetName(ReminderButton, description);
     }
 
     private void UpdateToolbarButtonVisual()
     {
-        string description = _showPreviewToolbar ? "隐藏 Markdown 工具栏" : "显示 Markdown 工具栏";
+        string description = LocalizationService.Get(_showPreviewToolbar ? "隐藏 Markdown 工具栏" : "显示 Markdown 工具栏");
         ToolbarButton.ToolTip = description;
         AutomationProperties.SetName(ToolbarButton, description);
         InteractionState.SetIsPinActive(ToolbarButton, _showPreviewToolbar);
@@ -572,7 +573,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
         TaskbarButton.Visibility = _taskbarButtonEnabled ? Visibility.Visible : Visibility.Collapsed;
         TaskbarIconVisibility.SetVisible(this, _taskbarButtonEnabled && _showTaskbarIcon);
         bool isVisible = TaskbarIconVisibility.IsVisible(this);
-        string description = isVisible ? "从任务栏隐藏此便签" : "在任务栏显示此便签";
+        string description = LocalizationService.Get(isVisible ? "从任务栏隐藏此便签" : "在任务栏显示此便签");
         TaskbarButton.ToolTip = description;
         AutomationProperties.SetName(TaskbarButton, description);
         InteractionState.SetIsPinActive(TaskbarButton, isVisible);
@@ -607,8 +608,15 @@ public partial class MemoPopoutWindow : BorderlessWindow
         }
     }
 
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        UpdateMemoVisuals();
+        UpdateTaskbarButtonVisual();
+    }
+
     private void OnWindowClosed(object? sender, EventArgs e)
     {
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
         if (_cleanupDone)
         {
             return;

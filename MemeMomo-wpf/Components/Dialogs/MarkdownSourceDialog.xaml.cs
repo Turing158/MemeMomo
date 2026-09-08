@@ -63,7 +63,7 @@ public partial class MarkdownSourceDialog : MemoDialogWindow
         string source = SourceBox.Text ?? string.Empty;
         int lines = source.Length == 0 ? 1 : source.Split('\n').Length;
         if (source.EndsWith('\n')) lines = Math.Max(1, lines);
-        DocumentStatsText.Text = $"{lines:N0} 行 · {source.Length:N0} 字符";
+        MemeMomo.UI.Text.LocalizeExtension.Set(DocumentStatsText, TextBlock.TextProperty, "{0:N0} 行 · {1:N0} 字符", lines, source.Length);
     }
 
 }

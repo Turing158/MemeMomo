@@ -8,6 +8,7 @@ using MemeMomo.Infrastructure;
 using MemeMomo.Models;
 using MemeMomo.Services;
 using MemeMomo.UI;
+using MemeMomo.UI.Animation;
 using MemeMomo.UI.Windows;
 
 namespace MemeMomo.Views;
@@ -39,6 +40,7 @@ public partial class SettingsWindow : BorderlessWindow
         DockSizeSlider.ValueCommitted += OnDockSizeValueCommitted;
         TrayClickToggle.ValueChanged += OnTrayClickValueChanged;
         MotionPreferences.Changed += OnMotionPreferencesChanged;
+        LocalizationService.LanguageChanged += OnLanguageChanged;
         Closed += OnClosed;
         ApplySettingsToUi();
     }
@@ -58,10 +60,12 @@ public partial class SettingsWindow : BorderlessWindow
         ArgumentNullException.ThrowIfNull(coordinator);
         _settings = settings.Clone();
         _coordinator = coordinator;
+        LocalizationService.SetLanguage(_settings.Language);
         ApplySettingsToUi();
     }
 
     public AppSettings SettingsSnapshot => _settings.Clone();
+    internal override WindowTransitionProfile TransitionProfile => WindowTransitionProfile.Panel;
     public bool IsCapturingHotkey => _capturingAction is not null;
     public string? LastSaveError { get; private set; }
     internal CollapsibleSection MemoTaskbarHotkeySectionPart => MemoTaskbarHotkeySection;
@@ -105,6 +109,7 @@ public partial class SettingsWindow : BorderlessWindow
         // The source reset restores preferences immediately, while the live
         // window keeps its current geometry, docking position and pin state.
         AppSettings.CreateDefault().CopyUserPreferencesTo(_settings);
+        LocalizationService.SetLanguage(_settings.Language);
         ThemePreferences.ApplyMode(_settings.ThemeMode);
         MotionPreferences.ApplyMode(_settings.MotionMode);
         ApplySettingsToUi();
@@ -130,30 +135,15 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void InitializeSelectors()
     {
-        CloseActionSelector.Options =
+        LanguageSelector.Options =
         [
-            new(nameof(CloseButtonAction.MinimizeToTray), "最小化托盘"),
-            new(nameof(CloseButtonAction.Close), "关闭")
+            new(nameof(AppLanguage.ChineseSimplified), "简体中文"),
+            new(nameof(AppLanguage.English), "English"),
+            new(nameof(AppLanguage.ChineseTraditional), "繁體中文")
         ];
-        ThemeSelector.Options =
-        [
-            new(nameof(ThemeMode.FollowSystem), "跟随系统"),
-            new(nameof(ThemeMode.Light), "亮色"),
-            new(nameof(ThemeMode.Dark), "暗色")
-        ];
-        MotionSelector.Options =
-        [
-            new(nameof(MotionMode.FollowSystem), "跟随系统"),
-            new(nameof(MotionMode.AlwaysOn), "始终开启"),
-            new(nameof(MotionMode.Off), "关闭")
-        ];
-        ReminderNotificationSelector.Options =
-        [
-            new(nameof(ReminderNotificationMode.SystemToast), "系统通知"),
-            new(nameof(ReminderNotificationMode.InAppWindow), "应用内窗口"),
-            new(nameof(ReminderNotificationMode.Both), "两者")
-        ];
+        RefreshLocalizedSelectors();
         CloseActionSelector.SelectionChanged += OnCloseActionSelectionChanged;
+        LanguageSelector.SelectionChanged += OnLanguageSelectionChanged;
         ThemeSelector.SelectionChanged += OnThemeSelectionChanged;
         MotionSelector.SelectionChanged += OnMotionSelectionChanged;
         ReminderNotificationSelector.SelectionChanged += OnReminderNotificationSelectionChanged;
@@ -168,6 +158,7 @@ public partial class SettingsWindow : BorderlessWindow
                 _settings.MainWindowDockSize,
                 AppSettings.MinimumMainWindowDockSize,
                 AppSettings.MaximumMainWindowDockSize);
+            LanguageSelector.SelectedKey = _settings.Language.ToString();
             CloseActionSelector.SelectedKey = _settings.CloseButtonAction.ToString();
             ThemeSelector.SelectedKey = _settings.ThemeMode.ToString();
             MotionSelector.SelectedKey = _settings.MotionMode.ToString();
@@ -193,6 +184,46 @@ public partial class SettingsWindow : BorderlessWindow
         UpdateMotionStatus();
     }
 
+    private void RefreshLocalizedSelectors()
+    {
+        _applyingUi = true;
+        try
+        {
+            CloseActionSelector.Options =
+            [
+                new(nameof(CloseButtonAction.MinimizeToTray), LocalizationService.Get("最小化托盘")),
+                new(nameof(CloseButtonAction.Close), LocalizationService.Get("关闭"))
+            ];
+            ThemeSelector.Options =
+            [
+                new(nameof(ThemeMode.FollowSystem), LocalizationService.Get("跟随系统")),
+                new(nameof(ThemeMode.Light), LocalizationService.Get("亮色")),
+                new(nameof(ThemeMode.Dark), LocalizationService.Get("暗色"))
+            ];
+            MotionSelector.Options =
+            [
+                new(nameof(MotionMode.FollowSystem), LocalizationService.Get("跟随系统")),
+                new(nameof(MotionMode.AlwaysOn), LocalizationService.Get("始终开启")),
+                new(nameof(MotionMode.Off), LocalizationService.Get("关闭动画"))
+            ];
+            ReminderNotificationSelector.Options =
+            [
+                new(nameof(ReminderNotificationMode.SystemToast), LocalizationService.Get("系统通知")),
+                new(nameof(ReminderNotificationMode.InAppWindow), LocalizationService.Get("应用内窗口")),
+                new(nameof(ReminderNotificationMode.Both), LocalizationService.Get("两者"))
+            ];
+            LanguageSelector.SelectedKey = _settings.Language.ToString();
+            CloseActionSelector.SelectedKey = _settings.CloseButtonAction.ToString();
+            ThemeSelector.SelectedKey = _settings.ThemeMode.ToString();
+            MotionSelector.SelectedKey = _settings.MotionMode.ToString();
+            ReminderNotificationSelector.SelectedKey = _settings.ReminderNotification.ToString();
+        }
+        finally
+        {
+            _applyingUi = false;
+        }
+    }
+
     private void UpdateDependentSections()
     {
         QuickMemoPopoutSection.IsExpanded = _settings.QuickMemoEnabled;
@@ -214,8 +245,8 @@ public partial class SettingsWindow : BorderlessWindow
     private void UpdateMotionStatus()
     {
         MotionSystemStatusText.Text = MotionPreferences.SystemAnimationsEnabled
-            ? "系统当前已开启动画"
-            : "系统当前已减少动画";
+            ? LocalizationService.Get("系统当前已开启动画")
+            : LocalizationService.Get("系统当前已减少动画");
         MotionSystemStatusSection.IsExpanded = _settings.MotionMode == MotionMode.FollowSystem;
     }
 
@@ -286,7 +317,8 @@ public partial class SettingsWindow : BorderlessWindow
         _closingAfterFlush = true;
         EndCapture();
         await WaitForPendingSaveAsync();
-        CloseWithTransition();
+        // A zero-length exit can complete synchronously inside OnClosing.
+        await Dispatcher.InvokeAsync(CloseWithTransition);
     }
 
     private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -306,6 +338,27 @@ public partial class SettingsWindow : BorderlessWindow
         _settings.CloseButtonAction = action;
         _settings.HasAskedCloseButtonAction = true;
         CommitChange();
+    }
+
+    private void OnLanguageSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
+    {
+        if (_applyingUi || !Enum.TryParse(e.NewKey, out AppLanguage language) || _settings.Language == language)
+        {
+            return;
+        }
+
+        _settings.Language = language;
+        LocalizationService.SetLanguage(language);
+        CommitChange();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        RefreshLocalizedSelectors();
+        EndCapture();
+        ClearValidation();
+        ClearConflict();
+        UpdateMotionStatus();
     }
 
     private void OnThemeSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
@@ -417,7 +470,7 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
-        ConfirmDialog dialog = new("重置设置", "确定要恢复默认设置吗？");
+        ConfirmDialog dialog = new(LocalizationService.Get("重置设置"), LocalizationService.Get("确定要恢复默认设置吗？"));
         if (dialog.ShowDialog(this))
         {
             ResetToDefaultsAsync().Observe();
@@ -442,7 +495,7 @@ public partial class SettingsWindow : BorderlessWindow
         ClearHotkey(_captureCandidate);
         ClearValidation();
         ClearConflict();
-        button.Content = "按下快捷键...";
+        button.Content = LocalizationService.Get("按下快捷键...");
         Focus();
     }
 
@@ -616,11 +669,13 @@ public partial class SettingsWindow : BorderlessWindow
     private void OnClosed(object? sender, EventArgs e)
     {
         MotionPreferences.Changed -= OnMotionPreferencesChanged;
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
         DockSizeSlider.ValueCommitted -= OnDockSizeValueCommitted;
         TrayClickToggle.ValueChanged -= OnTrayClickValueChanged;
         CloseActionSelector.SelectionChanged -= OnCloseActionSelectionChanged;
         ThemeSelector.SelectionChanged -= OnThemeSelectionChanged;
         MotionSelector.SelectionChanged -= OnMotionSelectionChanged;
         ReminderNotificationSelector.SelectionChanged -= OnReminderNotificationSelectionChanged;
+        LanguageSelector.SelectionChanged -= OnLanguageSelectionChanged;
     }
 }

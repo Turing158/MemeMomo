@@ -108,6 +108,7 @@ public partial class MainWindow : BorderlessWindow
         MarkdownEditor.NewRequested += OnNewRequested;
         Loaded += OnWindowLoaded;
         Closed += OnWindowClosed;
+        LocalizationService.LanguageChanged += OnLanguageChanged;
     }
 
     public MainViewModel ViewModel => _viewModel;
@@ -877,8 +878,15 @@ public partial class MainWindow : BorderlessWindow
         }
     }
 
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        foreach (MemoItem memo in _viewModel.Memos)
+            memo.RefreshLocalizedText();
+    }
+
     private void OnWindowClosed(object? sender, EventArgs e)
     {
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
         if (_disposed)
         {
             return;

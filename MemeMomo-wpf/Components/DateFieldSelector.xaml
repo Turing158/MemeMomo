@@ -1,6 +1,7 @@
 <UserControl x:Class="MemeMomo.Components.DateFieldSelector"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:MemeMomo.UI.Text"
              xmlns:popup="clr-namespace:MemeMomo.UI.Popup"
              xmlns:ui="clr-namespace:MemeMomo.UI"
              Background="{DynamicResource TransparentBrush}"
@@ -58,7 +59,7 @@
                     Width="30"
                     Height="30"
                     HorizontalAlignment="Left"
-                    AutomationProperties.Name="上一月"
+                    AutomationProperties.Name="{loc:Localize '上一月'}"
                     Style="{DynamicResource CalendarNavigationButtonStyle}">
               <!-- 复用 ChevronDownIcon 旋转成左右箭头，不新增图标键。 -->
               <Path Width="16"
@@ -75,7 +76,7 @@
             <Button x:Name="HeaderButton"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    AutomationProperties.Name="切换到月份选择"
+                    AutomationProperties.Name="{loc:Localize '切换到月份选择'}"
                     Style="{DynamicResource CalendarHeaderButtonStyle}">
               <TextBlock x:Name="MonthHeader"
                          FontSize="14"
@@ -86,7 +87,7 @@
                     Width="30"
                     Height="30"
                     HorizontalAlignment="Right"
-                    AutomationProperties.Name="下一月"
+                    AutomationProperties.Name="{loc:Localize '下一月'}"
                     Style="{DynamicResource CalendarNavigationButtonStyle}">
               <Path Width="16"
                     Height="16"
@@ -138,8 +139,8 @@
           <Button x:Name="TodayButton"
                   Margin="2,6,2,0"
                   Height="32"
-                  Content="今天"
-                  AutomationProperties.Name="选择今天"
+                  Content="{loc:Localize '今天'}"
+                  AutomationProperties.Name="{loc:Localize '选择今天'}"
                   Style="{DynamicResource DialogSecondaryActionButtonStyle}" />
         </StackPanel>
       </Border>

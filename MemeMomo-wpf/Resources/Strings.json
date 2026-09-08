@@ -1,0 +1,1210 @@
+{
+  "设置": [
+    "Settings",
+    "設定"
+  ],
+  "语言": [
+    "Language",
+    "語言"
+  ],
+  "按下快捷键...": [
+    "Press a hotkey...",
+    "按下快速鍵..."
+  ],
+  "系统当前已开启动画": [
+    "System animations are enabled",
+    "系統目前已開啟動畫"
+  ],
+  "系统当前已减少动画": [
+    "System animations are reduced",
+    "系統目前已減少動畫"
+  ],
+  "确定要恢复默认设置吗？": [
+    "Restore all settings to their defaults?",
+    "確定要恢復預設設定嗎？"
+  ],
+  "关闭": [
+    "Close",
+    "關閉"
+  ],
+  "关闭动画": [
+    "Off",
+    "關閉動畫"
+  ],
+  "置顶": [
+    "Pin",
+    "置頂"
+  ],
+  "最小化": [
+    "Minimize",
+    "最小化"
+  ],
+  "删除": [
+    "Delete",
+    "刪除"
+  ],
+  "删除备忘录": [
+    "Delete memo",
+    "刪除備忘錄"
+  ],
+  "还没有备忘录": [
+    "No memos yet",
+    "還沒有備忘錄"
+  ],
+  "在上方写下第一条 Markdown 备忘录\n按 Ctrl+Enter 新增": [
+    "Write your first Markdown memo above\nPress Ctrl+Enter to add",
+    "在上方寫下第一條 Markdown 備忘錄\n按 Ctrl+Enter 新增"
+  ],
+  "按住拖动可沿屏幕边缘移动；向内拖动可恢复窗口": [
+    "Drag along the screen edge to move; drag inward to restore the window",
+    "按住拖動可沿螢幕邊緣移動；向內拖動可恢復視窗"
+  ],
+  "贴边窗口拖动手柄": [
+    "Docked window drag handle",
+    "貼邊視窗拖動把手"
+  ],
+  "关闭按钮操作": [
+    "Close button action",
+    "關閉按鈕操作"
+  ],
+  "最小化托盘": [
+    "Minimize to tray",
+    "最小化至系統匣"
+  ],
+  "功能设置": [
+    "Feature settings",
+    "功能設定"
+  ],
+  "快速添加剪贴板内容": [
+    "Quickly add clipboard content",
+    "快速新增剪貼簿內容"
+  ],
+  "通过快捷键将剪贴板内容快速添加为备忘录": [
+    "Use a hotkey to add clipboard content as a memo",
+    "透過快速鍵將剪貼簿內容新增為備忘錄"
+  ],
+  "快速添加后自动显示便签": [
+    "Show memo after quick add",
+    "快速新增後自動顯示便箋"
+  ],
+  "快速添加后在鼠标位置弹出便签窗口": [
+    "Show the memo window at the pointer after quick add",
+    "快速新增後在滑鼠位置彈出便箋視窗"
+  ],
+  "重复便签": [
+    "Duplicate memos",
+    "重複便箋"
+  ],
+  "关闭时移动已有窗体，开启时总是创建新窗体": [
+    "Reuse the existing window when off; always create a new one when on",
+    "關閉時移動現有視窗，開啟時一律建立新視窗"
+  ],
+  "启用贴边": [
+    "Enable docking",
+    "啟用貼邊"
+  ],
+  "拖动主窗口到屏幕边缘时收起为方块": [
+    "Collapse the main window into a tile at the screen edge",
+    "拖動主視窗到螢幕邊緣時收起為方塊"
+  ],
+  "便签贴边": [
+    "Memo docking",
+    "便箋貼邊"
+  ],
+  "拖动便签到屏幕左右边缘时收起为半圆标签": [
+    "Collapse a memo into a semicircle at the left or right edge",
+    "拖動便箋到螢幕左右邊緣時收起為半圓標籤"
+  ],
+  "主界面任务栏图标": [
+    "Main window taskbar icon",
+    "主視窗工作列圖示"
+  ],
+  "主界面显示时在 Windows 任务栏中显示图标": [
+    "Show an icon in the Windows taskbar while the main window is visible",
+    "主視窗顯示時在 Windows 工作列中顯示圖示"
+  ],
+  "便签窗口任务栏图标": [
+    "Memo window taskbar icon",
+    "便箋視窗工作列圖示"
+  ],
+  "在标题栏显示按钮，可单独控制每个便签的任务栏图标": [
+    "Show a title-bar button to control each memo's taskbar icon",
+    "在標題列顯示按鈕，可個別控制每個便箋的工作列圖示"
+  ],
+  "新建便签默认置顶": [
+    "Pin new memos by default",
+    "新建便箋預設置頂"
+  ],
+  "新弹出的便签窗口自动置顶，可在标题栏用图钉单独关闭": [
+    "New memo windows are pinned automatically; use the title-bar pin to turn it off",
+    "新彈出的便箋視窗會自動置頂，可在標題列用圖釘個別關閉"
+  ],
+  "托盘图标点击习惯": [
+    "Tray icon click behavior",
+    "系統匣圖示點擊方式"
+  ],
+  "设置单击还是双击托盘图标显示主界面": [
+    "Choose single- or double-click to show the main window",
+    "設定單擊或雙擊系統匣圖示以顯示主視窗"
+  ],
+  "单击": [
+    "Single",
+    "單擊"
+  ],
+  "双击": [
+    "Double",
+    "雙擊"
+  ],
+  "提醒方式": [
+    "Reminder delivery",
+    "提醒方式"
+  ],
+  "系统通知会遵循 Windows 的免打扰设置": [
+    "System notifications follow Windows quiet-hours settings",
+    "系統通知會遵循 Windows 的勿擾設定"
+  ],
+  "系统通知": [
+    "Windows",
+    "系統通知"
+  ],
+  "应用内窗口": [
+    "In-app",
+    "應用程式內視窗"
+  ],
+  "两者": [
+    "Both",
+    "兩者"
+  ],
+  "贴边方块大小": [
+    "Dock tile size",
+    "貼邊方塊大小"
+  ],
+  "调整主窗口贴边收起后的方块尺寸": [
+    "Adjust the tile size after the main window docks",
+    "調整主視窗貼邊收起後的方塊尺寸"
+  ],
+  "主题颜色": [
+    "Theme",
+    "主題色彩"
+  ],
+  "跟随系统": [
+    "System",
+    "跟隨系統"
+  ],
+  "亮色": [
+    "Light",
+    "淺色"
+  ],
+  "暗色": [
+    "Dark",
+    "深色"
+  ],
+  "界面动效": [
+    "Motion",
+    "介面動效"
+  ],
+  "控制窗口和界面微交互动画": [
+    "Control window and interaction animations",
+    "控制視窗與介面微互動動畫"
+  ],
+  "始终开启": [
+    "Always on",
+    "始終開啟"
+  ],
+  "快捷键设置": [
+    "Hotkeys",
+    "快速鍵設定"
+  ],
+  "点击后按快捷键，按 Esc 留空，右键取消": [
+    "Click a hotkey, press Esc to clear, or right-click to cancel",
+    "點擊後按快速鍵，按 Esc 清除，右鍵取消"
+  ],
+  "显示软件": [
+    "Show app",
+    "顯示應用程式"
+  ],
+  "快速添加（剪贴板）": [
+    "Quick add (clipboard)",
+    "快速新增（剪貼簿）"
+  ],
+  "切换便签任务栏图标": [
+    "Toggle memo taskbar icon",
+    "切換便箋工作列圖示"
+  ],
+  "教程": [
+    "Tutorial",
+    "教學"
+  ],
+  "查看使用教程": [
+    "View the tutorial",
+    "檢視使用教學"
+  ],
+  "重置设置": [
+    "Reset settings",
+    "重設設定"
+  ],
+  "恢复关闭行为、快捷键和其它偏好默认值": [
+    "Restore close behavior, hotkeys, and other preferences",
+    "恢復關閉行為、快速鍵與其他偏好預設值"
+  ],
+  "重置": [
+    "Reset",
+    "重設"
+  ],
+  "确定": [
+    "OK",
+    "確定"
+  ],
+  "确认": [
+    "Confirm",
+    "確認"
+  ],
+  "取消": [
+    "Cancel",
+    "取消"
+  ],
+  "应用": [
+    "Apply",
+    "套用"
+  ],
+  "应用后将替换当前编辑内容": [
+    "Applying replaces the current editor content",
+    "套用後會取代目前的編輯內容"
+  ],
+  "插入链接": [
+    "Insert link",
+    "插入連結"
+  ],
+  "编辑链接": [
+    "Edit link",
+    "編輯連結"
+  ],
+  "保存修改": [
+    "Save changes",
+    "儲存變更"
+  ],
+  "链接文本": [
+    "Link text",
+    "連結文字"
+  ],
+  "链接地址": [
+    "Link address",
+    "連結網址"
+  ],
+  "链接文本和地址将作为 Markdown 链接保存": [
+    "The text and address are saved as a Markdown link",
+    "文字與網址會儲存為 Markdown 連結"
+  ],
+  "输入显示文字": [
+    "Enter display text",
+    "輸入顯示文字"
+  ],
+  "请输入链接文本": [
+    "Enter link text",
+    "請輸入連結文字"
+  ],
+  "请输入链接地址": [
+    "Enter a link address",
+    "請輸入連結網址"
+  ],
+  "请输入完整的链接地址": [
+    "Enter a complete link address",
+    "請輸入完整的連結網址"
+  ],
+  "仅支持 HTTP、HTTPS 或邮件地址": [
+    "Only HTTP, HTTPS, or email addresses are supported",
+    "僅支援 HTTP、HTTPS 或電子郵件地址"
+  ],
+  "插入图片": [
+    "Insert image",
+    "插入圖片"
+  ],
+  "插入网络图片": [
+    "Insert web image",
+    "插入網路圖片"
+  ],
+  "使用 HTTPS 地址插入图片": [
+    "Insert an image using an HTTPS address",
+    "使用 HTTPS 網址插入圖片"
+  ],
+  "图片地址": [
+    "Image address",
+    "圖片網址"
+  ],
+  "网络图片地址": [
+    "Web image address",
+    "網路圖片網址"
+  ],
+  "仅支持 HTTPS 安全地址": [
+    "Only secure HTTPS addresses are supported",
+    "僅支援安全的 HTTPS 網址"
+  ],
+  "请输入有效的 HTTPS 图片地址": [
+    "Enter a valid HTTPS image address",
+    "請輸入有效的 HTTPS 圖片網址"
+  ],
+  "必填": [
+    "Required",
+    "必填"
+  ],
+  "清空": [
+    "Clear",
+    "清除"
+  ],
+  "清空链接地址": [
+    "Clear link address",
+    "清除連結網址"
+  ],
+  "清空图片地址": [
+    "Clear image address",
+    "清除圖片網址"
+  ],
+  "编辑 Markdown 源码": [
+    "Edit Markdown source",
+    "編輯 Markdown 原始碼"
+  ],
+  "Markdown 源码": [
+    "Markdown source",
+    "Markdown 原始碼"
+  ],
+  "1 行 · 0 字符": [
+    "1 line · 0 characters",
+    "1 行 · 0 字元"
+  ],
+  "表格": [
+    "Table",
+    "表格"
+  ],
+  "粗体": [
+    "Bold",
+    "粗體"
+  ],
+  "粗体 (Ctrl+B)": [
+    "Bold (Ctrl+B)",
+    "粗體 (Ctrl+B)"
+  ],
+  "斜体": [
+    "Italic",
+    "斜體"
+  ],
+  "斜体 (Ctrl+I)": [
+    "Italic (Ctrl+I)",
+    "斜體 (Ctrl+I)"
+  ],
+  "标题": [
+    "Heading",
+    "標題"
+  ],
+  "删除线": [
+    "Strikethrough",
+    "刪除線"
+  ],
+  "分隔线": [
+    "Horizontal rule",
+    "分隔線"
+  ],
+  "无序列表": [
+    "Bulleted list",
+    "無序清單"
+  ],
+  "有序列表": [
+    "Numbered list",
+    "編號清單"
+  ],
+  "任务列表": [
+    "Task list",
+    "工作清單"
+  ],
+  "引用": [
+    "Quote",
+    "引用"
+  ],
+  "行内代码": [
+    "Inline code",
+    "行內程式碼"
+  ],
+  "代码块": [
+    "Code block",
+    "程式碼區塊"
+  ],
+  "网络图片": [
+    "Web image",
+    "網路圖片"
+  ],
+  "本地图片": [
+    "Local image",
+    "本機圖片"
+  ],
+  "编辑源码": [
+    "Edit source",
+    "編輯原始碼"
+  ],
+  "更多格式": [
+    "More formatting",
+    "更多格式"
+  ],
+  "立即保存": [
+    "Save now",
+    "立即儲存"
+  ],
+  "立即保存 (Ctrl+Enter)": [
+    "Save now (Ctrl+Enter)",
+    "立即儲存 (Ctrl+Enter)"
+  ],
+  "新建备忘录": [
+    "New memo",
+    "新增備忘錄"
+  ],
+  "复制代码": [
+    "Copy code",
+    "複製程式碼"
+  ],
+  "放开以插入图片": [
+    "Release to insert image",
+    "放開以插入圖片"
+  ],
+  "写点什么…": [
+    "Write something…",
+    "寫點什麼…"
+  ],
+  "设置提醒": [
+    "Set reminder",
+    "設定提醒"
+  ],
+  "取消提醒": [
+    "Remove",
+    "取消提醒"
+  ],
+  "提醒日期": [
+    "Reminder date",
+    "提醒日期"
+  ],
+  "提醒时间": [
+    "Reminder time",
+    "提醒時間"
+  ],
+  "1分钟后": [
+    "+1 min",
+    "1 分鐘後"
+  ],
+  "10分钟后": [
+    "+10 min",
+    "10 分鐘後"
+  ],
+  "半小时后": [
+    "+30 min",
+    "半小時後"
+  ],
+  "1小时后": [
+    "+1 hour",
+    "1 小時後"
+  ],
+  "今天": [
+    "Today",
+    "今天"
+  ],
+  "小时": [
+    "Hours",
+    "小時"
+  ],
+  "分钟": [
+    "Minutes",
+    "分鐘"
+  ],
+  "秒钟": [
+    "Seconds",
+    "秒鐘"
+  ],
+  "时": [
+    "H",
+    "時"
+  ],
+  "分": [
+    "M",
+    "分"
+  ],
+  "秒": [
+    "S",
+    "秒"
+  ],
+  "上一小时": [
+    "Previous hour",
+    "上一小時"
+  ],
+  "下一小时": [
+    "Next hour",
+    "下一小時"
+  ],
+  "上一分钟": [
+    "Previous minute",
+    "上一分鐘"
+  ],
+  "下一分钟": [
+    "Next minute",
+    "下一分鐘"
+  ],
+  "上一秒": [
+    "Previous second",
+    "上一秒"
+  ],
+  "下一秒": [
+    "Next second",
+    "下一秒"
+  ],
+  "上一月": [
+    "Previous month",
+    "上個月"
+  ],
+  "下一月": [
+    "Next month",
+    "下個月"
+  ],
+  "切换到月份选择": [
+    "Switch to month picker",
+    "切換至月份選擇"
+  ],
+  "选择今天": [
+    "Select today",
+    "選擇今天"
+  ],
+  "打开备忘录": [
+    "Open memos",
+    "開啟備忘錄"
+  ],
+  "退出应用": [
+    "Exit app",
+    "離開應用程式"
+  ],
+  "窗口置顶": [
+    "Pin window",
+    "視窗置頂"
+  ],
+  "显示 Markdown 工具栏": [
+    "Show Markdown toolbar",
+    "顯示 Markdown 工具列"
+  ],
+  "在任务栏显示此便签": [
+    "Show this memo in the taskbar",
+    "在工作列顯示此便箋"
+  ],
+  "数值": [
+    "Value",
+    "數值"
+  ],
+  "H1  一级标题": [
+    "H1  Heading 1",
+    "H1  一級標題"
+  ],
+  "H2  二级标题": [
+    "H2  Heading 2",
+    "H2  二級標題"
+  ],
+  "H3  三级标题": [
+    "H3  Heading 3",
+    "H3  三級標題"
+  ],
+  "H4  四级标题": [
+    "H4  Heading 4",
+    "H4  四級標題"
+  ],
+  "链接": [
+    "Link",
+    "連結"
+  ],
+  "滚轮、上下拖动或方向键调整小时": [
+    "Adjust hours with the wheel, vertical drag, or arrow keys",
+    "使用滾輪、上下拖動或方向鍵調整小時"
+  ],
+  "滚轮、上下拖动或方向键调整分钟": [
+    "Adjust minutes with the wheel, vertical drag, or arrow keys",
+    "使用滾輪、上下拖動或方向鍵調整分鐘"
+  ],
+  "滚轮、上下拖动或方向键调整秒钟": [
+    "Adjust seconds with the wheel, vertical drag, or arrow keys",
+    "使用滾輪、上下拖動或方向鍵調整秒鐘"
+  ],
+  "点击右上角关闭按钮时，要最小化到托盘还是直接关闭应用？": [
+    "Should the close button minimize to the tray or exit the app?",
+    "點擊右上角關閉按鈕時，要最小化至系統匣還是直接關閉應用程式？"
+  ],
+  "关闭网络图片面板": [
+    "Close web image dialog",
+    "關閉網路圖片面板"
+  ],
+  "图片地址错误": [
+    "Image address error",
+    "圖片網址錯誤"
+  ],
+  "关闭链接面板": [
+    "Close link dialog",
+    "關閉連結面板"
+  ],
+  "链接文本错误": [
+    "Link text error",
+    "連結文字錯誤"
+  ],
+  "链接地址错误": [
+    "Link address error",
+    "連結網址錯誤"
+  ],
+  "关闭源码编辑面板": [
+    "Close source editor",
+    "關閉原始碼編輯面板"
+  ],
+  "关闭提醒设置": [
+    "Close reminder settings",
+    "關閉提醒設定"
+  ],
+  "设置为1分钟后": [
+    "Set to 1 minute from now",
+    "設定為 1 分鐘後"
+  ],
+  "设置为10分钟后": [
+    "Set to 10 minutes from now",
+    "設定為 10 分鐘後"
+  ],
+  "设置为半小时后": [
+    "Set to 30 minutes from now",
+    "設定為半小時後"
+  ],
+  "设置为1小时后": [
+    "Set to 1 hour from now",
+    "設定為 1 小時後"
+  ],
+  "取消当前提醒": [
+    "Cancel current reminder",
+    "取消目前提醒"
+  ],
+  "关闭设置": [
+    "Close settings",
+    "關閉設定"
+  ],
+  "显示主界面任务栏图标": [
+    "Show main window taskbar icon",
+    "顯示主視窗工作列圖示"
+  ],
+  "显示便签窗口任务栏图标": [
+    "Show memo window taskbar icon",
+    "顯示便箋視窗工作列圖示"
+  ],
+  "备忘录": [
+    "Memo",
+    "備忘錄"
+  ],
+  "图片备忘录": [
+    "Image memo",
+    "圖片備忘錄"
+  ],
+  "备忘录提醒": [
+    "Memo reminder",
+    "備忘錄提醒"
+  ],
+  "点击查看便签": [
+    "Click to view memo",
+    "點擊以檢視便箋"
+  ],
+  "提醒服务尚未就绪。": [
+    "The reminder service is not ready.",
+    "提醒服務尚未就緒。"
+  ],
+  "便签尚未绑定备忘录。": [
+    "No memo is attached to this window.",
+    "便箋尚未綁定備忘錄。"
+  ],
+  "保存设置失败": [
+    "Unable to save settings",
+    "儲存設定失敗"
+  ],
+  "无法保存设置：{0}": [
+    "Unable to save settings: {0}",
+    "無法儲存設定：{0}"
+  ],
+  "设置提醒失败": [
+    "Unable to set reminder",
+    "設定提醒失敗"
+  ],
+  "取消提醒失败": [
+    "Unable to cancel reminder",
+    "取消提醒失敗"
+  ],
+  "请选择有效的提醒日期。": [
+    "Select a valid reminder date.",
+    "請選擇有效的提醒日期。"
+  ],
+  "提醒时间需要晚于当前时间。": [
+    "The reminder must be in the future.",
+    "提醒時間必須晚於目前時間。"
+  ],
+  "正在保存…": [
+    "Saving…",
+    "正在儲存…"
+  ],
+  "当前提醒：{0:yyyy-MM-dd HH:mm:ss}": [
+    "Current reminder: {0:yyyy-MM-dd HH:mm:ss}",
+    "目前提醒：{0:yyyy-MM-dd HH:mm:ss}"
+  ],
+  "提醒：{0:yyyy-MM-dd HH:mm:ss}": [
+    "Reminder: {0:yyyy-MM-dd HH:mm:ss}",
+    "提醒：{0:yyyy-MM-dd HH:mm:ss}"
+  ],
+  "{0}：{1}": [
+    "{0}: {1}",
+    "{0}：{1}"
+  ],
+  "隐藏 Markdown 工具栏": [
+    "Hide Markdown toolbar",
+    "隱藏 Markdown 工具列"
+  ],
+  "从任务栏隐藏此便签": [
+    "Hide this memo from the taskbar",
+    "從工作列隱藏此便箋"
+  ],
+  "窗口置顶，已开启": [
+    "Window pinned",
+    "視窗置頂，已開啟"
+  ],
+  "窗口置顶，已关闭": [
+    "Window unpinned",
+    "視窗置頂，已關閉"
+  ],
+  "未设置": [
+    "Not set",
+    "未設定"
+  ],
+  "已禁用": [
+    "Disabled",
+    "已停用"
+  ],
+  "其他功能": [
+    "Another action",
+    "其他功能"
+  ],
+  "快捷键不能只设置单个按键，请使用 Ctrl、Alt 或 Shift 加一个主键的两键及以上组合。": [
+    "Use Ctrl, Alt, or Shift together with another key.",
+    "請使用 Ctrl、Alt 或 Shift 加上一個主鍵的組合。"
+  ],
+  "该组合是系统快捷键或容易被 Windows 保留，不能设置为应用快捷键。": [
+    "This combination is reserved by Windows and cannot be used.",
+    "此組合由 Windows 保留，不能設為應用程式快速鍵。"
+  ],
+  "该快捷键已被「{0}」功能占用，请选择其他组合。": [
+    "This hotkey is already used by \"{0}\". Choose another combination.",
+    "此快速鍵已由「{0}」功能使用，請選擇其他組合。"
+  ],
+  "所见即所得 Markdown 编辑器": [
+    "WYSIWYG Markdown editor",
+    "所見即所得 Markdown 編輯器"
+  ],
+  "Markdown 编辑器": [
+    "Markdown editor",
+    "Markdown 編輯器"
+  ],
+  "任务复选框": [
+    "Task checkbox",
+    "工作核取方塊"
+  ],
+  "未保存": [
+    "Unsaved",
+    "未儲存"
+  ],
+  "已复制代码": [
+    "Code copied",
+    "已複製程式碼"
+  ],
+  "复制失败": [
+    "Copy failed",
+    "複製失敗"
+  ],
+  "内容不能为空": [
+    "Content cannot be empty",
+    "內容不能為空"
+  ],
+  "保存中": [
+    "Saving",
+    "儲存中"
+  ],
+  "保存失败": [
+    "Save failed",
+    "儲存失敗"
+  ],
+  "已保存": [
+    "Saved",
+    "已儲存"
+  ],
+  "{0} × {1} 表格": [
+    "{0} × {1} table",
+    "{0} × {1} 表格"
+  ],
+  "{0:N0} 行 · {1:N0} 字符": [
+    "Lines: {0:N0} · Characters: {1:N0}",
+    "{0:N0} 行 · {1:N0} 字元"
+  ],
+  "图片|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg": [
+    "Images|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg",
+    "圖片|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg"
+  ],
+  "粘贴的图片": [
+    "Pasted image",
+    "貼上的圖片"
+  ],
+  "仅支持 png、jpg、jpeg、webp、gif、bmp 或 svg 图片。": [
+    "Only png, jpg, jpeg, webp, gif, bmp, or svg images are supported.",
+    "僅支援 png、jpg、jpeg、webp、gif、bmp 或 svg 圖片。"
+  ],
+  "图片不能超过 20 MB。": [
+    "Images cannot exceed 20 MB.",
+    "圖片不能超過 20 MB。"
+  ],
+  "不支持该图片格式。": [
+    "This image format is not supported.",
+    "不支援此圖片格式。"
+  ],
+  "图片地址为空": [
+    "Image address is empty",
+    "圖片網址為空"
+  ],
+  "仅支持 HTTPS 图片地址": [
+    "Only HTTPS image addresses are supported",
+    "僅支援 HTTPS 圖片網址"
+  ],
+  "图片路径无效": [
+    "Invalid image path",
+    "圖片路徑無效"
+  ],
+  "图片加载器已释放": [
+    "The image loader is disposed",
+    "圖片載入器已釋放"
+  ],
+  "图片": [
+    "Image",
+    "圖片"
+  ],
+  "图片：{0}": [
+    "Image: {0}",
+    "圖片：{0}"
+  ],
+  "自适应": [
+    "Fit",
+    "自動調整"
+  ],
+  "图片宽度选项": [
+    "Image width options",
+    "圖片寬度選項"
+  ],
+  "图片宽度：{0}": [
+    "Image width: {0}",
+    "圖片寬度：{0}"
+  ],
+  "剪切": [
+    "Cut",
+    "剪下"
+  ],
+  "复制": [
+    "Copy",
+    "複製"
+  ],
+  "粘贴": [
+    "Paste",
+    "貼上"
+  ],
+  "删除表格": [
+    "Delete table",
+    "刪除表格"
+  ],
+  "此空行是表格的结束位置。继续删除将删除整个表格，是否确认？": [
+    "This empty line marks the end of the table. Delete the entire table?",
+    "此空行是表格的結束位置。繼續刪除會刪除整個表格，是否確認？"
+  ],
+  "上方插入行": [
+    "Insert row above",
+    "在上方插入列"
+  ],
+  "下方插入行": [
+    "Insert row below",
+    "在下方插入列"
+  ],
+  "删除行": [
+    "Delete row",
+    "刪除列"
+  ],
+  "左侧插入列": [
+    "Insert column left",
+    "在左側插入欄"
+  ],
+  "右侧插入列": [
+    "Insert column right",
+    "在右側插入欄"
+  ],
+  "删除列": [
+    "Delete column",
+    "刪除欄"
+  ],
+  "表格第 {0} 行第 {1} 列": [
+    "Table row {0}, column {1}",
+    "表格第 {0} 列第 {1} 欄"
+  ],
+  "可编辑 Markdown 表格样片": [
+    "Editable Markdown table",
+    "可編輯 Markdown 表格"
+  ],
+  "单元格 A": [
+    "Cell A",
+    "儲存格 A"
+  ],
+  "单元格 B": [
+    "Cell B",
+    "儲存格 B"
+  ],
+  "代码": [
+    "code",
+    "程式碼"
+  ],
+  "昨天": [
+    "Yesterday",
+    "昨天"
+  ],
+  "周一": [
+    "Mon",
+    "週一"
+  ],
+  "周二": [
+    "Tue",
+    "週二"
+  ],
+  "周三": [
+    "Wed",
+    "週三"
+  ],
+  "周四": [
+    "Thu",
+    "週四"
+  ],
+  "周五": [
+    "Fri",
+    "週五"
+  ],
+  "周六": [
+    "Sat",
+    "週六"
+  ],
+  "周日": [
+    "Sun",
+    "週日"
+  ],
+  "一": [
+    "Mon",
+    "一"
+  ],
+  "二": [
+    "Tue",
+    "二"
+  ],
+  "三": [
+    "Wed",
+    "三"
+  ],
+  "四": [
+    "Thu",
+    "四"
+  ],
+  "五": [
+    "Fri",
+    "五"
+  ],
+  "六": [
+    "Sat",
+    "六"
+  ],
+  "日": [
+    "Sun",
+    "日"
+  ],
+  "yyyy 年 M 月 d 日": [
+    "MMMM d, yyyy",
+    "yyyy 年 M 月 d 日"
+  ],
+  "yyyy 年 M 月": [
+    "MMMM yyyy",
+    "yyyy 年 M 月"
+  ],
+  "yyyy 年": [
+    "yyyy",
+    "yyyy 年"
+  ],
+  "M 月": [
+    "MMM",
+    "M 月"
+  ],
+  "提醒日期 {0}": [
+    "Reminder date {0}",
+    "提醒日期 {0}"
+  ],
+  "切换到年份选择": [
+    "Switch to year picker",
+    "切換至年份選擇"
+  ],
+  "返回月份选择": [
+    "Return to month picker",
+    "返回月份選擇"
+  ],
+  "上一年": [
+    "Previous year",
+    "上一年"
+  ],
+  "下一年": [
+    "Next year",
+    "下一年"
+  ],
+  "上十年": [
+    "Previous decade",
+    "前十年"
+  ],
+  "下十年": [
+    "Next decade",
+    "後十年"
+  ],
+  "当前值 {0}，范围 {1} 到 {2}": [
+    "Current value {0}, range {1} to {2}",
+    "目前值 {0}，範圍 {1} 到 {2}"
+  ],
+  "置顶主窗口：{0}": [
+    "Pin main window: {0}",
+    "置頂主視窗：{0}"
+  ],
+  "切换最近便签任务栏图标：{0}": [
+    "Toggle latest memo taskbar icon: {0}",
+    "切換最近便箋工作列圖示：{0}"
+  ],
+  "最小化到托盘：{0}": [
+    "Minimize to tray: {0}",
+    "最小化至系統匣：{0}"
+  ],
+  "显示软件：{0}": [
+    "Show app: {0}",
+    "顯示應用程式：{0}"
+  ],
+  "快速添加（剪贴板）：{0}": [
+    "Quick add (clipboard): {0}",
+    "快速新增（剪貼簿）：{0}"
+  ],
+  "一、Markdown 备忘录": [
+    "1. Markdown memos",
+    "一、Markdown 備忘錄"
+  ],
+  "顶部是可直接排版和编辑的单框 Markdown 编辑器，支持标题、强调、删除线、有序/无序列表、任务项、引用、链接、代码、表格、分隔线与图片。": [
+    "The editor supports headings, emphasis, strikethrough, numbered and bulleted lists, tasks, quotes, links, code, tables, horizontal rules, and images.",
+    "頂部的 Markdown 編輯器可直接排版與編輯，支援標題、強調、刪除線、編號與無序清單、工作項目、引用、連結、程式碼、表格、分隔線及圖片。"
+  ],
+  "新建时按 Ctrl+Enter 新增，Enter 换行；工具栏可直接插入常用格式，「更多」菜单也可打开 Markdown 源码编辑器。": [
+    "Press Ctrl+Enter to add a new memo, or Enter for a new line. Use the toolbar for formatting and the More menu to edit Markdown source.",
+    "新建時按 Ctrl+Enter 新增，Enter 換行；工具列可插入常用格式，「更多」選單也可開啟 Markdown 原始碼編輯器。"
+  ],
+  "二、所见即所得编辑": [
+    "2. WYSIWYG editing",
+    "二、所見即所得編輯"
+  ],
+  "双击卡片进入编辑；停止输入 500ms 后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。": [
+    "Double-click a memo to edit it. Changes save 500 ms after typing stops. Press Ctrl+Enter to save immediately, or Esc to restore the content loaded for this edit.",
+    "雙擊卡片進入編輯；停止輸入 500ms 後自動儲存。編輯現有內容時按 Ctrl+Enter 立即儲存，Esc 恢復本次載入的內容。"
+  ],
+  "编辑时可用 Ctrl+B / Ctrl+I / Ctrl+K 快速插入粗体、斜体、链接。": [
+    "Use Ctrl+B, Ctrl+I, or Ctrl+K for bold, italic, or links.",
+    "編輯時可用 Ctrl+B / Ctrl+I / Ctrl+K 快速插入粗體、斜體及連結。"
+  ],
+  "三、插入图片": [
+    "3. Images",
+    "三、插入圖片"
+  ],
+  "可粘贴、拖入或选择本地图片，也可从更多菜单插入 HTTPS 网络图片。": [
+    "Paste, drag, or select local images, or insert HTTPS web images from the More menu.",
+    "可貼上、拖入或選擇本機圖片，也可從更多選單插入 HTTPS 網路圖片。"
+  ],
+  "四、分离便签": [
+    "4. Separate memo windows",
+    "四、分離便箋"
+  ],
+  "按住并拖动卡片可拉出独立窗口；关闭「重复便签」时移动已有便签，开启后总是新建。": [
+    "Drag a memo card out to open a separate window. Duplicate memos off reuses the existing window; on always creates a new one.",
+    "按住並拖動卡片可拉出獨立視窗；關閉「重複便箋」時移動現有便箋，開啟後一律新建。"
+  ],
+  "五、窗口调整": [
+    "5. Resizing windows",
+    "五、視窗調整"
+  ],
+  "主窗口、便签、设置与教程窗口均无边框，可从边缘和四角拖拽缩放。": [
+    "Resize the borderless main window, memos, settings, and tutorial by dragging their edges or corners.",
+    "主視窗、便箋、設定與教學視窗均無邊框，可從邊緣和四角拖曳縮放。"
+  ],
+  "六、贴边停靠": [
+    "6. Edge docking",
+    "六、貼邊停靠"
+  ],
+  "拖动主窗口靠近屏幕边缘时会收起为吸附方块；右键方块可打开托盘菜单。": [
+    "Drag the main window to a screen edge to collapse it into a tile. Right-click the tile to open the tray menu.",
+    "拖動主視窗靠近螢幕邊緣時會收起為吸附方塊；右鍵點擊方塊可開啟系統匣選單。"
+  ],
+  "七、置顶与关闭": [
+    "7. Pinning and closing",
+    "七、置頂與關閉"
+  ],
+  "点右上角图钉可置顶主窗口、便签或教程；主窗口关闭行为可在设置中选择。": [
+    "Use the title-bar pin to keep a window on top. Choose what the main window close button does in settings.",
+    "點擊右上角圖釘可置頂主視窗、便箋或教學；主視窗關閉行為可在設定中選擇。"
+  ],
+  "八、快捷键": [
+    "8. Hotkeys",
+    "八、快速鍵"
+  ],
+  "九、托盘图标": [
+    "9. Tray icon",
+    "九、系統匣圖示"
+  ],
+  "左键双击（或按设置改为单击）托盘图标恢复主窗口；右键打开自定义托盘菜单。": [
+    "Double-click the tray icon to restore the main window, or choose single-click in settings. Right-click for the tray menu.",
+    "左鍵雙擊（或在設定中改為單擊）系統匣圖示以恢復主視窗；右鍵開啟自訂系統匣選單。"
+  ],
+  "托盘菜单提供：打开备忘录、新建备忘录、窗口置顶、退出应用。": [
+    "The tray menu offers Open memos, New memo, Pin window, and Exit app.",
+    "系統匣選單提供：開啟備忘錄、新增備忘錄、視窗置頂及離開應用程式。"
+  ],
+  "十、其它设置": [
+    "10. Other settings",
+    "十、其他設定"
+  ],
+  "快速添加、动效、主题、贴边、任务栏图标等设置均会即时应用并自动保存。": [
+    "Quick add, motion, theme, docking, taskbar icons, and other preferences apply immediately and save automatically.",
+    "快速新增、動效、主題、貼邊、工作列圖示等設定都會立即套用並自動儲存。"
+  ],
+  "提醒到期默认逐条发送 Windows 系统通知（遵循系统免打扰设置）；可在设置的「提醒方式」中改为应用内窗口弹出。": [
+    "Due reminders use Windows notifications by default and respect quiet hours. Change Reminder delivery in settings to use in-app windows.",
+    "提醒到期時預設逐條傳送 Windows 系統通知（遵循系統勿擾設定）；可在設定的「提醒方式」中改為應用程式內視窗。"
+  ],
+  "提醒日期 {0:yyyy 年 M 月 d 日}": [
+    "Reminder date {0:MMMM d, yyyy}",
+    "提醒日期 {0:yyyy 年 M 月 d 日}"
+  ],
+  "{0:yyyy 年 M 月 d 日}": [
+    "{0:MMMM d, yyyy}",
+    "{0:yyyy 年 M 月 d 日}"
+  ],
+  "{0:yyyy 年 M 月}": [
+    "{0:MMMM yyyy}",
+    "{0:yyyy 年 M 月}"
+  ],
+  "{0:yyyy 年}": [
+    "{0:yyyy}",
+    "{0:yyyy 年}"
+  ],
+  "{0:M 月}": [
+    "{0:MMM}",
+    "{0:M 月}"
+  ],
+  "{0} 年": [
+    "{0}",
+    "{0} 年"
+  ],
+  "图片宽度：自适应": [
+    "Image width: fit",
+    "圖片寬度：自動調整"
+  ]
+}

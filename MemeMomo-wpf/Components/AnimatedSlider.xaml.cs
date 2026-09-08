@@ -596,9 +596,10 @@ public partial class AnimatedSlider : UserControl
         MinimumText.Text = FormatValue(Minimum);
         MaximumText.Text = FormatValue(Maximum);
         TooltipText.Text = FormatValue(Value);
-        AutomationProperties.SetHelpText(
+        MemeMomo.UI.Text.LocalizeExtension.Set(
             InnerSlider,
-            $"当前值 {FormatValue(Value)}，范围 {FormatValue(Minimum)} 到 {FormatValue(Maximum)}");
+            AutomationProperties.HelpTextProperty,
+            "当前值 {0}，范围 {1} 到 {2}", FormatValue(Value), FormatValue(Minimum), FormatValue(Maximum));
     }
 
     private string FormatValue(int value) => $"{value}{ValueSuffix}";

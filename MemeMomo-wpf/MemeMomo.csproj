@@ -29,6 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Resources\Strings.json" />
     <Resource Include="Assets\appicon.ico" />
     <Resource Include="Assets\appicon.png" />
     <None Include="THIRD-PARTY-NOTICES.md"

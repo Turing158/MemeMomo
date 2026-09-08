@@ -73,6 +73,7 @@ public partial class App : System.Windows.Application
             }
 
             loaded.CopyTo(_settings);
+            LocalizationService.SetLanguage(_settings.Language);
             ThemePreferences.ApplyMode(_settings.ThemeMode);
             MotionPreferences.ApplyMode(_settings.MotionMode);
             mainWindow.ApplySettings(_settings);
@@ -259,7 +260,7 @@ public partial class App : System.Windows.Application
     {
         if (_typedMainWindow is null)
         {
-            throw new InvalidOperationException("提醒服务尚未就绪。");
+            throw new InvalidOperationException(LocalizationService.Get("提醒服务尚未就绪。"));
         }
 
         memo.ReminderAt = reminderAt;
@@ -888,8 +889,8 @@ public partial class App : System.Windows.Application
         try
         {
             ConfirmDialog dialog = new(
-                "保存设置失败",
-                $"无法保存设置：{exception.Message}");
+                LocalizationService.Get("保存设置失败"),
+                LocalizationService.Format("无法保存设置：{0}", exception.Message));
             dialog.ShowDialog(owner);
         }
         finally

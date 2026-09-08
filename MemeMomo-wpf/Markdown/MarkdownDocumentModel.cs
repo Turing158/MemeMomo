@@ -335,6 +335,11 @@ internal sealed partial class MarkdownDocumentModel
 
         var before = SourceOffsetFromVisible(visibleOffset, trailingAffinity: false);
         var after = SourceOffsetFromVisible(visibleOffset, trailingAffinity: true);
+        // A link's label ends before its hidden destination syntax. At that visible
+        // boundary, insertion must land after the complete `[label](target)` source;
+        // otherwise a newline is inserted before `](` and the link stops parsing.
+        if (TryGetLinkSourceEndAtVisibleBoundary(visibleOffset) is { } linkSourceEnd)
+            return linkSourceEnd;
         // The projection hides one of the two Markdown line breaks that terminate a quote.
         // At the first visible position below the quote, cross only that separator. Using the
         // full trailing affinity could also cross the next paragraph's hidden formatting or
@@ -353,6 +358,35 @@ internal sealed partial class MarkdownDocumentModel
         if (after > before && QuotePrefixesOnly().IsMatch(Markdown[before..after]))
             return after;
         return before;
+    }
+
+    private int? TryGetLinkSourceEndAtVisibleBoundary(int visibleOffset)
+    {
+        foreach (MarkdownVisualSpan span in Spans.Where(span =>
+                     span.Kind == MarkdownVisualKind.Link &&
+                     span.Length > 0 &&
+                     span.End == visibleOffset))
+        {
+            Match? match = LinkSyntax().Matches(Markdown).FirstOrDefault(candidate =>
+                candidate.Groups[1].Index == span.SourceStart &&
+                candidate.Groups[1].Length == span.SourceLength);
+            if (match is not null)
+            {
+                return match.Index + match.Length;
+            }
+
+            int contentEnd = span.SourceStart + span.SourceLength;
+            Match closingTag = HtmlTagSyntax().Match(Markdown, contentEnd);
+            if (closingTag.Success &&
+                closingTag.Index == contentEnd &&
+                closingTag.Groups[1].Success &&
+                string.Equals(closingTag.Groups[2].Value, "a", StringComparison.OrdinalIgnoreCase))
+            {
+                return closingTag.Index + closingTag.Length;
+            }
+        }
+
+        return null;
     }
 
     private bool IsExactChangeValid(string next, VisibleTextChange? change)

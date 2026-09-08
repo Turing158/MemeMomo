@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using ICSharpCode.AvalonEdit.Editing;
 using MemeMomo.UI.Popup;
+using MemeMomo.UI.Text;
 using Application = System.Windows.Application;
 using Clipboard = System.Windows.Clipboard;
 using TextBox = System.Windows.Controls.TextBox;
@@ -148,7 +149,8 @@ internal static class EditorClipboardMenu
             CommandTarget = target,
             Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuItemTheme") as Style
         };
-        AutomationProperties.SetName(item, header);
+        LocalizeExtension.Set(item, MenuItem.HeaderProperty, header);
+        LocalizeExtension.Set(item, AutomationProperties.NameProperty, header);
         return item;
     }
 

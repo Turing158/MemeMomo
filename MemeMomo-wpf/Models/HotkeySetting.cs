@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -16,7 +17,7 @@ public class HotkeySetting
 
     public override string ToString()
     {
-        if (IsEmpty) return "未设置";
+        if (IsEmpty) return LocalizationService.Get("未设置");
 
         var parts = new List<string>();
         if (Ctrl) parts.Add("Ctrl");

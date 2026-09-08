@@ -4,6 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using MemeMomo.Components;
 using MemeMomo.Models;
+using MemeMomo.Services;
+using MemeMomo.UI.Text;
+using MemeMomo.UI.Animation;
 using MemeMomo.UI.Windows;
 using MemeMomo.Utils;
 
@@ -36,18 +39,19 @@ public partial class ReminderWindow : BorderlessWindow
         ArgumentNullException.ThrowIfNull(saveReminderAsync);
         _memo = memo;
         _saveReminderAsync = saveReminderAsync;
-        MemoTitleText.Text = string.IsNullOrWhiteSpace(memo.Title) ? "备忘录" : memo.Title;
+        MemoTitleText.Text = string.IsNullOrWhiteSpace(memo.Title) ? LocalizationService.Get("备忘录") : memo.Title;
 
         if (memo.ReminderAt is { } reminderAt && reminderAt > DateTimeUtils.Now)
         {
             SetSelectedDateTime(reminderAt);
-            CurrentReminderText.Text = $"当前提醒：{reminderAt.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+            LocalizeExtension.Set(CurrentReminderText, TextBlock.TextProperty, "当前提醒：{0:yyyy-MM-dd HH:mm:ss}", reminderAt.ToLocalTime());
             CurrentReminderText.Visibility = Visibility.Visible;
             CancelReminderButton.Visibility = Visibility.Visible;
         }
     }
 
     public MemoItem? Memo => _memo;
+    internal override WindowTransitionProfile TransitionProfile => WindowTransitionProfile.Panel;
     public bool IsBusy => _busy;
     public string ErrorMessage => ErrorText.Text;
     internal DateTime? SelectedReminderAt => TryGetSelectedDateTime(out DateTime value) ? value : null;
@@ -197,7 +201,7 @@ public partial class ReminderWindow : BorderlessWindow
             // path; the operation has still completed deterministically.
             if (IsVisible)
             {
-                ShowError($"{errorTitle}：{ex.Message}");
+                ShowError(LocalizationService.Format("{0}：{1}", LocalizationService.Get(errorTitle), ex.Message));
                 SetBusy(false);
             }
             return false;
@@ -209,7 +213,7 @@ public partial class ReminderWindow : BorderlessWindow
         _busy = busy;
         ScheduleButton.IsEnabled = !busy;
         CancelReminderButton.IsEnabled = !busy;
-        ScheduleButton.Content = busy ? "正在保存…" : "设置提醒";
+        LocalizeExtension.Set(ScheduleButton, WpfButton.ContentProperty, busy ? "正在保存…" : "设置提醒");
     }
 
     private void OnSelectedDateChanged(object? sender, DateSelectionChangedEventArgs e)
@@ -243,7 +247,7 @@ public partial class ReminderWindow : BorderlessWindow
         TimeWheel.SetTime(local.TimeOfDay);
     }
 
-    private void ShowError(string message) => ErrorText.Text = message;
+    private void ShowError(string message) => LocalizeExtension.Set(ErrorText, TextBlock.TextProperty, message);
 
     protected override void OnClosing(CancelEventArgs e)
     {

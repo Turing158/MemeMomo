@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System.Windows;
 using System.Windows.Input;
 using MemeMomo.Models;
@@ -15,8 +16,8 @@ public partial class CloseActionDialog : MemoDialogWindow
         InitializeComponent();
         CloseActionSelector.Options =
         [
-            new SegmentedSelectorOption(nameof(CloseButtonAction.MinimizeToTray), "最小化托盘"),
-            new SegmentedSelectorOption(nameof(CloseButtonAction.Close), "关闭")
+            new SegmentedSelectorOption(nameof(CloseButtonAction.MinimizeToTray), LocalizationService.Get("最小化托盘")),
+            new SegmentedSelectorOption(nameof(CloseButtonAction.Close), LocalizationService.Get("关闭"))
         ];
         CloseActionSelector.SelectedKey = _selectedAction.ToString();
         CloseActionSelector.SelectionChanged += OnSelectionChanged;

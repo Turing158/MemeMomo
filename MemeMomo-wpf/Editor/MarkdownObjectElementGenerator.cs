@@ -52,7 +52,7 @@ internal class MarkdownObjectElementGenerator(
     private static System.Windows.Controls.CheckBox CreateTaskControl()
     {
         System.Windows.Controls.CheckBox checkBox = TaskCheckBoxFactory.Create();
-        AutomationProperties.SetName(checkBox, "任务复选框");
+        MemeMomo.UI.Text.LocalizeExtension.Set(checkBox, AutomationProperties.NameProperty, "任务复选框");
         return checkBox;
     }
 
@@ -76,7 +76,9 @@ internal class MarkdownObjectElementGenerator(
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center
             }
         };
-        AutomationProperties.SetName(border, $"图片：{altText ?? ""}");
+        if (string.IsNullOrWhiteSpace(altText))
+            MemeMomo.UI.Text.LocalizeExtension.Set(border.Child, TextBlock.TextProperty, "图片");
+        MemeMomo.UI.Text.LocalizeExtension.Set(border, AutomationProperties.NameProperty, "图片：{0}", altText ?? string.Empty);
         return border;
     }
 
@@ -94,11 +96,11 @@ internal class MarkdownObjectElementGenerator(
                 Margin = new Thickness(column == 0 ? 0 : -1, 0, 0, 0),
                 BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(210, 210, 210)),
                 BorderThickness = new Thickness(1),
-                Text = column == 0 ? "单元格 A" : "单元格 B",
+                Text = MemeMomo.Services.LocalizationService.Get(column == 0 ? "单元格 A" : "单元格 B"),
                 AcceptsReturn = true,
                 Focusable = true
             };
-            AutomationProperties.SetName(cell, $"表格第 1 行第 {column + 1} 列");
+            MemeMomo.UI.Text.LocalizeExtension.Set(cell, AutomationProperties.NameProperty, "表格第 {0} 行第 {1} 列", 1, column + 1);
             Grid.SetColumn(cell, column);
             grid.Children.Add(cell);
         }
@@ -108,7 +110,7 @@ internal class MarkdownObjectElementGenerator(
             Margin = new Thickness(2, 3, 2, 3),
             Child = grid
         };
-        AutomationProperties.SetName(border, "可编辑 Markdown 表格样片");
+        MemeMomo.UI.Text.LocalizeExtension.Set(border, AutomationProperties.NameProperty, "可编辑 Markdown 表格样片");
         return border;
     }
 }

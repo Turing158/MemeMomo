@@ -8,6 +8,7 @@ public class AppSettings
     public const int MaximumMainWindowDockSize = 75;
     public const int DefaultMainWindowDockSize = 44;
 
+    public AppLanguage Language { get; set; } = AppLanguage.ChineseSimplified;
     public ThemeMode ThemeMode { get; set; } = ThemeMode.FollowSystem;
     public MotionMode MotionMode { get; set; } = MotionMode.FollowSystem;
     public CloseButtonAction CloseButtonAction { get; set; } = CloseButtonAction.MinimizeToTray;
@@ -73,6 +74,7 @@ public class AppSettings
     public void CopyUserPreferencesTo(AppSettings target)
     {
         ArgumentNullException.ThrowIfNull(target);
+        target.Language = Language;
         target.ThemeMode = ThemeMode;
         target.MotionMode = MotionMode;
         target.CloseButtonAction = CloseButtonAction;
@@ -120,6 +122,7 @@ public class AppSettings
 
     public AppSettings Clone() => new()
     {
+        Language = Language,
         ThemeMode = ThemeMode,
         MotionMode = MotionMode,
         CloseButtonAction = CloseButtonAction,

@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,8 +36,8 @@ public static partial class MarkdownFormatter
             MarkdownFormatCommand.BulletList => PrefixLines(text, selectionStart, selectionEnd, "- ", ListPrefix()),
             MarkdownFormatCommand.OrderedList => PrefixOrderedLines(text, selectionStart, selectionEnd),
             MarkdownFormatCommand.TaskList => PrefixLines(text, selectionStart, selectionEnd, "- [ ] ", TaskPrefix()),
-            MarkdownFormatCommand.Quote => PrefixLines(text, selectionStart, selectionEnd, "> ", QuotePrefix()),
-            MarkdownFormatCommand.CodeBlock => WrapBlock(text, selectionStart, selectionEnd, "```\n", "\n```", "代码"),
+            MarkdownFormatCommand.Quote => PrefixQuoteLines(text, selectionStart, selectionEnd),
+            MarkdownFormatCommand.CodeBlock => WrapBlock(text, selectionStart, selectionEnd, "```\n", "\n```", LocalizationService.Get("代码")),
             MarkdownFormatCommand.Link => InsertLink(text, selectionStart, selectionEnd),
             MarkdownFormatCommand.HorizontalRule => InsertHorizontalRule(text, selectionStart, selectionEnd),
             MarkdownFormatCommand.Table => InsertTable(text, selectionStart, selectionEnd, 2, 2),
@@ -194,7 +195,7 @@ public static partial class MarkdownFormatter
 
     private static MarkdownEditResult InsertLink(string text, int start, int end)
     {
-        var label = end > start ? text[start..end] : "链接文本";
+        var label = end > start ? text[start..end] : LocalizationService.Get("链接文本");
         const string url = "https://";
         var replacement = $"[{label}]({url})";
         var result = text[..start] + replacement + text[end..];
@@ -275,6 +276,58 @@ public static partial class MarkdownFormatter
         return LineEditResult(
             result, start, end, lineStart, replacement.Length,
             oldPrefixLength, allPrefixed ? 0 : prefix.Length);
+    }
+
+    private static MarkdownEditResult PrefixQuoteLines(string text, int start, int end)
+    {
+        GetLineRange(text, start, end, out var lineStart, out var lineEnd);
+        var selected = text[lineStart..lineEnd];
+        var lines = selected.Split('\n');
+        var allPrefixed = lines.All(line => QuotePrefix().IsMatch(line));
+        var oldPrefixLength = start == end ? QuotePrefix().Match(selected).Length : 0;
+        var hasContent = lines.Any(line =>
+            !string.IsNullOrWhiteSpace(QuotePrefix().Replace(line, string.Empty, 1)));
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var content = QuotePrefix().Replace(lines[index], string.Empty, 1);
+            lines[index] = allPrefixed
+                ? content
+                : "> " + content;
+        }
+
+        var replacement = string.Join("\n", lines);
+        // An unprefixed non-empty line can lazily continue a CommonMark block quote.
+        var separator = RequiresQuoteSeparator(text, lineEnd, allPrefixed, hasContent)
+            ? "\n"
+            : string.Empty;
+        var result = text[..lineStart] + replacement + separator + text[lineEnd..];
+        return LineEditResult(
+            result, start, end, lineStart, replacement.Length,
+            oldPrefixLength, allPrefixed ? 0 : 2);
+    }
+
+    private static bool RequiresQuoteSeparator(
+        string text,
+        int lineEnd,
+        bool removingQuote,
+        bool hasContent)
+    {
+        if (removingQuote || !hasContent || lineEnd >= text.Length || text[lineEnd] != '\n')
+        {
+            return false;
+        }
+
+        int nextLineStart = lineEnd + 1;
+        if (nextLineStart >= text.Length || text[nextLineStart] == '\n')
+        {
+            return false;
+        }
+
+        int nextLineEnd = text.IndexOf('\n', nextLineStart);
+        if (nextLineEnd < 0) nextLineEnd = text.Length;
+        var nextLine = text[nextLineStart..nextLineEnd];
+        return !string.IsNullOrWhiteSpace(nextLine) && !QuotePrefix().IsMatch(nextLine);
     }
 
     private static MarkdownEditResult SetHeadingLevel(string text, int start, int end, int level)

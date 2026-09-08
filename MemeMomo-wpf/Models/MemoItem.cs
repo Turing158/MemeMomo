@@ -96,6 +96,13 @@ public class MemoItem : INotifyPropertyChanged
     /// <summary>副标题：仅取内容的第二行（trim 后），为空则返回空字符串。</summary>
     public string Subtitle => MarkdownSummary.GetSubtitle(_content);
 
+    internal void RefreshLocalizedText()
+    {
+        OnPropertyChanged(nameof(RelativeTime));
+        OnPropertyChanged(nameof(FullTime));
+        OnPropertyChanged(nameof(Title));
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged(string name) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

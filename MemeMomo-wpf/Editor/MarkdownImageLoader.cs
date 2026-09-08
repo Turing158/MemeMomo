@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
@@ -66,7 +67,7 @@ internal sealed class MarkdownImageLoader : IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0)
         {
-            return Task.FromResult(new MarkdownImageLoadResult(null, "图片加载器已释放"));
+            return Task.FromResult(new MarkdownImageLoadResult(null, LocalizationService.Get("图片加载器已释放")));
         }
 
         if (!TryNormalizeSource(source, out string normalized, out string? error))
@@ -114,7 +115,7 @@ internal sealed class MarkdownImageLoader : IDisposable
 
             if (bytes.LongLength > Services.MarkdownImageStore.MaximumImageBytes)
             {
-                throw new InvalidDataException("图片不能超过 20 MB。");
+                throw new InvalidDataException(LocalizationService.Get("图片不能超过 20 MB。"));
             }
 
             BitmapSource bitmap = await Task.Run(() => Decode(bytes), cancellationToken).ConfigureAwait(false);
@@ -151,7 +152,7 @@ internal sealed class MarkdownImageLoader : IDisposable
         error = null;
         if (string.IsNullOrWhiteSpace(source))
         {
-            error = "图片地址为空";
+            error = LocalizationService.Get("图片地址为空");
             return false;
         }
 
@@ -159,7 +160,7 @@ internal sealed class MarkdownImageLoader : IDisposable
         {
             if (!uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
             {
-                error = "仅支持 HTTPS 图片地址";
+                error = LocalizationService.Get("仅支持 HTTPS 图片地址");
                 return false;
             }
             normalized = uri.AbsoluteUri;
@@ -171,7 +172,7 @@ internal sealed class MarkdownImageLoader : IDisposable
         string assetRoot = Path.GetFullPath(_rootDirectory);
         if (!full.StartsWith(assetRoot, StringComparison.OrdinalIgnoreCase))
         {
-            error = "图片路径无效";
+            error = LocalizationService.Get("图片路径无效");
             return false;
         }
         normalized = full;

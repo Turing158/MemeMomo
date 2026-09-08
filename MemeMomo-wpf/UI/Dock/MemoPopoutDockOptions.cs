@@ -66,7 +66,7 @@ internal static class MemoPopoutDockOptions
 
     /// <summary>tab 完整标题；空回退"备忘录"。</summary>
     public static string GetTabTitle(string? title) =>
-        string.IsNullOrWhiteSpace(title) ? FallbackTitle : title.Trim();
+        string.IsNullOrWhiteSpace(title) ? MemeMomo.Services.LocalizationService.Get(FallbackTitle) : title.Trim();
 
     /// <summary>
     /// tab 未弹出标题：完整标题的第一个文本元素（按字素切分，避免截断代理对/emoji）；

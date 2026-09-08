@@ -82,7 +82,7 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         // nothing ever paints over the scrollbar or the surface border.
         Editor.TextArea.TextView.ClipToBounds = true;
         _normalCaretBrush = Editor.TextArea.Caret.CaretBrush;
-        AutomationProperties.SetName(Editor, "Markdown 编辑器");
+        MemeMomo.UI.Text.LocalizeExtension.Set(Editor, AutomationProperties.NameProperty, "Markdown 编辑器");
 
         _quotePaddingGenerator = new MarkdownQuotePaddingGenerator(
             () => _model.Spans,
@@ -916,7 +916,7 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             textView.DefaultLineHeight,
             textView.DefaultBaseline);
         checkBox.IsChecked = IsTaskChecked(span);
-        AutomationProperties.SetName(checkBox, "任务复选框");
+        MemeMomo.UI.Text.LocalizeExtension.Set(checkBox, AutomationProperties.NameProperty, "任务复选框");
         RoutedEventHandler update = (_, _) =>
         {
             if (syncing || !checkBox.IsLoaded)

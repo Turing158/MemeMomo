@@ -296,7 +296,7 @@ public partial class TrayMenuWindow : BorderlessWindow
         {
             rotation.Angle = pinned ? -45 : 0;
         }
-        AutomationProperties.SetName(PinButton, pinned ? "窗口置顶，已开启" : "窗口置顶，已关闭");
+        MemeMomo.UI.Text.LocalizeExtension.Set(PinButton, AutomationProperties.NameProperty, pinned ? "窗口置顶，已开启" : "窗口置顶，已关闭");
     }
 
     private void PlaceWithoutActivation(Rect placementPixels)

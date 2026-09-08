@@ -187,7 +187,7 @@ public sealed class ReminderToastQueue
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return fallback;
+            return LocalizationService.Get(fallback);
         }
 
         if (value.Length <= maxLength)

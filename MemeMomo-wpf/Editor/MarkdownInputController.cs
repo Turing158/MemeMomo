@@ -1,3 +1,4 @@
+using MemeMomo.Services;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -1117,7 +1118,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             return Task.FromResult(false);
         }
 
-        ConfirmDialog dialog = new("删除表格", "此空行是表格的结束位置。继续删除将删除整个表格，是否确认？");
+        ConfirmDialog dialog = new(LocalizationService.Get("删除表格"), LocalizationService.Get("此空行是表格的结束位置。继续删除将删除整个表格，是否确认？"));
         return Task.FromResult(dialog.ShowDialog(owner));
     }
 
