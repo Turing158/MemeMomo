@@ -22,6 +22,8 @@
     <Style TargetType="TextBlock">
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!-- Keep the settings panel scrollbar visually consistent with the memo editor. -->
+    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource EditorOverlayScrollBarStyle}" />
     <Style x:Key="SettingsCardStyle" TargetType="Border">
       <Setter Property="Background" Value="{DynamicResource SurfacePrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />

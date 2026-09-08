@@ -77,6 +77,7 @@ public class BorderlessWindow : Window
     private Button? _minimizeButton;
     private Button? _closeButton;
     private Border? _shell;
+    private Border? _shellContent;
     private Border? _titleBar;
     private RowDefinition? _titleRow;
     private bool _customNativeRegionActive;
@@ -349,12 +350,18 @@ public class BorderlessWindow : Window
         Grid.SetRow(decorator, 1);
         shellGrid.Children.Add(decorator);
 
-        _shell = new Border
+        _shellContent = new Border
         {
-            BorderThickness = new Thickness(1),
             ClipToBounds = true,
             Child = shellGrid
         };
+        _shellContent.SizeChanged += OnShellContentSizeChanged;
+        _shell = new Border
+        {
+            BorderThickness = new Thickness(1),
+            Child = _shellContent
+        };
+        _shell.SizeChanged += OnShellSizeChanged;
         ApplyShellBrushes();
         ApplyCustomNativeRegionState();
         base.Content = _shell;
@@ -416,6 +423,14 @@ public class BorderlessWindow : Window
             _behavior.Dispose();
             _dwm?.Dispose();
             _dwm = null;
+            if (_shell is not null)
+            {
+                _shell.SizeChanged -= OnShellSizeChanged;
+            }
+            if (_shellContent is not null)
+            {
+                _shellContent.SizeChanged -= OnShellContentSizeChanged;
+            }
             SourceInitialized -= OnSourceInitialized;
             Loaded -= OnLoaded;
             Closed -= OnClosed;
@@ -455,6 +470,10 @@ public class BorderlessWindow : Window
 
     private static void OnShellBrushChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((BorderlessWindow)d).ApplyShellBrushes();
+
+    private void OnShellSizeChanged(object sender, SizeChangedEventArgs e) => ApplyShellClip();
+
+    private void OnShellContentSizeChanged(object sender, SizeChangedEventArgs e) => ApplyShellClip();
 
     private void ApplyBuiltInTitleBarState()
     {
@@ -542,11 +561,42 @@ public class BorderlessWindow : Window
             : new CornerRadius(0);
         _shell.BorderThickness = dockChromeActive ? new Thickness(0) : new Thickness(1);
         _shell.ClipToBounds = !dockChromeActive;
+        ApplyShellClip();
         if (_chrome is not null)
         {
             _chrome.ResizeBorderThickness = dockChromeActive
                 ? new Thickness(0)
                 : new Thickness(8);
         }
+    }
+
+    private void ApplyShellClip()
+    {
+        if (_shell is null || _shellContent is null || !UsePerPixelTransparency || _customNativeRegionActive)
+        {
+            if (_shellContent is not null)
+            {
+                _shellContent.Clip = null;
+            }
+
+            return;
+        }
+
+        double width = _shellContent.ActualWidth;
+        double height = _shellContent.ActualHeight;
+        if (width <= 0 || height <= 0)
+        {
+            _shellContent.Clip = null;
+            return;
+        }
+
+        CornerRadius radius = CornerRadius;
+        double borderThickness = _shell.BorderThickness.Left;
+        double maxRadius = Math.Min(width, height) / 2;
+        double innerRadius = Math.Max(0, radius.TopLeft - borderThickness);
+        _shellContent.Clip = new RectangleGeometry(
+            new Rect(0, 0, width, height),
+            Math.Min(innerRadius, maxRadius),
+            Math.Min(innerRadius, maxRadius));
     }
 }
