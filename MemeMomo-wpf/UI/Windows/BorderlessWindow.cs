@@ -265,7 +265,7 @@ public class BorderlessWindow : Window
         _chrome = new WindowChrome
         {
             CaptionHeight = TitleBarHeight,
-            ResizeBorderThickness = new Thickness(8),
+            ResizeBorderThickness = new Thickness(ResizeHitTest.DefaultEdgeThickness),
             // 逐像素透明窗口上 GlassFrameThickness=0 会让 DWM 把系统圆角直接切进
             // 窗口渲染表面（贴边 D 形平直侧方角因此出现 ~5px 小弧）；-1（sheet of
             // glass）让 DWM 不再参与表面裁剪，外形完全交给 WPF 自绘。
@@ -566,7 +566,7 @@ public class BorderlessWindow : Window
         {
             _chrome.ResizeBorderThickness = dockChromeActive
                 ? new Thickness(0)
-                : new Thickness(8);
+                : new Thickness(ResizeHitTest.DefaultEdgeThickness);
         }
     }
 

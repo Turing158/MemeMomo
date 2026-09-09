@@ -2,7 +2,9 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using MemeMomo.Infrastructure;
+using WpfButtonBase = System.Windows.Controls.Primitives.ButtonBase;
 using WpfPoint = System.Windows.Point;
 using WpfSize = System.Windows.Size;
 
@@ -13,14 +15,19 @@ internal sealed class BorderlessWindowBehavior : IDisposable
     private const int WmNcHitTest = 0x0084;
     private readonly Window _window;
     private readonly double _resizeBorder;
+    private readonly double _resizeCorner;
     private HwndSource? _source;
     private IDisposable? _hookLease;
     private int _disposed;
 
-    internal BorderlessWindowBehavior(Window window, double resizeBorder = 8)
+    internal BorderlessWindowBehavior(
+        Window window,
+        double resizeBorder = ResizeHitTest.DefaultEdgeThickness,
+        double resizeCorner = ResizeHitTest.DefaultCornerThickness)
     {
         _window = window;
         _resizeBorder = resizeBorder;
+        _resizeCorner = resizeCorner;
         _window.SourceInitialized += OnSourceInitialized;
         _window.Closed += OnWindowClosed;
     }
@@ -78,10 +85,16 @@ internal sealed class BorderlessWindowBehavior : IDisposable
         NativeMethods.GetWindowRect(hwnd, out NativeRect windowRect);
         WpfPoint positionPixels = new(screenX - windowRect.Left, screenY - windowRect.Top);
         WpfPoint positionDip = DpiCoordinateModel.FromVisual(_window).PixelsToDip(positionPixels);
+        if (IsOverButton(positionDip))
+        {
+            return 0;
+        }
+
         ResizeEdge edge = ResizeHitTest.Resolve(
             positionDip,
             new WpfSize(_window.ActualWidth, _window.ActualHeight),
-            _resizeBorder);
+            _resizeBorder,
+            _resizeCorner);
         if (edge == ResizeEdge.Client)
         {
             return 0;
@@ -100,6 +113,27 @@ internal sealed class BorderlessWindowBehavior : IDisposable
             ResizeEdge.BottomRight => 17,
             _ => 1
         };
+    }
+
+    private bool IsOverButton(WpfPoint positionDip)
+    {
+        if (!_window.IsLoaded)
+        {
+            return false;
+        }
+
+        IInputElement? hit = _window.InputHitTest(positionDip);
+        for (DependencyObject? current = hit as DependencyObject;
+             current is not null;
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is WpfButtonBase)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static class NativeMethods

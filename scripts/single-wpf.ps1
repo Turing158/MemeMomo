@@ -1,60 +1,53 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    发布 MemeMomo (WPF) 单文件 exe，并尽可能压缩体积。
+    一次发布 MemeMomo (WPF) 的四个 Windows 单文件 exe。
 
 .DESCRIPTION
-    两种体积档位：
+    每次运行固定发布以下组合：
 
-      Framework      框架依赖单文件。exe 里只打包 MemeMomo + AvalonEdit + Markdig，
-                     体积最小（个位数 MB），但目标机器需要装 .NET 8 桌面运行时。
-      SelfContained  自包含单文件。不依赖运行时，体积大得多；脚本会开启单文件
-                     压缩、关闭 ReadyToRun、剔除卫星语言资源来尽量压缩。
+      Framework      win-x64 和 win-x86。目标机器需要安装 .NET 8 Desktop Runtime。
+      SelfContained  win-x64 和 win-x86。自包含运行时，脚本默认开启单文件压缩。
 
-    WPF 在 .NET 8 上不支持 IL 裁剪（PublishTrimmed），所以自包含档位的下限
-    受运行时本身限制，实测 win-x64 约 63 MB。真要小，就用框架依赖档位。
+    输出文件名为：
 
-.PARAMETER Mode
-    -m fw  框架依赖（默认，约 2 MB）
-    -m sc  自包含（约 63 MB）
-    长写法 Framework / SelfContained 也接受。
+      MemeMomo-版本号-x64.exe
+      MemeMomo-版本号-x64-packages.exe
+      MemeMomo-版本号-x86.exe
+      MemeMomo-版本号-x86-packages.exe
 
-    两个档位都输出到同一个 artifacts\single\MemeMomo.exe，换档位会覆盖上一次的产物。
-    要并排保留就自己指定 -o <目录>。
+    版本号从 MemeMomo-wpf\MemeMomo.csproj 的 <Version> 读取。每个档位先发布到
+    独立临时目录，再将单文件 exe 移到输出目录，避免不同运行时或档位互相覆盖。
+
+.PARAMETER Configuration
+    构建配置，默认 Release。
+
+.PARAMETER Output
+    输出目录，默认 artifacts\single。目录中会生成四个 exe 和共享的第三方声明文件。
 
 .PARAMETER Invariant
-    开启 InvariantGlobalization + UseSystemResourceKeys。
-    注意：win-x64 自包含默认走 NLS 而非 ICU，实测这个开关对体积没有帮助
-    （63.46 MB 前后不变），却会让 Utils/DateTimeUtils.cs 的区域性时间格式
-    和异常消息文本退化。默认不要开，仅在明确需要该行为时使用。
+    开启 InvariantGlobalization + UseSystemResourceKeys。仅在明确需要时使用。
 
 .PARAMETER ReadyToRun
-    开启 R2R 预编译。启动更快，但 exe 大概会翻倍，默认关闭。
+    开启 R2R 预编译。启动更快，但 exe 体积会明显增大，默认关闭。
 
 .PARAMETER NoCompression
-    关闭单文件压缩（仅自包含档位有效）。压缩会让首次启动稍慢，换来体积下降。
+    关闭 SelfContained 单文件压缩。Framework 档位不受影响。
 
 .PARAMETER Trim
-    实验性：强行开启 PublishTrimmed。WPF 官方不支持裁剪，多半直接构建失败，
-    即使成功也很可能在运行时因反射/BAML 解析崩溃。仅供试验。
+    实验性：强行开启 PublishTrimmed。WPF 官方不支持裁剪，产物可能构建失败或
+    在运行时崩溃，仅供试验。
+
+.PARAMETER Clean
+    删除输出目录以及当前配置的 bin/obj 后再发布。
 
 .EXAMPLE
     ./scripts/single-wpf.ps1
-    ./scripts/single-wpf.ps1 -m sc
-    ./scripts/single-wpf.ps1 -m sc -Clean
-    ./scripts/single-wpf.ps1 -m sc -o artifacts\sc-test
+    ./scripts/single-wpf.ps1 -Clean
+    ./scripts/single-wpf.ps1 -o artifacts\release
 #>
 [CmdletBinding()]
 param(
-    # fw = 框架依赖(默认, ~2 MB), sc = 自包含(~63 MB)
-    # 长写法 Framework / SelfContained 同样接受。
-    [Alias('m')]
-    [ValidateSet('fw', 'sc', 'Framework', 'SelfContained')]
-    [string]$Mode = 'fw',
-
-    [Alias('r')]
-    [string]$Runtime = 'win-x64',
-
     [Alias('c')]
     [string]$Configuration = 'Release',
 
@@ -78,47 +71,63 @@ if (-not (Test-Path -LiteralPath $project)) {
     throw "找不到项目文件: $project"
 }
 
-$selfContained = ($Mode -in @('sc', 'SelfContained'))
-
-# 归一成长名字，只用于显示。
-$modeLabel = if ($selfContained) { 'SelfContained' } else { 'Framework' }
-
-# 单文件产物只有一个 MemeMomo.exe，不按档位分目录；换档位直接覆盖同一个输出目录。
 if ([string]::IsNullOrWhiteSpace($Output)) {
     $Output = Join-Path $repoRoot 'artifacts\single'
 }
+$Output = [IO.Path]::GetFullPath($Output)
 
-# 单文件压缩只对自包含发布有效，框架依赖发布会被 SDK 忽略。
-$compress = $selfContained -and (-not $NoCompression)
-
-$props = [ordered]@{
-    PublishSingleFile                    = 'true'
-    SelfContained                        = $selfContained.ToString().ToLowerInvariant()
-    RuntimeIdentifier                    = $Runtime
-    PublishReadyToRun                    = $ReadyToRun.ToString().ToLowerInvariant()
-    IncludeNativeLibrariesForSelfExtract = 'true'
-    EnableCompressionInSingleFile        = $compress.ToString().ToLowerInvariant()
-    SatelliteResourceLanguages           = 'en'
-    DebugType                            = 'none'
-    DebugSymbols                         = 'false'
-    GenerateDocumentationFile            = 'false'
+# 从项目文件读取产品版本，避免脚本中的版本号与实际程序集版本脱节。
+[xml]$projectDocument = Get-Content -Raw -LiteralPath $project
+$version = @(
+    $projectDocument.Project.PropertyGroup |
+        ForEach-Object { $_.Version; $_.VersionPrefix } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
+) | Select-Object -First 1
+$version = ([string]$version).Trim()
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw "项目文件未定义 <Version> 或 <VersionPrefix>: $project"
 }
 
-if ($Invariant) {
-    $props['InvariantGlobalization'] = 'true'
-    $props['UseSystemResourceKeys'] = 'true'
-}
+# 文件名只允许常见的版本字符，避免预发布版本中的特殊字符破坏路径。
+$fileVersion = $version -replace '[^0-9A-Za-z._-]', '-'
 
-if ($Trim) {
-    $props['PublishTrimmed'] = 'true'
-    $props['TrimMode'] = 'partial'
-    # WindowsDesktop SDK 默认拒绝裁剪 WPF；这个内部开关放行，但不代表受支持。
-    $props['_SuppressWpfTrimError'] = 'true'
-    Write-Warning 'WPF 不支持 IL 裁剪，-Trim 属于实验性开关：构建可能失败，产物也可能在运行时崩溃。'
-}
+$targets = @(
+    [pscustomobject]@{
+        Runtime = 'win-x64'
+        Architecture = 'x64'
+        Mode = 'Framework'
+        SelfContained = $false
+        PackageSuffix = ''
+    }
+    [pscustomobject]@{
+        Runtime = 'win-x64'
+        Architecture = 'x64'
+        Mode = 'SelfContained'
+        SelfContained = $true
+        PackageSuffix = '-packages'
+    }
+    [pscustomobject]@{
+        Runtime = 'win-x86'
+        Architecture = 'x86'
+        Mode = 'Framework'
+        SelfContained = $false
+        PackageSuffix = ''
+    }
+    [pscustomobject]@{
+        Runtime = 'win-x86'
+        Architecture = 'x86'
+        Mode = 'SelfContained'
+        SelfContained = $true
+        PackageSuffix = '-packages'
+    }
+)
 
 if ($Clean) {
-    foreach ($dir in @($Output, (Join-Path $repoRoot 'MemeMomo-wpf\obj\Release'), (Join-Path $repoRoot 'MemeMomo-wpf\bin\Release'))) {
+    foreach ($dir in @(
+        $Output,
+        (Join-Path $repoRoot ("MemeMomo-wpf\obj\{0}" -f $Configuration)),
+        (Join-Path $repoRoot ("MemeMomo-wpf\bin\{0}" -f $Configuration))
+    )) {
         if (Test-Path -LiteralPath $dir) {
             Write-Host "清理 $dir"
             Remove-Item -LiteralPath $dir -Recurse -Force
@@ -126,64 +135,130 @@ if ($Clean) {
     }
 }
 
-$propArgs = @()
-foreach ($key in $props.Keys) {
-    $propArgs += ('-p:{0}={1}' -f $key, $props[$key])
+New-Item -ItemType Directory -Path $Output -Force | Out-Null
+
+# 临时目录是脚本私有的；即使上一次运行中断，也不会污染最终输出目录。
+$tempRoot = Join-Path $Output '.single-wpf-publish'
+if (Test-Path -LiteralPath $tempRoot) {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force
 }
+New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
 Write-Host ''
-Write-Host ('模式        : {0}' -f $modeLabel)
-Write-Host ('运行时      : {0}' -f $Runtime)
+Write-Host ('项目版本    : {0}' -f $version)
+Write-Host ('配置        : {0}' -f $Configuration)
 Write-Host ('输出目录    : {0}' -f $Output)
-Write-Host ('单文件压缩  : {0}' -f $compress)
+Write-Host ('发布组合    : {0}' -f ($targets.Count))
 Write-Host ('ReadyToRun  : {0}' -f $ReadyToRun.IsPresent)
 Write-Host ('Invariant   : {0}' -f $Invariant.IsPresent)
 Write-Host ''
 
-& dotnet restore $project -r $Runtime
-if ($LASTEXITCODE -ne 0) { throw "dotnet restore 失败 (exit $LASTEXITCODE)" }
+$publishedFiles = @()
+$restoredRuntimes = @{}
 
-$publishArgs = @(
-    'publish', $project,
-    '-c', $Configuration,
-    '-r', $Runtime,
-    '-o', $Output,
-    '--nologo'
-) + $propArgs
+try {
+    for ($index = 0; $index -lt $targets.Count; $index++) {
+        $target = $targets[$index]
+        $targetLabel = '{0} {1} ({2}/{3})' -f $target.Runtime, $target.Mode, ($index + 1), $targets.Count
+        $targetOutput = Join-Path $tempRoot ("{0}-{1}-{2}" -f $target.Runtime, $target.Mode, $target.Architecture)
+        New-Item -ItemType Directory -Path $targetOutput -Force | Out-Null
 
-& dotnet @publishArgs
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败 (exit $LASTEXITCODE)" }
+        $compress = $target.SelfContained -and (-not $NoCompression)
+        $props = [ordered]@{
+            PublishSingleFile                    = 'true'
+            SelfContained                        = $target.SelfContained.ToString().ToLowerInvariant()
+            RuntimeIdentifier                    = $target.Runtime
+            PublishReadyToRun                    = $ReadyToRun.ToString().ToLowerInvariant()
+            IncludeNativeLibrariesForSelfExtract = 'true'
+            EnableCompressionInSingleFile        = $compress.ToString().ToLowerInvariant()
+            SatelliteResourceLanguages           = 'en'
+            DebugType                            = 'none'
+            DebugSymbols                         = 'false'
+            GenerateDocumentationFile            = 'false'
+        }
 
-$exe = Join-Path $Output 'MemeMomo.exe'
-if (-not (Test-Path -LiteralPath $exe)) {
-    throw "发布结束但找不到 $exe"
-}
+        if ($Invariant) {
+            $props['InvariantGlobalization'] = 'true'
+            $props['UseSystemResourceKeys'] = 'true'
+        }
 
-# 单文件产物旁边常残留 .pdb / .xml，删掉以免误发。
-# 注意: -LiteralPath 不带通配符时 -Include 会被忽略，只能自己过滤扩展名。
-Get-ChildItem -LiteralPath $Output -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Extension -in @('.pdb', '.xml') } |
-    Remove-Item -Force -ErrorAction SilentlyContinue
+        if ($Trim) {
+            $props['PublishTrimmed'] = 'true'
+            $props['TrimMode'] = 'partial'
+            # WindowsDesktop SDK 默认拒绝裁剪；这个内部开关只放行构建检查。
+            $props['_SuppressWpfTrimError'] = 'true'
+            if ($index -eq 0) {
+                Write-Warning 'WPF 不支持 IL 裁剪，-Trim 属于实验性开关：构建可能失败，产物也可能在运行时崩溃。'
+            }
+        }
 
-$exeInfo = Get-Item -LiteralPath $exe
-$exeMb = [math]::Round($exeInfo.Length / 1MB, 2)
-$totalMb = [math]::Round(((Get-ChildItem -LiteralPath $Output -Recurse -File |
-    Measure-Object -Property Length -Sum).Sum / 1MB), 2)
+        $propArgs = @()
+        foreach ($key in $props.Keys) {
+            $propArgs += ('-p:{0}={1}' -f $key, $props[$key])
+        }
 
-Write-Host ''
-Write-Host ('MemeMomo.exe    : {0} MB' -f $exeMb)
-Write-Host ('输出总大小  : {0} MB' -f $totalMb)
-Write-Host ''
-Write-Host '随包文件:'
-Get-ChildItem -LiteralPath $Output -Recurse -File |
-    Sort-Object Length -Descending |
-    Select-Object -First 10 |
-    ForEach-Object {
-        Write-Host ('  {0,10:N0} KB  {1}' -f ($_.Length / 1KB), $_.Name)
+        if (-not $restoredRuntimes.ContainsKey($target.Runtime)) {
+            Write-Host ('还原      : {0}' -f $target.Runtime)
+            & dotnet restore $project -r $target.Runtime
+            if ($LASTEXITCODE -ne 0) {
+                throw "dotnet restore 失败 (runtime=$($target.Runtime), exit $LASTEXITCODE)"
+            }
+            $restoredRuntimes[$target.Runtime] = $true
+        }
+
+        Write-Host ('发布      : {0}' -f $targetLabel)
+        Write-Host ('压缩      : {0}' -f $compress)
+        $publishArgs = @(
+            'publish', $project,
+            '-c', $Configuration,
+            '-r', $target.Runtime,
+            '-o', $targetOutput,
+            '--nologo'
+        ) + $propArgs
+
+        & dotnet @publishArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "dotnet publish 失败 (runtime=$($target.Runtime), mode=$($target.Mode), exit $LASTEXITCODE)"
+        }
+
+        $publishedExe = Join-Path $targetOutput 'MemeMomo.exe'
+        if (-not (Test-Path -LiteralPath $publishedExe)) {
+            throw "发布结束但找不到 $publishedExe"
+        }
+
+        $finalName = 'MemeMomo-{0}-{1}{2}.exe' -f $fileVersion, $target.Architecture, $target.PackageSuffix
+        $finalPath = Join-Path $Output $finalName
+        Move-Item -LiteralPath $publishedExe -Destination $finalPath -Force
+
+        $fileInfo = Get-Item -LiteralPath $finalPath
+        $publishedFiles += [pscustomobject]@{
+            Name = $finalName
+            Runtime = $target.Runtime
+            Mode = $target.Mode
+            SizeMb = [math]::Round($fileInfo.Length / 1MB, 2)
+        }
     }
 
-if (-not $selfContained) {
-    Write-Host ''
-    Write-Host ('提示: 框架依赖发布需要目标机器安装 .NET 8 Desktop Runtime ({0})。' -f $Runtime)
-    Write-Host '      需要免安装分发时用: -m sc'
+    $notice = Join-Path $repoRoot 'MemeMomo-wpf\THIRD-PARTY-NOTICES.md'
+    if (Test-Path -LiteralPath $notice) {
+        Copy-Item -LiteralPath $notice -Destination (Join-Path $Output 'THIRD-PARTY-NOTICES.md') -Force
+    }
 }
+finally {
+    if (Test-Path -LiteralPath $tempRoot) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force
+    }
+}
+
+$totalMb = [math]::Round((($publishedFiles | ForEach-Object {
+    (Get-Item -LiteralPath (Join-Path $Output $_.Name)).Length
+} | Measure-Object -Sum).Sum / 1MB), 2)
+
+Write-Host ''
+Write-Host '生成文件:'
+$publishedFiles | ForEach-Object {
+    Write-Host ('  {0,10:N2} MB  {1}' -f $_.SizeMb, $_.Name)
+}
+Write-Host ('输出总大小  : {0} MB' -f $totalMb)
+Write-Host ''
+Write-Host 'Framework 档位需要目标机器安装 .NET 8 Desktop Runtime；SelfContained 档位可免安装运行时。'

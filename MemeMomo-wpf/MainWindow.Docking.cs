@@ -150,7 +150,6 @@ public partial class MainWindow : IDockHandleInputSink
         _dockingInitialized = true;
         _dockWindowAdapter = new DockWindowAdapter(this);
         _dockHandleController = new DockHandleWindowController(this, this);
-        WindowChrome.SetIsHitTestVisibleInChrome(WindowRoot, true);
         WindowChrome.SetIsHitTestVisibleInChrome(DockLayer, true);
         WindowRoot.MouseMove += OnPointerMouseMove;
         WindowRoot.MouseLeftButtonUp += OnPointerMouseLeftButtonUp;
@@ -1248,6 +1247,7 @@ public partial class MainWindow : IDockHandleInputSink
         MinWidth = _dockSize;
         MinHeight = _dockSize;
         ResizeMode = ResizeMode.NoResize;
+        WindowChrome.SetIsHitTestVisibleInChrome(WindowRoot, true);
         ExpandedSurface.Opacity = 0;
         ExpandedSurface.IsHitTestVisible = false;
         DockLayer.Opacity = 1;
@@ -1286,6 +1286,7 @@ public partial class MainWindow : IDockHandleInputSink
         MinWidth = ExpandedMinWidth;
         MinHeight = ExpandedMinHeight;
         ResizeMode = ResizeMode.CanResize;
+        WindowChrome.SetIsHitTestVisibleInChrome(WindowRoot, false);
         ExpandedSurface.Width = double.NaN;
         ExpandedSurface.Height = double.NaN;
         ExpandedSurface.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;

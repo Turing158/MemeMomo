@@ -70,7 +70,8 @@
       </Grid>
     </Border>
 
-    <ScrollViewer Grid.Row="1" x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <!-- Keep the scrollbar outside BorderlessWindow's 8 DIP resize hit strip. -->
+    <ScrollViewer Grid.Row="1" x:Name="SettingsScrollViewer" Margin="0,0,8,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
       <StackPanel Margin="16">
         <Border Style="{StaticResource SettingsCardStyle}">
           <StackPanel>
