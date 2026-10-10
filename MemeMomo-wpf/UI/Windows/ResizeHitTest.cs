@@ -19,10 +19,10 @@ internal enum ResizeEdge
 
 internal static class ResizeHitTest
 {
-    // Keep the native resize hit-test contract at the original 8 DIP on every
-    // side, including the four corners.
+    // Keep edges narrow so they do not steal content input, while extending
+    // corners beyond the rounded shell for an easier diagonal resize target.
     internal const double DefaultEdgeThickness = 8;
-    internal const double DefaultCornerThickness = 8;
+    internal const double DefaultCornerThickness = 20;
 
     internal static ResizeEdge Resolve(WpfPoint point, WpfSize size, double borderThickness)
         => Resolve(point, size, borderThickness, borderThickness);

@@ -15,6 +15,7 @@ using MemeMomo.Platform.Windows;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Animation;
+using MemeMomo.UI.Layout;
 using MemeMomo.UI.Windows;
 using MemeMomo.ViewModels;
 using InputMouseEventArgs = System.Windows.Input.MouseEventArgs;
@@ -36,6 +37,8 @@ public partial class MainWindow : BorderlessWindow
     private readonly WindowContext _context;
     private IMainWindowHostActions _hostActions;
     private readonly AppSettings _settings;
+    private readonly PageTransitionController _pageTransition;
+    private readonly MainWindowLayoutController _responsiveLayout;
     private readonly List<DeleteVisual> _deleteVisuals = [];
     private readonly List<FlipEntry> _flipEntries = [];
     private MemoItem? _displayedMemo;
@@ -53,7 +56,7 @@ public partial class MainWindow : BorderlessWindow
 
     private sealed class DefaultHostActions : IMainWindowHostActions
     {
-        public void OpenSettings(WindowContext context) { }
+        public void OpenSettings(WindowContext context) => ((MainWindow)context.Window).ShowSettingsAsync().Observe();
         public void MinimizeToTray(WindowContext context) => ((Window)context.Window).Hide();
         public void SetTaskbarIconVisible(WindowContext context, bool visible) => ((Window)context.Window).ShowInTaskbar = visible;
         public Task<CloseButtonAction?> AskCloseButtonAction(WindowContext context) => Task.FromResult<CloseButtonAction?>(CloseButtonAction.MinimizeToTray);
@@ -77,7 +80,9 @@ public partial class MainWindow : BorderlessWindow
         MainViewModel viewModel,
         AppSettings settings,
         IMainWindowHostActions? hostActions = null,
-        Window? owner = null)
+        Window? owner = null,
+        IAnimationFrameSource? layoutAnimationFrames = null,
+        IAnimationFrameSource? listPaneAnimationFrames = null)
     {
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -86,6 +91,12 @@ public partial class MainWindow : BorderlessWindow
         DataContext = _viewModel;
         Owner = owner;
         InitializeComponent();
+        _pageTransition = new PageTransitionController(PageViewport, PageSurface, PageTransitionSnapshot);
+        ComposerTaskSelector.ResetNewDefaults();
+        _viewModel.TaskView.Changed += RefreshTaskView;
+        _viewModel.RecycleView.Changed += RefreshRecycleView;
+        _viewModel.SaveFailed += OnMemoSaveFailed;
+        RefreshTaskView();
         _memoOverlayScrollBarCollapseTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher)
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -108,7 +119,13 @@ public partial class MainWindow : BorderlessWindow
         MarkdownEditor.NewRequested += OnNewRequested;
         Loaded += OnWindowLoaded;
         Closed += OnWindowClosed;
+        PreviewKeyUp += OnWindowPreviewKeyUp;
         LocalizationService.LanguageChanged += OnLanguageChanged;
+        _responsiveLayout = new MainWindowLayoutController(this, ExpandedSurface, PageViewport, LayoutTransitionSnapshot, PageContent,
+            MarkdownEditor, ListPaneViewport, ListPane, NormalEmptyHint, EmptyHintArrow,
+            () => DockState == DockState.Expanded, CancelLayoutTransientVisuals, layoutAnimationFrames, listPaneAnimationFrames);
+        _responsiveLayout.ListPaneStateChanged += RefreshListPaneToggle;
+        RefreshListPaneToggle();
     }
 
     public MainViewModel ViewModel => _viewModel;
@@ -227,7 +244,11 @@ public partial class MainWindow : BorderlessWindow
         }
     }
 
-    internal void CloseImmediatelyForTest() => CloseImmediately();
+    internal void CloseImmediatelyForTest()
+    {
+        _settingsCloseApproved = true;
+        CloseImmediately();
+    }
 
     public void ConfigureHostActions(IMainWindowHostActions hostActions)
     {
@@ -375,15 +396,21 @@ public partial class MainWindow : BorderlessWindow
 
     private async Task<bool> SaveMarkdownAsync(MarkdownSaveRequest request)
     {
+        if (IsRecycleBinMode) return false;
         if (request.IsNewMemo)
         {
-            MemoItem? item = await _viewModel.AddItemAndSaveAsync(request.Markdown);
+            MemoItem? item = await _viewModel.AddItemAndSaveAsync(request.Markdown, ComposerTaskSelector.NewKind, ComposerTaskSelector.NewStatusId);
             if (item is null)
             {
                 return false;
             }
 
             _newMemoDraft = string.Empty;
+            if (!_viewModel.TaskView.Items.Contains(item))
+            {
+                _filteredNewMemoId = item.Id;
+                RefreshTaskView();
+            }
             return true;
         }
 
@@ -392,15 +419,17 @@ public partial class MainWindow : BorderlessWindow
             return false;
         }
 
-        await _viewModel.UpdateItemAndSaveAsync(_displayedMemo.Id, request.Markdown);
+        if (!MemoEditCoordinator.Shared.IsOwner(_displayedMemo.Id, this)) return false;
+        await _viewModel.UpdateItemAndSaveAsync(_displayedMemo.Id, request.Markdown, _displayedLifecycleVersion);
         return true;
     }
 
     private async Task CancelMarkdownAsync(string restoreMarkdown)
     {
+        if (IsRecycleBinMode) return;
         if (_displayedMemo is not null)
         {
-            await _viewModel.UpdateItemAndSaveAsync(_displayedMemo.Id, restoreMarkdown);
+            await _viewModel.UpdateItemAndSaveAsync(_displayedMemo.Id, restoreMarkdown, _displayedLifecycleVersion);
         }
     }
 
@@ -408,6 +437,9 @@ public partial class MainWindow : BorderlessWindow
 
     private async Task StartNewComposerAsync()
     {
+        if (IsSettingsPageVisible && !await ReturnFromSettingsAsync()) return;
+        if (IsRecycleBinMode && !await SetRecycleBinModeAsync(false)) return;
+        if (_modeChanging) return;
         if (!MarkdownEditor.IsNewMemo && !await MarkdownEditor.CompleteEditingAsync())
         {
             return;
@@ -450,6 +482,9 @@ public partial class MainWindow : BorderlessWindow
     internal async Task ToggleMemoEditAsync(MemoItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (IsSettingsPageVisible && !await ReturnFromSettingsAsync()) return;
+        if (item.IsDeleted || item.IsLifecyclePending || _modeChanging) return;
+        if (IsRecycleBinMode && !await SetRecycleBinModeAsync(false)) return;
         if (!MarkdownEditor.IsNewMemo && ReferenceEquals(_displayedMemo, item))
         {
             await MarkdownEditor.CompleteEditingAsync();
@@ -477,7 +512,7 @@ public partial class MainWindow : BorderlessWindow
             MemoEditCoordinator.Shared.Release(_displayedMemo.Id, this);
         }
 
-        if (!await MemoEditCoordinator.Shared.AcquireAsync(item.Id, this, RelinquishActiveEditorAsync))
+        if (!await AcquireMainEditorAsync(item))
         {
             return;
         }
@@ -525,6 +560,10 @@ public partial class MainWindow : BorderlessWindow
         }
 
         _displayedMemo = memo;
+        _displayedLifecycleVersion = memo?.LifecycleVersion ?? 0;
+        ComposerTaskSelector.Memo = memo;
+        if (memo is null) ComposerTaskSelector.ResetNewDefaults();
+        RefreshTaskView();
         if (_displayedMemo is not null)
         {
             _displayedMemo.PropertyChanged += OnDisplayedMemoChanged;
@@ -541,6 +580,15 @@ public partial class MainWindow : BorderlessWindow
 
     private void OnMemoCardPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (e.OriginalSource is DependencyObject clicked && FindParent<WpfButton>(clicked) is not null) return;
+        if (_modeChanging) return;
+        if (IsRecycleBinMode)
+        {
+            if (sender is FrameworkElement { DataContext: MemoItem selected } card)
+            { card.Focus(); _viewModel.RecycleView.Select(selected); }
+            e.Handled = true;
+            return;
+        }
         // Single click is selection/input only. It never transfers editor ownership.
         if (sender is FrameworkElement element)
         {
@@ -573,7 +621,7 @@ public partial class MainWindow : BorderlessWindow
         if (sender is FrameworkElement { DataContext: MemoItem item } element && _viewModel.EditingId != item.Id)
         {
             InteractionState.SetIsSelected(element, false);
-            if (FindVisualChildren<WpfButton>(element).FirstOrDefault(button => button.Name == "DeleteButton") is { } deleteButton)
+            if (!item.IsTask && FindVisualChildren<WpfButton>(element).FirstOrDefault(button => button.Name == "DeleteButton") is { } deleteButton)
             {
                 InteractionState.SetIsRevealed(deleteButton, false);
             }
@@ -584,7 +632,7 @@ public partial class MainWindow : BorderlessWindow
 
     private void OnDeleteButtonPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) { }
 
-    private void OnDeleteClick(object sender, RoutedEventArgs e)
+    private async void OnDeleteClick(object sender, RoutedEventArgs e)
     {
         e.Handled = true;
         if (sender is not WpfButton button || FindParent<FrameworkElement>(button) is not { DataContext: MemoItem item })
@@ -592,27 +640,47 @@ public partial class MainWindow : BorderlessWindow
             return;
         }
 
-        DeleteMemo(item);
+        if (IsRecycleBinMode) await PurgeMemoAsync(item);
+        else await DeleteMemoAsync(item);
     }
 
-    internal void DeleteMemo(MemoItem item)
+    internal async Task DeleteMemoAsync(MemoItem item)
     {
-        if (!_viewModel.Memos.Contains(item))
+        if (IsRecycleBinMode || _modeChanging || item.IsLifecyclePending || !_viewModel.Memos.Contains(item))
         {
             return;
         }
 
         StopDeleteAnimation();
+        int generation = _deleteGeneration;
         FrameworkElement? card = FindCard(item);
         List<(MemoItem Memo, double Y)> oldPositions = CaptureFollowingPositions(item);
         DeleteVisual? exit = CreateDeleteVisual(card);
-        _viewModel.DeleteItem(item.Id);
+        if (exit is not null) exit.Image.Visibility = Visibility.Hidden;
+        var result = await _viewModel.RecycleBin.DeleteAsync(item.Id);
+        if (!result.Success)
+        {
+            if (exit is not null) DisposeDeleteVisual(exit);
+            OnMemoSaveFailed(result.Error ?? string.Empty);
+            return;
+        }
+        if (_disposed || generation != _deleteGeneration)
+        {
+            if (exit is not null) DisposeDeleteVisual(exit);
+            if (!_disposed) ShowRecycleNotice("已移入回收站", item.Id);
+            return;
+        }
+        ShowRecycleNotice("已移入回收站", item.Id);
+        if (exit is not null) exit.Image.Visibility = Visibility.Visible;
         if (exit is not null)
         {
             StartDeleteExitAnimation(exit);
         }
 
-        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() => StartFlipAnimation(oldPositions)));
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
+        {
+            if (!_disposed && generation == _deleteGeneration) StartFlipAnimation(oldPositions);
+        }));
         UpdateEditVisual();
     }
 
@@ -627,21 +695,21 @@ public partial class MainWindow : BorderlessWindow
         MemoEditCoordinator.Shared.Release(id, this);
         _viewModel.EndEdit();
         SetDisplayedMemo(null);
+        MarkdownEditor.BeginNew(_newMemoDraft);
         _newMemoDraft = string.Empty;
-        MarkdownEditor.BeginNew();
         UpdateEditVisual();
     }
 
     private List<(MemoItem Memo, double Y)> CaptureFollowingPositions(MemoItem item)
     {
-        int index = _viewModel.Memos.IndexOf(item);
+        int index = _viewModel.TaskView.Items.IndexOf(item);
         List<(MemoItem Memo, double Y)> positions = [];
         if (index < 0)
         {
             return positions;
         }
 
-        foreach (MemoItem memo in _viewModel.Memos.Skip(index + 1))
+        foreach (MemoItem memo in _viewModel.TaskView.Items.Skip(index + 1))
         {
             FrameworkElement? card = FindCard(memo);
             if (card is null)
@@ -688,12 +756,14 @@ public partial class MainWindow : BorderlessWindow
         Canvas.SetLeft(image, position.X);
         Canvas.SetTop(image, position.Y);
         DeleteOverlay.Children.Add(image);
-        return new DeleteVisual { Layer = DeleteOverlay, Image = image, Bitmap = bitmap, Scale = scale };
+        var visual = new DeleteVisual { Layer = DeleteOverlay, Image = image, Bitmap = bitmap, Scale = scale };
+        // Track the snapshot while persistence is pending, so resize can release it too.
+        _deleteVisuals.Add(visual);
+        return visual;
     }
 
     private void StartDeleteExitAnimation(DeleteVisual visual)
     {
-        _deleteVisuals.Add(visual);
         FrameAnimation? animation = new();
         visual.Animation = animation;
         animation.Start(TimeSpan.FromMilliseconds(120), MotionEasing.CubicEaseOut, progress =>
@@ -765,6 +835,28 @@ public partial class MainWindow : BorderlessWindow
         }
     }
 
+    private void CancelLayoutTransientVisuals()
+    {
+        _pageTransition.Reset();
+        StopDeleteAnimation();
+        _dragManager?.Detach();
+        if (!_disposed && !IsSettingsPageVisible && !_settingsNavigating && !IsRecycleBinMode && !_modeChanging) _dragManager?.Attach();
+        CloseModeMenus();
+    }
+
+    private void RefreshListPaneToggle() => ListPaneToggle.UpdateState(
+        _responsiveLayout.CanToggleListPane, _responsiveLayout.IsListPaneCollapsed);
+
+    private void OnListPaneToggleClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_disposed || _settingsNavigating || _modeChanging || !_responsiveLayout.CanToggleListPane) return;
+        FilterBadge.CloseMenu();
+        MarkdownEditor.ClosePageMenus();
+        if (ListPane.IsKeyboardFocusWithin) ListPaneToggle.Focus();
+        _responsiveLayout.ToggleListPane();
+    }
+
     private void ClearFlipEntries()
     {
         foreach (FlipEntry entry in _flipEntries)
@@ -792,8 +884,14 @@ public partial class MainWindow : BorderlessWindow
     {
         foreach (FrameworkElement card in FindVisualChildren<FrameworkElement>(MemoList).Where(element => element.Name == "MemoCard"))
         {
-            bool editing = card.DataContext is MemoItem item && _viewModel.EditingId == item.Id;
+            bool editing = card.DataContext is MemoItem item && (IsRecycleBinMode ? _viewModel.RecycleView.SelectedItem?.Id == item.Id : _viewModel.EditingId == item.Id);
+            if (IsRecycleBinMode) InteractionState.SetIsSelected(card, editing);
             InteractionState.SetIsEditing(card, editing);
+            if (FindVisualChildren<MemoTaskStatusSelector>(card).FirstOrDefault()?.CardVisuals is { } taskVisuals)
+            {
+                taskVisuals.UpdateInteraction();
+                continue;
+            }
             if (FindVisualChildren<Border>(card).FirstOrDefault(border => border.Name == "AccentBar") is { } accent)
             {
                 accent.Opacity = editing ? 1 : 0.5;
@@ -801,7 +899,7 @@ public partial class MainWindow : BorderlessWindow
 
             if (FindVisualChildren<WpfButton>(card).FirstOrDefault(button => button.Name == "DeleteButton") is { } deleteButton)
             {
-                InteractionState.SetIsRevealed(deleteButton, card.IsMouseOver || editing);
+                InteractionState.SetIsRevealed(deleteButton, IsRecycleBinMode || card.IsMouseOver || editing);
             }
         }
     }
@@ -811,7 +909,12 @@ public partial class MainWindow : BorderlessWindow
         BeginTitleBarDrag(e);
     }
 
-    private void OnSettingsClick(object sender, RoutedEventArgs e) => _hostActions.OpenSettings(_context);
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (_disposed || _settingsNavigating) return;
+        if (IsSettingsPageVisible) ReturnFromSettingsAsync().Observe();
+        else _hostActions.OpenSettings(_context);
+    }
 
     private void OnPinClick(object sender, RoutedEventArgs e)
     {
@@ -862,7 +965,13 @@ public partial class MainWindow : BorderlessWindow
 
     private void OnWindowPreviewKeyDown(object sender, InputKeyEventArgs e)
     {
-        if (e.Key == Key.Escape && !MarkdownEditor.IsNewMemo)
+        if (_settingsNavigating) { e.Handled = true; return; }
+        if (IsSettingsPageVisible)
+        {
+            if (e.OriginalSource is DependencyObject source && PageContent.IsAncestorOf(source)) e.Handled = true;
+            return;
+        }
+        if (!IsRecycleBinMode && !_modeChanging && OwnedWindows.Count == 0 && e.Key == Key.Escape && !MarkdownEditor.IsNewMemo)
         {
             _ = MarkdownEditor.CancelEditingAsync();
             e.Handled = true;
@@ -880,7 +989,9 @@ public partial class MainWindow : BorderlessWindow
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
-        foreach (MemoItem memo in _viewModel.Memos)
+        RefreshTaskView();
+        RefreshRecycleView();
+        foreach (MemoItem memo in _viewModel.Memos.Concat(_viewModel.DeletedMemos))
             memo.RefreshLocalizedText();
     }
 
@@ -893,12 +1004,23 @@ public partial class MainWindow : BorderlessWindow
         }
 
         _disposed = true;
+        ++_settingsNavigationGeneration;
+        PreviewKeyUp -= OnWindowPreviewKeyUp;
+        _settingsView?.Dispose();
+        _responsiveLayout.ListPaneStateChanged -= RefreshListPaneToggle;
+        _responsiveLayout.Dispose();
+        ListPaneToggle.Dispose();
+        _pageTransition.Dispose();
+        Notifications.Dispose();
         MotionAnimations.Cancel(PinIcon);
         _memoOverlayScrollBarCollapseTimer.Stop();
         _memoOverlayScrollBarCollapseTimer.Tick -= OnMemoOverlayScrollBarCollapseTimerTick;
         _memoOverlayScrollBarTimerLease.Dispose();
         _viewModel.MemoDeleted -= OnMemoDeleted;
         _viewModel.MemosLoaded -= OnMemosLoaded;
+        _viewModel.TaskView.Changed -= RefreshTaskView;
+        _viewModel.RecycleView.Changed -= RefreshRecycleView;
+        _viewModel.SaveFailed -= OnMemoSaveFailed;
         _dragManager?.Dispose();
         _dragManager = null;
         MarkdownEditor.NewRequested -= OnNewRequested;

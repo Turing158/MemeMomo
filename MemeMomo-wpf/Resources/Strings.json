@@ -1,4 +1,57 @@
 {
+  "返回便签": ["Back to note", "返回便箋"],
+  "返回便签；提醒：{0:yyyy-MM-dd HH:mm:ss}": ["Back to note; reminder: {0:yyyy-MM-dd HH:mm:ss}", "返回便箋；提醒：{0:yyyy-MM-dd HH:mm:ss}"],
+  "通用": ["General","一般"],
+  "外观": ["Appearance","外觀"],
+  "窗口与便签": ["Windows & notes","視窗與便箋"],
+  "任务与提醒": ["Tasks & reminders","任務與提醒"],
+  "快捷键": ["Keyboard shortcuts","快捷鍵"],
+  "关于与维护": ["About & maintenance","關於與維護"],
+  "返回上一页": ["Back to previous page","返回上一頁"],
+  "设置分类": ["Settings category","設定分類"],
+  "收起提示": ["Dismiss notification", "收起提示"],
+  "当前记录不在筛选结果中": ["This memo is hidden by the current filters.", "目前記錄不在篩選結果中"],
+  "显示全部": ["Show all", "顯示全部"],
+  "全部": ["All", "全部"],
+  "普通": ["Notes", "普通"],
+  "任务": ["Tasks", "任務"],
+  "类型": ["Type", "類型"],
+  "任务状态": ["Task status", "任務狀態"],
+  "筛选备忘录": ["Filter memos", "篩選備忘錄"],
+  "回收站": ["Recycle bin", "資源回收筒"],
+  "回收站（{0}）": ["Recycle bin ({0})", "資源回收筒（{0}）"],
+  "返回备忘录": ["Back to memos", "返回備忘錄"],
+  "回收站为空": ["Recycle bin is empty", "資源回收筒是空的"],
+  "清空回收站": ["Empty recycle bin", "清空資源回收筒"],
+  "全部清空": ["Clear all", "全部清空"],
+  "恢复": ["Restore", "還原"],
+  "彻底删除": ["Delete permanently", "永久刪除"],
+  "已彻底删除": ["Permanently deleted", "已永久刪除"],
+  "回收站已清空": ["Recycle bin emptied", "資源回收筒已清空"],
+  "已恢复": ["Restored", "已還原"],
+  "已移入回收站": ["Moved to recycle bin", "已移至資源回收筒"],
+  "撤销": ["Undo", "復原"],
+  "原提醒已过期，请重新设置": ["The original reminder expired. Set a new reminder.", "原提醒已過期，請重新設定"],
+  "已恢复；当前筛选隐藏了此记录。": ["Restored; hidden by the current filters.", "已還原；目前篩選隱藏了此記錄。"],
+  "原备忘录已删除，已返回新建草稿。": ["The original memo was deleted. Your new draft is restored.", "原備忘錄已刪除，已返回新增草稿。"],
+  "无法获取编辑权，请稍后重试。": ["Cannot acquire the editor. Please try again.", "無法取得編輯權，請稍後重試。"],
+  "备忘录已变更，请重新打开。": ["The memo has changed. Reopen it to edit.", "備忘錄已變更，請重新開啟。"],
+  "记录已被处理。": ["This record has already been processed.", "此記錄已被處理。"],
+  "彻底删除“{0}”？删除后无法从回收站恢复。": ["Permanently delete “{0}”? It cannot be restored from the recycle bin.", "永久刪除「{0}」？刪除後無法從資源回收筒還原。"],
+  "彻底删除回收站中的 {0} 条记录？删除后无法从回收站恢复。": ["Permanently delete {0} records? They cannot be restored from the recycle bin.", "永久刪除資源回收筒中的 {0} 筆記錄？刪除後無法還原。"],
+  "状态列表": ["Status list", "狀態列表"],
+  "内置状态": ["Built-in status", "內建狀態"],
+  "选择状态，编辑名称、颜色和图标。": ["Choose a status to edit its name, color and icon.", "選擇狀態，編輯名稱、顏色和圖示。"],
+  "状态详情": ["Status details", "狀態詳情"],
+  "删除与迁移": ["Delete and migrate", "刪除與遷移"],
+  "{0} 条任务": ["{0} tasks", "{0} 個任務"],
+  "{0} 个状态": ["{0} statuses", "{0} 個狀態"],
+  "删除引用块": ["Delete quote block", "刪除引用區塊"],
+  "删除代码块": ["Delete code block", "刪除程式碼區塊"],
+  "编辑代码语言": ["Edit code language", "編輯程式碼語言"],
+  "代码语言": ["Code language", "程式碼語言"],
+  "例如 csharp、python；留空可移除语言标签。": ["For example, csharp or python. Leave blank to remove the label.", "例如 csharp、python；留空可移除語言標籤。"],
+  "语言名称仅支持字母、数字及 _ - + # .": ["Use letters, numbers, or _ - + # .", "語言名稱僅支援字母、數字及 _ - + # ."],
   "设置": [
     "Settings",
     "設定"
@@ -6,6 +59,50 @@
   "语言": [
     "Language",
     "語言"
+  ],
+  "便签配色": [
+    "Memo colors",
+    "便箋配色"
+  ],
+  "标题栏与便签背景保持同色，边框自动搭配。": [
+    "The title bar matches the memo background, with a matching border.",
+    "標題列與便箋背景保持同色，邊框自動搭配。"
+  ],
+  "便签背景": [
+    "Memo background",
+    "便箋背景"
+  ],
+  "跟随主题": [
+    "Follow theme",
+    "跟隨主題"
+  ],
+  "炭黑（当前）": [
+    "Charcoal (current)",
+    "炭黑（目前）"
+  ],
+  "米白": [
+    "Paper",
+    "米白"
+  ],
+  "雾蓝": [
+    "Mist blue",
+    "霧藍"
+  ],
+  "鼠尾草绿": [
+    "Sage",
+    "鼠尾草綠"
+  ],
+  "浅玫瑰": [
+    "Soft rose",
+    "淺玫瑰"
+  ],
+  "淡紫": [
+    "Lavender",
+    "淡紫"
+  ],
+  "暖沙": [
+    "Warm sand",
+    "暖沙"
   ],
   "按下快捷键...": [
     "Press a hotkey...",
@@ -54,6 +151,10 @@
   "在上方写下第一条 Markdown 备忘录\n按 Ctrl+Enter 新增": [
     "Write your first Markdown memo above\nPress Ctrl+Enter to add",
     "在上方寫下第一條 Markdown 備忘錄\n按 Ctrl+Enter 新增"
+  ],
+  "在右侧写下第一条 Markdown 备忘录\n按 Ctrl+Enter 新增": [
+    "Write your first Markdown memo on the right\nPress Ctrl+Enter to add",
+    "在右側寫下第一條 Markdown 備忘錄\n按 Ctrl+Enter 新增"
   ],
   "按住拖动可沿屏幕边缘移动；向内拖动可恢复窗口": [
     "Drag along the screen edge to move; drag inward to restore the window",
@@ -398,6 +499,10 @@
   "删除线": [
     "Strikethrough",
     "刪除線"
+  ],
+  "下划线": [
+    "Underline",
+    "底線"
   ],
   "分隔线": [
     "Horizontal rule",
@@ -1206,5 +1311,142 @@
   "图片宽度：自适应": [
     "Image width: fit",
     "圖片寬度：自動調整"
-  ]
+  ],
+  "关于": [
+    "About",
+    "關於"
+  ],
+  "关于 MemeMomo": [
+    "About MemeMomo",
+    "關於 MemeMomo"
+  ],
+  "贴在桌面上的轻量 Markdown 备忘录，让每条想法都随手可见。": [
+    "Lightweight Markdown memos on your desktop, keeping every idea close at hand.",
+    "貼在桌面上的輕量 Markdown 備忘錄，讓每個想法都隨手可見。"
+  ],
+  "当前版本：{0}": [
+    "Current version: {0}",
+    "目前版本：{0}"
+  ],
+  "版本": [
+    "Version",
+    "版本"
+  ],
+  "检测更新": [
+    "Check for updates",
+    "檢查更新"
+  ],
+  "检测中": [
+    "Checking",
+    "檢測中"
+  ],
+  "检测失败": [
+    "Check failed",
+    "檢測失敗"
+  ],
+  "有新版本": [
+    "Update available",
+    "有新版本"
+  ],
+  "已是最新": [
+    "Up to date",
+    "已是最新版本"
+  ],
+  "打开 GitHub 仓库": [
+    "Open GitHub repository",
+    "開啟 GitHub 儲存庫"
+  ],
+  "编辑图片": ["Edit image", "編輯圖片"],
+  "删除图片": ["Delete image", "刪除圖片"],
+  "图片源码": ["Image source", "圖片原始碼"],
+  "替代文本（alt）": ["Alternative text (alt)", "替代文字（alt）"],
+  "链接或路径（src）": ["URL or path (src)", "連結或路徑（src）"],
+  "源码与下方字段同步，保留图片结构": ["Source and fields stay in sync; image structure is preserved", "原始碼與下方欄位同步，保留圖片結構"],
+  "不能删除图片结构，请保留 ![]() 或完整的 img 标签": ["Keep the ![]() structure or the complete img tag", "不能刪除圖片結構，請保留 ![]() 或完整的 img 標籤"],
+  "请补全图片源码，并使用支持的图片属性和路径": ["Complete the image source using supported attributes and paths", "請補全圖片原始碼，並使用支援的圖片屬性和路徑"],
+  "查看软件版本和 GitHub 仓库": [
+    "View the app version and GitHub repository",
+    "檢視軟體版本與 GitHub 儲存庫"
+  ],
+  "普通备忘": ["Note","普通備忘"],
+  "任务备忘": ["Task","任務備忘"],
+  "待办": ["To do","待辦"],
+  "进行中": ["In progress","進行中"],
+  "暂缓": ["On hold","暫緩"],
+  "已完成": ["Done","已完成"],
+  "已取消": ["Canceled","已取消"],
+  "未结束": ["Open","未結束"],
+  "状态已缺失": ["Missing status","狀態已遺失"],
+  "全部备忘": ["All memos","全部備忘"],
+  "状态不限": ["Any status","狀態不限"],
+  "{0}（全部）": ["{0} (all)","{0}（全部）"],
+  "显示 {0} / {1}": ["Showing {0} / {1}","顯示 {0} / {1}"],
+  "筛选时只能拖出便签；清除条件后可重排。": ["Drag out to open a memo. Clear filters to reorder.","篩選時只能拖出便箋；清除條件後可重新排序。"],
+  "当前记录不在筛选结果中 · 显示全部": ["This memo is filtered out · Show all","目前記錄不在篩選結果中 · 顯示全部"],
+  "没有符合条件的备忘录": ["No matching memos","沒有符合條件的備忘錄"],
+  "清除筛选": ["Clear filters","清除篩選"],
+  "设为任务": ["Make a task","設為任務"],
+  "转为普通备忘": ["Convert to note","轉為普通備忘"],
+  "选择状态": ["Choose status","選擇狀態"],
+  "完成任务": ["Complete task","完成任務"],
+  "重新打开": ["Reopen","重新開啟"],
+  "重新打开后可设置提醒": ["Reopen to set a reminder","重新開啟後可設定提醒"],
+  "任务与状态": ["Tasks and statuses","任務與狀態"],
+  "默认新建类型": ["Default memo type","預設新建類型"],
+  "新任务默认状态": ["Default status for new tasks","新任務預設狀態"],
+  "管理状态": ["Manage statuses","管理狀態"],
+  "新增状态": ["New status","新增狀態"],
+  "上移": ["Move up","上移"],
+  "下移": ["Move down","下移"],
+  "状态名称": ["Status name","狀態名稱"],
+  "基础类别": ["Category","基礎類別"],
+  "颜色": ["Color","顏色"],
+  "图标": ["Icon","圖示"],
+  "隐藏此状态（已有任务仍显示）": ["Hide status (existing tasks keep it)","隱藏此狀態（現有任務仍顯示）"],
+  "已隐藏": ["Hidden","已隱藏"],
+  "保存状态": ["Save status","儲存狀態"],
+  "删除时迁移到": ["Replacement when deleting","刪除時遷移至"],
+  "删除状态并迁移任务": ["Delete status and migrate tasks","刪除狀態並遷移任務"],
+  "确认状态迁移": ["Confirm status migration","確認狀態遷移"],
+  "影响 {0} 条任务；将取消 {1} 条提醒；目标类别：{2}": ["Affects {0} tasks; cancels {1} reminders; target category: {2}","影響 {0} 條任務；將取消 {1} 條提醒；目標類別：{2}"],
+  "保存失败，请重试：{0}": ["Save failed. Please retry: {0}","儲存失敗，請重試：{0}"],
+  "正在保存，请稍后重试。": ["Saving. Please retry shortly.","正在儲存，請稍後重試。"],
+  "请选择有效类别。": ["Choose a valid category.","請選擇有效類別。"],
+  "内置状态的名称和类别不能修改。": ["Built-in names and categories cannot be changed.","內建狀態的名稱和類別無法修改。"],
+  "状态名称须为 1～24 个字符。": ["Use 1–24 characters for the status name.","狀態名稱須為 1～24 個字元。"],
+  "状态名称不能重复。": ["Status names must be unique.","狀態名稱不能重複。"],
+  "请选择预设颜色和图标。": ["Choose a preset color and icon.","請選擇預設顏色和圖示。"],
+  "请先选择其他新任务默认状态。": ["Choose another default status for new tasks first.","請先選擇其他新任務預設狀態。"],
+  "至少保留一个可选的未结束状态。": ["Keep at least one selectable open status.","至少保留一個可選的未結束狀態。"],
+  "请选择有效状态。": ["Choose an available status.","請選擇有效狀態。"],
+  "备忘录已删除。": ["This memo was deleted.","備忘錄已刪除。"],
+  "请选择有效替代状态；内置状态不能删除。": ["Choose an available replacement. Built-in statuses cannot be deleted.","請選擇有效替代狀態；內建狀態無法刪除。"],
+  "数据文件需要恢复后才能保存：{0}": ["Restore this data file before saving: {0}","資料檔案需要還原後才能儲存：{0}"],
+  "数据恢复提示": ["Data recovery","資料還原提示"],
+  "已保留原始文件。请检查备份与状态引用；无法恢复的数据文件将暂停保存。": ["Original files have been preserved. Check backups and status references. Saving is blocked for files that could not be recovered.","已保留原始檔案。請檢查備份與狀態引用；無法還原的資料檔案將暫停儲存。"],
+  "蓝色": ["Blue","藍色"],
+  "绿色": ["Green","綠色"],
+  "琥珀色": ["Amber","琥珀色"],
+  "紫色": ["Purple","紫色"],
+  "红色": ["Red","紅色"],
+  "灰色": ["Gray","灰色"],
+  "迁移尚未完成，请先重试原操作。": ["Migration is incomplete. Retry the original operation first.", "遷移尚未完成，請先重試原操作。"],
+  "圆环": ["Circle", "圓環"],
+  "播放": ["Play", "播放"],
+  "暂停": ["Pause", "暫停"],
+  "勾选": ["Check", "勾選"],
+  "叉号": ["Cross", "叉號"],
+  "星标": ["Star", "星標"],
+  "旗帜": ["Flag", "旗幟"],
+  "时钟": ["Clock", "時鐘"],
+  "快速添加": ["Quick add", "快速新增"],
+  "快速添加：{0}": ["Quick add: {0}", "快速新增：{0}"],
+  "在鼠标位置打开空白便签，保存后添加": ["Open a blank memo at the pointer; save to add it", "在滑鼠位置開啟空白便箋，儲存後新增"],
+  "保存便签？": ["Save this memo?", "儲存便箋？"],
+  "此便签尚未添加，是否保存后关闭？": ["This memo has not been added yet. Save it before closing?", "此便箋尚未新增，是否儲存後關閉？"],
+  "不保存": ["Don't save", "不儲存"],
+  "保存": ["Save", "儲存"],
+  "查看新版本": ["View update", "查看新版本"],
+  "收起左侧列表": ["Collapse left list", "收起左側列表"],
+  "展开左侧列表": ["Expand left list", "展開左側列表"]
 }

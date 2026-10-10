@@ -54,7 +54,7 @@ internal readonly record struct DragPopupPlacement(double OffsetXDip, double Off
 /// The collection is deliberately untouched while the pointer is moving. The
 /// dragged card keeps its layout slot but is hidden, while a translucent
 /// snapshot follows the pointer in an independent popup HWND. Sibling cards
-/// use only RenderTransform to preview the insertion point. A valid in-window
+/// use only RenderTransform to preview the insertion point. A valid in-list
 /// release commits one call to <see cref="MainViewModel.MoveItem"/>.
 /// </summary>
 public sealed class DragReorderManager : IDisposable
@@ -185,6 +185,7 @@ public sealed class DragReorderManager : IDisposable
         _items.AddHandler(UIElement.PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler(OnPreviewMouseLeftButtonUp), true);
         _items.AddHandler(UIElement.LostMouseCaptureEvent, new MouseEventHandler(OnLostMouseCapture), true);
         _viewModel.Memos.CollectionChanged += OnMemosCollectionChanged;
+        _viewModel.TaskView.Changed += OnTaskViewChanged;
         Window? window = _window ??= Window.GetWindow(_items);
         if (window is not null)
         {
@@ -207,6 +208,7 @@ public sealed class DragReorderManager : IDisposable
         _items.RemoveHandler(UIElement.PreviewMouseLeftButtonUpEvent, new MouseButtonEventHandler(OnPreviewMouseLeftButtonUp));
         _items.RemoveHandler(UIElement.LostMouseCaptureEvent, new MouseEventHandler(OnLostMouseCapture));
         _viewModel.Memos.CollectionChanged -= OnMemosCollectionChanged;
+        _viewModel.TaskView.Changed -= OnTaskViewChanged;
         if (_window is not null)
         {
             _window.PreviewKeyDown -= OnWindowPreviewKeyDown;
@@ -244,7 +246,7 @@ public sealed class DragReorderManager : IDisposable
 
         MemoItem? item = FindMemoItem(e.OriginalSource as DependencyObject);
         FrameworkElement? card = item is null ? null : FindCard(item);
-        int index = item is null ? -1 : _viewModel.Memos.IndexOf(item);
+        int index = item is null ? -1 : _viewModel.TaskView.Items.IndexOf(item);
         if (item is null || card is null || index < 0)
         {
             return;
@@ -319,7 +321,7 @@ public sealed class DragReorderManager : IDisposable
         }
 
         Point? screenPoint = TryGetScreenPoint(e) ?? _lastScreenPoint;
-        bool outside = IsOutsideWindow(screenPoint);
+        bool outside = IsOutsideList(screenPoint);
         CompleteDrag(screenPoint, outside);
         e.Handled = true;
     }
@@ -385,7 +387,7 @@ public sealed class DragReorderManager : IDisposable
 
     private void BeginDrag()
     {
-        if (_draggedItem is null || _draggedCard is null || _viewModel.Memos.IndexOf(_draggedItem) < 0)
+        if (_draggedItem is null || _draggedCard is null || _viewModel.TaskView.Items.IndexOf(_draggedItem) < 0)
         {
             CancelDrag();
             return;
@@ -398,7 +400,7 @@ public sealed class DragReorderManager : IDisposable
         // representation of the collection. This is normally guaranteed by
         // the non-virtualized panel, but a disconnected container must fail
         // closed instead of allowing a stale index to reach MoveItem.
-        if (_cards.Count != _viewModel.Memos.Count ||
+        if (_cards.Count != _viewModel.TaskView.Items.Count ||
             !_cards.Contains(_draggedCard) ||
             _cards.IndexOf(_draggedCard) != _startIndex)
         {
@@ -481,7 +483,7 @@ public sealed class DragReorderManager : IDisposable
                 return;
             }
 
-            if (!outside && target >= 0 && target < _viewModel.Memos.Count && target != start)
+            if (!outside && _viewModel.TaskView.CanReorder && target >= 0 && target < _viewModel.TaskView.Items.Count && target != start)
             {
                 _viewModel.MoveItem(item.Id, target);
             }
@@ -505,7 +507,7 @@ public sealed class DragReorderManager : IDisposable
             _lastScreenPoint = screenPoint;
         }
 
-        CompleteDrag(screenPoint, IsOutsideWindow(screenPoint));
+        CompleteDrag(screenPoint, IsOutsideList(screenPoint));
     }
 
     private void CompleteOutsideOrCancelFromLastScreenPoint()
@@ -521,7 +523,7 @@ public sealed class DragReorderManager : IDisposable
             _lastScreenPoint = screenPoint;
         }
 
-        if (screenPoint.HasValue && IsOutsideWindow(screenPoint))
+        if (screenPoint.HasValue && IsOutsideList(screenPoint))
         {
             CompleteDrag(screenPoint, outside: true);
         }
@@ -871,8 +873,11 @@ public sealed class DragReorderManager : IDisposable
         BeginNeighborSlides();
     }
 
+    private void OnTaskViewChanged() { if (State is DragReorderState.Pressed or DragReorderState.Dragging) CancelDrag(); }
+
     private void BeginNeighborSlides()
     {
+        if (!_viewModel.TaskView.CanReorder) return;
         if (_draggedCard is null || _startIndex < 0 || _insertIndex < 0)
         {
             return;
@@ -1022,7 +1027,7 @@ public sealed class DragReorderManager : IDisposable
             _lastScreenPoint = screenPoint;
             if (!leftButtonPressed)
             {
-                CompleteDrag(screenPoint, IsOutsideWindow(screenPoint));
+                CompleteDrag(screenPoint, IsOutsideList(screenPoint));
                 return;
             }
         }
@@ -1144,17 +1149,19 @@ public sealed class DragReorderManager : IDisposable
         return false;
     }
 
-    private bool IsOutsideWindow(Point? screenPoint)
+    private bool IsOutsideList(Point? screenPoint)
     {
-        if (!screenPoint.HasValue || _window is null || !_window.IsLoaded)
+        if (!screenPoint.HasValue || _window is null || !_window.IsLoaded || !_scroller.IsLoaded)
         {
             return false;
         }
 
         try
         {
-            Point topLeft = _monitorService.ToScreenPixels(_window, new Point(0, 0));
-            Point bottomRight = _monitorService.ToScreenPixels(_window, new Point(_window.ActualWidth, _window.ActualHeight));
+            // Use the visible list viewport so blank space stays in the list
+            // and scrolled-out cards cannot extend the reorder drop area.
+            Point topLeft = _monitorService.ToScreenPixels(_window, _scroller.TranslatePoint(new Point(0, 0), _window));
+            Point bottomRight = _monitorService.ToScreenPixels(_window, _scroller.TranslatePoint(new Point(_scroller.ActualWidth, _scroller.ActualHeight), _window));
             Rect bounds = new(topLeft, bottomRight);
             return !bounds.Contains(screenPoint.Value);
         }
@@ -1208,7 +1215,7 @@ public sealed class DragReorderManager : IDisposable
     {
         for (DependencyObject? current = source; current is not null; current = VisualTreeHelper.GetParent(current))
         {
-            if (current is FrameworkElement element && element.Name == "DeleteButton")
+            if (current is System.Windows.Controls.Primitives.ButtonBase or MemeMomo.Components.MemoTaskStatusSelector)
             {
                 return true;
             }

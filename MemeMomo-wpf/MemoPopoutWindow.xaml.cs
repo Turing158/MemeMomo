@@ -42,6 +42,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
     private bool _sourceDeleted;
     private bool _loadedOnce;
     private bool _cleanupDone;
+    private readonly ResourceDictionary _memoPalette = new();
+    private MemoColorPreset _backgroundColor;
 
     /// <summary>
     /// 便签启用逐像素透明（layered）渲染：贴边 D 形标签的半圆弧由 WPF 抗锯齿绘制，
@@ -53,6 +55,10 @@ public partial class MemoPopoutWindow : BorderlessWindow
     public MemoPopoutWindow()
     {
         InitializeComponent();
+        InitializeReminderNavigation();
+        // 便签内容与同级的贴边标签共享配色，背景和文字随设置、主题同步更新。
+        WindowRoot.Resources.MergedDictionaries.Add(_memoPalette);
+        ThemePreferences.PaletteChanged += OnPaletteChanged;
         MarkdownEditor.SaveRequestedAsync = SaveMarkdownAsync;
         MarkdownEditor.CancelRequestedAsync = CancelMarkdownAsync;
         MarkdownEditor.EditingCompleted += OnEditingCompleted;
@@ -92,17 +98,25 @@ public partial class MemoPopoutWindow : BorderlessWindow
     internal MemoPopoutDockTab TabLayer => DockTabLayer;
     public bool IsEdgeDocked => _dockController?.IsEdgeDocked ?? false;
     public MarkdownEditor Editor => MarkdownEditor;
+    internal MemoTaskStatusSelector TaskStatusSelector => (MemoTaskStatusSelector)MarkdownEditor.ToolbarLeadingContent!;
     public bool IsTaskbarIconEnabled => _taskbarButtonEnabled;
     public bool IsTaskbarIconVisible => TaskbarIconVisibility.IsVisible(this);
     public bool IsPreviewToolbarVisible => _showPreviewToolbar;
     public bool IsSourceDeleted => _sourceDeleted;
     public bool IsEditorOwner => _memo is not null && MemoEditCoordinator.Shared.IsOwner(_memo.Id, this);
 
-    public event Action<MemoPopoutWindow, MemoItem>? ReminderRequested;
+    public void ConfigureTaskService(MemoTaskService service)
+    {
+        TaskStatusSelector.Service = service;
+        TaskStatusSelector.Memo = IsQuickAddDraft ? null : _memo;
+        if (IsQuickAddDraft) TaskStatusSelector.ResetNewDefaults();
+    }
 
     internal void ApplySettings(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        _backgroundColor = MemoWindowPalette.Normalize(settings.MemoBackgroundColor);
+        ApplyColors();
         _taskbarButtonEnabled = settings.ShowMemoWindowTaskbarIcon;
         UpdateTaskbarButtonVisual();
         // 控制器在 Loaded 时才创建，开关先落字段，加载时再同步。
@@ -171,12 +185,13 @@ public partial class MemoPopoutWindow : BorderlessWindow
         }
 
         _sourceDeleted = true;
+        DisposeReminderNavigation();
         MarkdownEditor.AbortForSourceDeletion();
         ReleaseEditorOwnership();
         CloseImmediately();
     }
 
-    internal void CloseImmediatelyForTest() => CloseImmediately();
+    internal void CloseImmediatelyForTest() { _quickCloseApproved = _normalCloseApproved = true; CloseImmediately(); }
 
     protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
     {
@@ -196,6 +211,17 @@ public partial class MemoPopoutWindow : BorderlessWindow
 
         _loadedOnce = true;
         UpdateMemoVisuals();
+        if (IsQuickAddDraft)
+        {
+            MarkdownEditor.BeginNew();
+            return;
+        }
+        InitializeDockController();
+        await BeginEditAsync();
+    }
+
+    private void InitializeDockController()
+    {
         _dockController ??= new MemoPopoutDockController(
             this,
             _monitors,
@@ -204,17 +230,16 @@ public partial class MemoPopoutWindow : BorderlessWindow
             _dockPopLengthSaver);
         _dockController.SetEdgeDockEnabled(_popoutDockEnabled);
         _dockController.Attach();
-        await BeginEditAsync();
     }
 
     private async Task BeginEditAsync()
     {
-        if (_sourceDeleted || _memo is null || IsEditorOwner)
+        if (IsQuickAddDraft || _sourceDeleted || _memo is null || _memo.IsDeleted || _memo.IsLifecyclePending || IsEditorOwner)
         {
             return;
         }
 
-        if (!await MemoEditCoordinator.Shared.AcquireAsync(_memo.Id, this, RelinquishEditorAsync))
+        if (!await MemoEditCoordinator.Shared.AcquireAsync(_memo.Id, this, RelinquishEditorAsync, MarkdownEditor.SuspendAndCollectAsync, MarkdownEditor.ResumeAfterLifecycleFailure))
         {
             return;
         }
@@ -252,7 +277,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
 
     private async Task<bool> SaveMarkdownAsync(MarkdownSaveRequest request)
     {
-        if (_sourceDeleted || _memo is null || _saveMemo is null || request.IsNewMemo || !IsEditorOwner)
+        if (IsQuickAddDraft) return await SaveQuickAddDraftAsync(request);
+        if (_sourceDeleted || _memo is null || _memo.IsDeleted || _memo.IsLifecyclePending || _saveMemo is null || request.IsNewMemo || !IsEditorOwner)
         {
             return false;
         }
@@ -264,7 +290,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
 
     private async Task CancelMarkdownAsync(string restoreMarkdown)
     {
-        if (_sourceDeleted || _memo is null || _saveMemo is null || !IsEditorOwner)
+        if (_sourceDeleted || _memo is null || _memo.IsDeleted || _memo.IsLifecyclePending || _saveMemo is null || !IsEditorOwner)
         {
             return;
         }
@@ -289,7 +315,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
             }
         }
 
-        if (e.PropertyName == nameof(MemoItem.ReminderAt))
+        if (e.PropertyName is nameof(MemoItem.ReminderAt) or nameof(MemoItem.CanRemind))
         {
             UpdateReminderButtonVisual();
         }
@@ -321,6 +347,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
     /// <summary>贴边视觉切换：便签内容（标题栏 + 编辑器）与 D 形标签交叉淡化。</summary>
     internal void ShowTabVisual(bool showTab, TimeSpan duration)
     {
+        _reminderDockSuspended = showTab;
+        SynchronizeReminderVisibility();
         _tabVisualAnimation?.Cancel();
         _tabVisualAnimation?.Dispose();
         _tabVisualAnimation = null;
@@ -338,11 +366,11 @@ public partial class MemoPopoutWindow : BorderlessWindow
                 DockTabLayer.Visibility = Visibility.Visible;
                 DockTabLayer.Opacity = 0;
                 TitleBar.Opacity = 1;
-                EditorHost.Opacity = 1;
+                BodyHost.Opacity = 1;
             }
 
             TitleBar.IsHitTestVisible = false;
-            EditorHost.IsHitTestVisible = false;
+            BodyHost.IsHitTestVisible = false;
             DockTabLayer.IsHitTestVisible = true;
         }
         else
@@ -350,15 +378,15 @@ public partial class MemoPopoutWindow : BorderlessWindow
             if (TitleBar.Visibility != Visibility.Visible)
             {
                 TitleBar.Visibility = Visibility.Visible;
-                EditorHost.Visibility = Visibility.Visible;
+                BodyHost.Visibility = Visibility.Visible;
                 TitleBar.Opacity = 0;
-                EditorHost.Opacity = 0;
+                BodyHost.Opacity = 0;
                 DockTabLayer.Visibility = Visibility.Visible;
                 DockTabLayer.Opacity = 1;
             }
 
             TitleBar.IsHitTestVisible = true;
-            EditorHost.IsHitTestVisible = true;
+            BodyHost.IsHitTestVisible = true;
             DockTabLayer.IsHitTestVisible = false;
         }
 
@@ -382,7 +410,7 @@ public partial class MemoPopoutWindow : BorderlessWindow
                 DockTabLayer.Opacity = tabFrom + ((tabTo - tabFrom) * progress);
                 double memo = memoFrom + ((memoTo - memoFrom) * progress);
                 TitleBar.Opacity = memo;
-                EditorHost.Opacity = memo;
+                BodyHost.Opacity = memo;
             },
             () =>
             {
@@ -399,12 +427,12 @@ public partial class MemoPopoutWindow : BorderlessWindow
     {
         DockTabLayer.Opacity = showTab ? 1 : 0;
         TitleBar.Opacity = showTab ? 0 : 1;
-        EditorHost.Opacity = showTab ? 0 : 1;
+        BodyHost.Opacity = showTab ? 0 : 1;
         DockTabLayer.Visibility = showTab ? Visibility.Visible : Visibility.Collapsed;
         TitleBar.Visibility = showTab ? Visibility.Collapsed : Visibility.Visible;
-        EditorHost.Visibility = showTab ? Visibility.Collapsed : Visibility.Visible;
+        BodyHost.Visibility = showTab ? Visibility.Collapsed : Visibility.Visible;
         TitleBar.IsHitTestVisible = !showTab;
-        EditorHost.IsHitTestVisible = !showTab;
+        BodyHost.IsHitTestVisible = !showTab;
         DockTabLayer.IsHitTestVisible = showTab;
     }
 
@@ -492,35 +520,27 @@ public partial class MemoPopoutWindow : BorderlessWindow
 
     private void OnTaskbarToggle(object sender, RoutedEventArgs e) => ToggleTaskbarIcon();
 
-    private void OnReminderClick(object sender, RoutedEventArgs e)
+    private async void OnReminderClick(object sender, RoutedEventArgs e) => await ToggleReminderPageAsync();
+
+    private void OnEditorSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_memo is not null)
-        {
-            ReminderRequested?.Invoke(this, _memo);
-        }
+        // Reserve room for toolbar padding, B/I/heading, More and Save at the 280 DIP minimum.
+        TaskStatusSelector.MaxWidth = Math.Clamp(e.NewSize.Width - 164, 100, 128);
     }
 
     private void OnToolbarToggle(object sender, RoutedEventArgs e)
     {
+        if (IsReminderPageVisible || _reminderNavigating || IsPreparingToClose) return;
         _showPreviewToolbar = !_showPreviewToolbar;
         MarkdownEditor.HideToolbarInPreview = !_showPreviewToolbar;
         UpdateToolbarButtonVisual();
     }
 
-    private async void OnCloseClick(object sender, RoutedEventArgs e)
-    {
-        if (IsEditorOwner && !await MarkdownEditor.CompleteEditingAsync())
-        {
-            return;
-        }
-
-        ReleaseEditorOwnership();
-        CloseWithTransition();
-    }
+    private async void OnCloseClick(object sender, RoutedEventArgs e) => await RequestCloseAsync();
 
     private async void OnWindowPreviewKeyDown(object sender, InputKeyEventArgs e)
     {
-        if (e.Key != Key.Escape || _sourceDeleted)
+        if (HandleReminderKey(e) || e.Handled || IsPreparingToClose || e.Key != Key.Escape || _sourceDeleted)
         {
             return;
         }
@@ -536,7 +556,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
             return;
         }
 
-        string title = string.IsNullOrWhiteSpace(_memo.Title) ? LocalizationService.Get("备忘录") : _memo.Title;
+        string title = IsQuickAddDraft ? LocalizationService.Get("快速添加")
+            : string.IsNullOrWhiteSpace(_memo.Title) ? LocalizationService.Get("备忘录") : _memo.Title;
         Title = title;
         TitleText.Text = title;
         DockTabLayer.TabTitle = title;
@@ -546,22 +567,9 @@ public partial class MemoPopoutWindow : BorderlessWindow
         UpdateToolbarButtonVisual();
     }
 
-    private void UpdateReminderButtonVisual()
-    {
-        if (_memo is null)
-        {
-            return;
-        }
-
-        bool active = _memo.ReminderAt is { } reminderAt && reminderAt > DateTimeUtils.Now;
-        InteractionState.SetIsPinActive(ReminderButton, active);
-        string description = active ? LocalizationService.Format("提醒：{0:yyyy-MM-dd HH:mm:ss}", _memo.ReminderAt) : LocalizationService.Get("设置提醒");
-        ReminderButton.ToolTip = description;
-        AutomationProperties.SetName(ReminderButton, description);
-    }
-
     private void UpdateToolbarButtonVisual()
     {
+        ToolbarButton.IsEnabled = !IsReminderPageVisible && !_reminderNavigating && !IsPreparingToClose;
         string description = LocalizationService.Get(_showPreviewToolbar ? "隐藏 Markdown 工具栏" : "显示 Markdown 工具栏");
         ToolbarButton.ToolTip = description;
         AutomationProperties.SetName(ToolbarButton, description);
@@ -614,15 +622,28 @@ public partial class MemoPopoutWindow : BorderlessWindow
         UpdateTaskbarButtonVisual();
     }
 
+    private void OnPaletteChanged(object? sender, EventArgs e) => ApplyColors();
+
+    private void ApplyColors()
+    {
+        MemoWindowPalette.Apply(_memoPalette, _backgroundColor);
+        ShellBackground = EditorHost.TryFindResource("BgPrimaryBrush") as System.Windows.Media.Brush;
+        ShellBorderBrush = EditorHost.TryFindResource("BorderDefaultBrush") as System.Windows.Media.Brush;
+        MarkdownEditor.RefreshAppearance();
+    }
+
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         LocalizationService.LanguageChanged -= OnLanguageChanged;
+        ThemePreferences.PaletteChanged -= OnPaletteChanged;
         if (_cleanupDone)
         {
             return;
         }
 
         _cleanupDone = true;
+        MotionAnimations.Cancel(PinIcon);
+        DisposeReminderNavigation();
         _timeAnimation?.Cancel();
         _timeAnimation?.Dispose();
         _timeAnimation = null;

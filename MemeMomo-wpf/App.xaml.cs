@@ -29,15 +29,13 @@ public partial class App : System.Windows.Application
     private MemoPopoutWindow? _latestMemoPopout;
     private Window? _latestMemoWindow;
     private readonly List<TutorialWindow> _tutorialWindows = [];
-    private readonly Dictionary<Guid, ReminderWindow> _reminderWindows = [];
-    private SettingsWindow? _settingsWindow;
     private TrayMenuWindow? _trayMenu;
     private WindowsTrayIcon? _trayIcon;
     private GlobalHotkeyService? _hotkeyService;
     private readonly ReminderToastQueue _toastQueue = new();
     private DispatcherTimer? _reminderTimer;
     private string? _lastClipboardText;
-    private bool _settingsFailureDialogVisible;
+    private MemeMomo.UI.Notifications.NotificationFeedback? _settingsSaveFeedback;
     private int _exitRequested;
 
     internal IReadOnlyList<MemoPopoutWindow> MemoPopouts => _memoPopouts;
@@ -59,20 +57,23 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            MainViewModel viewModel = new();
+            AppSettings loaded = await _settingsStorage.LoadAsync();
+            loaded.CopyTo(_settings);
+            LocalizationService.SetLanguage(_settings.Language);
+            TaskStatusCatalog catalog = new();
+            await catalog.LoadAsync();
+            catalog.RepairDefault(_settings);
+            MainViewModel viewModel = new(new JsonMemoStorage(), catalog, _settings, () => _settingsStorage.TrySaveAsync(_settings));
+            await viewModel.LoadAsync();
             MainWindow mainWindow = new(viewModel, _settings, new AppHostActions(this));
             ConfigureMainWindow(mainWindow, _settings);
             mainWindow.ConfigureWindowStatePersistence(SaveWindowStateAsync);
             mainWindow.ShowInTaskbar = false;
-            StartReminderTimer();
-
-            AppSettings loaded = await _settingsStorage.LoadAsync();
             if (Volatile.Read(ref _exitRequested) != 0)
             {
                 return;
             }
 
-            loaded.CopyTo(_settings);
             LocalizationService.SetLanguage(_settings.Language);
             ThemePreferences.ApplyMode(_settings.ThemeMode);
             MotionPreferences.ApplyMode(_settings.MotionMode);
@@ -81,6 +82,11 @@ public partial class App : System.Windows.Application
             InitializeSystemIntegrations(mainWindow);
 
             mainWindow.Show();
+            StartReminderTimer();
+            string[] diagnostics = catalog.Diagnostics.Concat(new[] { _settingsStorage.LoadDiagnostic, viewModel.LoadDiagnostic }
+                .Where(message => message is not null).Select(message => message!)).ToArray();
+            if (diagnostics.Length > 0)
+                new ConfirmDialog(LocalizationService.Get("数据恢复提示"), LocalizationService.Get("已保留原始文件。请检查备份与状态引用；无法恢复的数据文件将暂停保存。") + "\n" + string.Join("\n", diagnostics)).ShowDialog(mainWindow);
         }
         catch (Exception exception)
         {
@@ -107,6 +113,7 @@ public partial class App : System.Windows.Application
             _typedMainWindow.MemoPopoutRequested -= OnMemoPopoutRequested;
             _typedMainWindow.ViewModel.MemoDeleted -= OnMemoDeleted;
             _typedMainWindow.ViewModel.MemosLoaded -= OnMemosLoaded;
+            _typedMainWindow.ViewModel.Tasks.ReminderCanceled -= OnTaskReminderCanceled;
             _typedMainWindow.Activated -= OnMainWindowActivated;
             _typedMainWindow.DockContextMenuRequested -= ShowSharedTrayMenu;
             _typedMainWindow = null;
@@ -130,6 +137,10 @@ public partial class App : System.Windows.Application
         mainWindow.MemoPopoutRequested += OnMemoPopoutRequested;
         mainWindow.ViewModel.MemoDeleted += OnMemoDeleted;
         mainWindow.ViewModel.MemosLoaded += OnMemosLoaded;
+        mainWindow.ViewModel.Tasks.ReminderCanceled += OnTaskReminderCanceled;
+        mainWindow.ViewModel.Tasks.HasPendingNotification = id => _toastQueue.ActiveMemoId == id || _toastQueue.QueuedMemoIds.Contains(id);
+        _toastQueue.DeliveryGuard = id => mainWindow.ViewModel.Memos.FirstOrDefault(item => item.Id == id) is { } memo
+            ? memo.IsTaskCommitPending || memo.IsLifecyclePending ? null : memo.CanRemind : false;
         mainWindow.Activated += OnMainWindowActivated;
         mainWindow.Closed += OnMainWindowClosed;
         mainWindow.DockContextMenuRequested += ShowSharedTrayMenu;
@@ -157,6 +168,7 @@ public partial class App : System.Windows.Application
     private MemoPopoutWindow? OpenMemoPopout(MemoItem memo, WpfPoint position, bool alwaysReuse, bool popOutFromDock = false)
     {
         ArgumentNullException.ThrowIfNull(memo);
+        if (memo.IsDeleted || memo.IsLifecyclePending) return null;
         if (_typedMainWindow is null)
         {
             return null;
@@ -201,12 +213,19 @@ public partial class App : System.Windows.Application
             memo,
             position,
             (item, content) => _typedMainWindow.ViewModel.UpdateItemAndSaveAsync(item.Id, content));
+        return RegisterMemoPopout(popout);
+    }
+
+    private MemoPopoutWindow RegisterMemoPopout(MemoPopoutWindow popout)
+    {
         popout.ApplySettings(_settings);
+        popout.ConfigureTaskService(_typedMainWindow!.ViewModel.Tasks);
         popout.ConfigureDockPopLengths(LoadPopoutDockPopLength, SavePopoutDockPopLength);
-        popout.ReminderRequested += OnReminderRequested;
+        popout.ConfigureReminderSaving(SaveReminderAsync);
+        popout.SetApplicationExitPending(_exitPromptPending);
         popout.Activated += OnPopoutActivated;
         popout.Closed += OnPopoutClosed;
-        memo.PopoutRefCount++;
+        popout.Memo.PopoutRefCount++;
         _memoPopouts.Add(popout);
         SetLatestMemoPopout(popout);
         popout.Show();
@@ -232,30 +251,6 @@ public partial class App : System.Windows.Application
             popOutFromDock);
     }
 
-    private void OnReminderRequested(MemoPopoutWindow popout, MemoItem memo)
-    {
-        SetLatestMemoPopout(popout);
-        OpenReminderWindow(popout, memo);
-    }
-
-    private void OpenReminderWindow(MemoPopoutWindow owner, MemoItem memo)
-    {
-        if (_reminderWindows.TryGetValue(memo.Id, out ReminderWindow? existing) && existing.IsVisible)
-        {
-            existing.Activate();
-            return;
-        }
-
-        ReminderWindow window = new(memo, SaveReminderAsync)
-        {
-            Owner = owner,
-            Topmost = owner.Topmost
-        };
-        _reminderWindows[memo.Id] = window;
-        window.Closed += (_, _) => _reminderWindows.Remove(memo.Id);
-        window.ShowDialog();
-    }
-
     private async Task SaveReminderAsync(MemoItem memo, DateTime? reminderAt)
     {
         if (_typedMainWindow is null)
@@ -263,8 +258,7 @@ public partial class App : System.Windows.Application
             throw new InvalidOperationException(LocalizationService.Get("提醒服务尚未就绪。"));
         }
 
-        memo.ReminderAt = reminderAt;
-        await _typedMainWindow.ViewModel.SaveAsync();
+        (await _typedMainWindow.ViewModel.Tasks.SetReminderAsync(memo.Id, reminderAt)).ThrowIfFailed();
     }
 
     private void StartReminderTimer()
@@ -301,7 +295,7 @@ public partial class App : System.Windows.Application
         _toastQueue.Pump(Utils.DateTimeUtils.Now);
     }
 
-    private void OnMemosLoaded() => CheckDueReminders();
+    private void OnMemosLoaded() { if (_reminderTimer is not null) CheckDueReminders(); }
 
     internal void CheckDueReminders()
     {
@@ -373,7 +367,7 @@ public partial class App : System.Windows.Application
         MemoItem? memo = memoId is { } id
             ? _typedMainWindow?.ViewModel.Memos.FirstOrDefault(item => item.Id == id)
             : null;
-        if (memo is not null)
+        if (memo?.CanRemind == true)
         {
             _ = OpenMemoPopoutCentered(memo, popOutFromDock: true);
             return;
@@ -400,7 +394,6 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        popout.ReminderRequested -= OnReminderRequested;
         popout.Activated -= OnPopoutActivated;
         popout.Closed -= OnPopoutClosed;
         if (_positionAnimations.Remove(popout, out FrameAnimation? animation))
@@ -448,16 +441,19 @@ public partial class App : System.Windows.Application
             popout.CloseBecauseSourceDeleted();
         }
 
-        if (_reminderWindows.Remove(memoId, out ReminderWindow? reminder))
-        {
-            reminder.CloseImmediatelyForTest();
-        }
+    }
+
+    private void OnTaskReminderCanceled(Guid memoId)
+    {
+        _toastQueue.Cancel(memoId);
+        foreach (MemoPopoutWindow popout in _memoPopouts.Where(window => window.Memo.Id == memoId).ToArray())
+            popout.InvalidateReminderForTask();
     }
 
     internal static MemoItem[] TakeDueReminders(IEnumerable<MemoItem> memos, DateTime now)
     {
         MemoItem[] dueMemos = memos
-            .Where(item => item.ReminderAt is { } reminderAt && reminderAt <= now)
+            .Where(item => item.CanRemind && item.ReminderAt is { } reminderAt && reminderAt <= now)
             .OrderBy(item => item.ReminderAt)
             .ToArray();
         foreach (MemoItem memo in dueMemos)
@@ -492,7 +488,8 @@ public partial class App : System.Windows.Application
             mainWindow,
             ToggleLatestTopmostTarget,
             ToggleLatestMemoTaskbarTarget,
-            AddQuickMemoFromClipboard);
+            AddQuickMemoFromClipboard,
+            OpenQuickAdd);
         if (_trayIcon is not null)
         {
             _trayIcon.TraySingleClickToShow = _settings.TraySingleClickToShow;
@@ -577,18 +574,19 @@ public partial class App : System.Windows.Application
 
     private void ToggleLatestTopmostTarget()
     {
-        _memoPopouts.RemoveAll(window => !window.IsVisible);
+        // Hidden popouts still own reminder sessions and must remain registered for exit/deletion.
+        MemoPopoutWindow[] visiblePopouts = _memoPopouts.Where(window => window.IsVisible).ToArray();
         _tutorialWindows.RemoveAll(window => !window.IsVisible);
-        if (_latestMemoWindow is MemoPopoutWindow latestPopout && !_memoPopouts.Contains(latestPopout))
+        if (_latestMemoWindow is MemoPopoutWindow latestPopout && !visiblePopouts.Contains(latestPopout))
         {
-            _latestMemoWindow = (Window?)_memoPopouts.LastOrDefault()
+            _latestMemoWindow = (Window?)visiblePopouts.LastOrDefault()
                 ?? (Window?)_tutorialWindows.LastOrDefault()
                 ?? _typedMainWindow;
         }
         else if (_latestMemoWindow is TutorialWindow latestTutorial && !_tutorialWindows.Contains(latestTutorial))
         {
             _latestMemoWindow = (Window?)_tutorialWindows.LastOrDefault()
-                ?? (Window?)_memoPopouts.LastOrDefault()
+                ?? (Window?)visiblePopouts.LastOrDefault()
                 ?? _typedMainWindow;
         }
 
@@ -597,7 +595,7 @@ public partial class App : System.Windows.Application
             case MainWindow mainWindow:
                 mainWindow.TogglePinned();
                 return;
-            case MemoPopoutWindow popout when _memoPopouts.Contains(popout):
+            case MemoPopoutWindow popout when visiblePopouts.Contains(popout):
                 popout.TogglePinned();
                 return;
             case TutorialWindow tutorial when _tutorialWindows.Contains(tutorial):
@@ -605,7 +603,7 @@ public partial class App : System.Windows.Application
                 return;
         }
 
-        if (_memoPopouts.LastOrDefault() is { } fallbackPopout)
+        if (visiblePopouts.LastOrDefault() is { } fallbackPopout)
         {
             fallbackPopout.TogglePinned();
             _latestMemoWindow = fallbackPopout;
@@ -623,10 +621,9 @@ public partial class App : System.Windows.Application
 
     private void ToggleLatestMemoTaskbarTarget()
     {
-        _memoPopouts.RemoveAll(window => !window.IsVisible);
-        if (_latestMemoPopout is null || !_memoPopouts.Contains(_latestMemoPopout))
+        if (_latestMemoPopout is null || !_latestMemoPopout.IsVisible || !_memoPopouts.Contains(_latestMemoPopout))
         {
-            _latestMemoPopout = _memoPopouts.LastOrDefault();
+            _latestMemoPopout = _memoPopouts.LastOrDefault(window => window.IsVisible);
         }
 
         _latestMemoPopout?.ToggleTaskbarIcon();
@@ -742,42 +739,15 @@ public partial class App : System.Windows.Application
 
     private void OpenSettings(WindowContext context)
     {
-        if (_typedMainWindow is null)
-        {
-            return;
-        }
-
-        if (_settingsWindow is { IsVisible: true })
-        {
-            _settingsWindow.Activate();
-            return;
-        }
-
+        if (_typedMainWindow is null) return;
         ISettingsRuntimeCoordinator coordinator = new DelegateSettingsRuntimeCoordinator(
-            PreviewSettings,
-            SaveSettingsAsync,
-            OpenTutorial,
-            ReportSettingsSaveFailure);
-        SettingsWindow settingsWindow = new(_settings, coordinator)
-        {
-            Owner = context.Window as Window ?? _typedMainWindow,
-            Topmost = _typedMainWindow.Topmost
-        };
-        _settingsWindow = settingsWindow;
-        settingsWindow.Closed += (_, _) =>
-        {
-            if (ReferenceEquals(_settingsWindow, settingsWindow))
+            PreviewSettings, SaveSettingsAsync, OpenTutorial, ReportSettingsSaveFailure,
+            active =>
             {
-                _settingsWindow = null;
-            }
-        };
-        // Settings is an owned modal surface in the source app. This also
-        // prevents a second settings instance from racing the live preview.
-        settingsWindow.ShowDialog();
-        if (ReferenceEquals(_settingsWindow, settingsWindow))
-        {
-            _settingsWindow = null;
-        }
+                _hotkeyService?.SetCaptureActive(active);
+                if (!active && _typedMainWindow is not null) ApplySystemSettings(_typedMainWindow);
+            });
+        _typedMainWindow.ShowSettingsAsync(coordinator).Observe();
     }
 
     private void PreviewSettings(AppSettings snapshot)
@@ -788,6 +758,7 @@ public partial class App : System.Windows.Application
         }
 
         AppSettings effective = MergeSettingsWithRuntime(snapshot);
+        _typedMainWindow.ViewModel.Tasks.Catalog.RepairDefault(effective);
         effective.CopyTo(_settings);
         ThemePreferences.ApplyMode(_settings.ThemeMode);
         MotionPreferences.ApplyMode(_settings.MotionMode);
@@ -796,6 +767,7 @@ public partial class App : System.Windows.Application
         {
             popout.ApplySettings(_settings);
         }
+        ApplySystemSettings(_typedMainWindow);
     }
 
     private async Task SaveSettingsAsync(AppSettings snapshot)
@@ -805,14 +777,16 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        PreviewSettings(snapshot);
-        ApplySystemSettings(_typedMainWindow);
-        await _settingsStorage.SaveAsync(_settings.Clone());
+        // Serial disk writes must not preview an older queued preference over a
+        // newer live edit. Only runtime geometry is merged at the time of writing.
+        AppSettings effective = MergeSettingsWithRuntime(snapshot);
+        _typedMainWindow.ViewModel.Tasks.Catalog.RepairDefault(effective);
+        await _settingsStorage.SaveAsync(effective);
     }
 
     private async Task SaveWindowStateAsync(AppSettings snapshot)
     {
-        snapshot.CopyTo(_settings);
+        snapshot.CopyMainWindowRuntimeStateTo(_settings);
         await _settingsStorage.SaveAsync(_settings.Clone());
     }
 
@@ -840,8 +814,10 @@ public partial class App : System.Windows.Application
         }
 
         Window owner = context.Window as Window ?? _typedMainWindow;
-        CloseActionDialog dialog = new();
-        CloseButtonAction? action = dialog.ShowDialog(owner);
+        int choice = await MemeMomo.UI.Notifications.WindowNotifications.ChooseAsync(owner,
+            LocalizationService.Get("点击右上角关闭按钮时，要最小化到托盘还是直接关闭应用？"),
+            LocalizationService.Get("取消"), LocalizationService.Get("最小化托盘"), LocalizationService.Get("关闭"));
+        CloseButtonAction? action = choice == 1 ? CloseButtonAction.MinimizeToTray : choice == 2 ? CloseButtonAction.Close : null;
         if (action is null)
         {
             return null;
@@ -854,49 +830,13 @@ public partial class App : System.Windows.Application
         return action;
     }
 
-    private AppSettings MergeSettingsWithRuntime(AppSettings requested)
-    {
-        AppSettings effective = requested.Clone();
-        int requestedDockSize = Math.Clamp(
-            effective.MainWindowDockSize,
-            AppSettings.MinimumMainWindowDockSize,
-            AppSettings.MaximumMainWindowDockSize);
-        bool requestedDockEnabled = effective.MainWindowDockEnabled;
-        _typedMainWindow!.CopyRuntimeWindowStateTo(effective);
-        // CopyRuntimeWindowStateTo also records the live dock handle size and
-        // enable state for shutdown persistence. During a settings preview,
-        // those two fields are user edits and must win over the old runtime
-        // snapshot captured when the window was opened.
-        effective.MainWindowDockSize = requestedDockSize;
-        effective.MainWindowDockEnabled = requestedDockEnabled;
-        if (!requestedDockEnabled)
-        {
-            effective.MainWindowDocked = false;
-        }
-
-        return effective;
-    }
+    private AppSettings MergeSettingsWithRuntime(AppSettings requested) => _typedMainWindow!.MergeSettingsWithRuntime(requested);
 
     private void ReportSettingsSaveFailure(Window owner, Exception exception)
     {
-        if (!owner.IsVisible || _settingsFailureDialogVisible)
-        {
-            UiExceptionReporter.Report(exception);
-            return;
-        }
-
-        _settingsFailureDialogVisible = true;
-        try
-        {
-            ConfirmDialog dialog = new(
-                LocalizationService.Get("保存设置失败"),
-                LocalizationService.Format("无法保存设置：{0}", exception.Message));
-            dialog.ShowDialog(owner);
-        }
-        finally
-        {
-            _settingsFailureDialogVisible = false;
-        }
+        (_settingsSaveFeedback ??= new(owner)).Show(
+            LocalizationService.Format("无法保存设置：{0}", exception.Message),
+            MemeMomo.UI.Notifications.NotificationKind.Error);
     }
 
     internal void OpenTutorial(AppSettings snapshot)
@@ -996,8 +936,32 @@ public partial class App : System.Windows.Application
         _latestMemoPopout = null;
     }
 
-    private void ExitApplication(int exitCode = 0)
+    private async void ExitApplication(int exitCode = 0)
     {
+        if (_exitPromptPending || Volatile.Read(ref _exitRequested) != 0) return;
+        _exitPromptPending = true;
+        MemoPopoutWindow[] popouts = _memoPopouts.ToArray();
+        bool prepared = false;
+        foreach (MemoPopoutWindow popout in popouts) popout.SetApplicationExitPending(true);
+        try
+        {
+            if (_typedMainWindow is not null) await _typedMainWindow.ViewModel.RecycleBin.WaitForIdleAsync();
+            if (!await WaitForPopoutRemindersAsync(popouts)) return;
+            MemoPopoutWindow? draft = _memoPopouts.FirstOrDefault(window => window.IsQuickAddDraft);
+            if (draft is not null && !await draft.RequestQuickAddCloseAsync()) return;
+            foreach (var popout in _memoPopouts.Where(window => !window.IsQuickAddDraft && window.IsEditorOwner).ToArray())
+                if (!await popout.Editor.CompleteEditingAsync()) return;
+            if (_typedMainWindow is not null && !await _typedMainWindow.SaveNormalSessionBeforeExitAsync()) return;
+            if (_typedMainWindow is not null) await _typedMainWindow.FlushSettingsForExitAsync();
+            prepared = true;
+        }
+        finally
+        {
+            _exitPromptPending = false;
+            if (!prepared)
+                foreach (MemoPopoutWindow popout in _memoPopouts.ToArray()) popout.SetApplicationExitPending(false);
+        }
+
         if (Interlocked.Exchange(ref _exitRequested, 1) != 0)
         {
             return;
@@ -1008,6 +972,14 @@ public partial class App : System.Windows.Application
         ThemePreferences.Shutdown();
         MotionPreferences.Shutdown();
         Shutdown(exitCode);
+    }
+
+    internal static async Task<bool> WaitForPopoutRemindersAsync(IEnumerable<MemoPopoutWindow> popouts)
+    {
+        bool success = true;
+        foreach (MemoPopoutWindow popout in popouts.ToArray())
+            success &= await popout.WaitForReminderSubmissionAsync();
+        return success;
     }
 
     private static void OnDispatcherUnhandledException(

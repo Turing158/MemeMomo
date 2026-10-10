@@ -1,0 +1,48 @@
+<UserControl x:Class="MemeMomo.Views.ReminderView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:MemeMomo.UI.Text"
+             xmlns:components="clr-namespace:MemeMomo.Components"
+             xmlns:layout="clr-namespace:MemeMomo.UI.Layout"
+             Focusable="False">
+  <UserControl.Resources>
+    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource EditorOverlayScrollBarStyle}" />
+    <DataTemplate x:Key="ReminderButtonLabel">
+      <TextBlock Text="{Binding}" TextWrapping="Wrap" TextAlignment="Center" />
+    </DataTemplate>
+    <Style x:Key="ReminderQuickButtonStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="4,4" />
+      <Setter Property="Margin" Value="3" />
+      <Setter Property="ContentTemplate" Value="{StaticResource ReminderButtonLabel}" />
+    </Style>
+  </UserControl.Resources>
+  <Grid Margin="12,10,12,12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <ScrollViewer x:Name="FormScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+      <StackPanel x:Name="ReminderForm" Margin="0,0,0,2">
+        <TextBlock x:Name="CurrentReminderText" Margin="0,0,0,10" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+        <Border Padding="10" Background="{DynamicResource SurfacePrimaryBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="12">
+          <StackPanel>
+            <layout:ReminderQuickTimesPanel x:Name="QuickTimesPanel" Margin="-3,-3,-3,0">
+              <Button Content="{loc:Localize '1分钟后'}" Tag="60" Style="{StaticResource ReminderQuickButtonStyle}" Click="OnQuickTimeClick" AutomationProperties.Name="{loc:Localize '设置为1分钟后'}" />
+              <Button Content="{loc:Localize '10分钟后'}" Tag="600" Style="{StaticResource ReminderQuickButtonStyle}" Click="OnQuickTimeClick" AutomationProperties.Name="{loc:Localize '设置为10分钟后'}" />
+              <Button Content="{loc:Localize '半小时后'}" Tag="1800" Style="{StaticResource ReminderQuickButtonStyle}" Click="OnQuickTimeClick" AutomationProperties.Name="{loc:Localize '设置为半小时后'}" />
+              <Button Content="{loc:Localize '1小时后'}" Tag="3600" Style="{StaticResource ReminderQuickButtonStyle}" Click="OnQuickTimeClick" AutomationProperties.Name="{loc:Localize '设置为1小时后'}" />
+            </layout:ReminderQuickTimesPanel>
+            <components:DateFieldSelector x:Name="DateField" Margin="0,10,0,0" SelectedDateChanged="OnSelectedDateChanged" AutomationProperties.Name="{loc:Localize '提醒日期'}" />
+            <components:TimeWheelSelector x:Name="TimeWheel" Margin="0,10,0,0" AutomationProperties.Name="{loc:Localize '提醒时间'}" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    <layout:ReminderActionsPanel x:Name="ActionsPanel" Grid.Row="1" Margin="0,8,0,0">
+      <Button x:Name="CancelReminderButton" Content="{loc:Localize '取消提醒'}" ContentTemplate="{StaticResource ReminderButtonLabel}" Visibility="Collapsed" MinHeight="34" Padding="12,4" Foreground="{DynamicResource DangerPrimaryBrush}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerPrimaryBrush}" BorderThickness="1" Click="OnCancelReminderClick" AutomationProperties.Name="{loc:Localize '取消当前提醒'}" />
+      <Button x:Name="CancelButton" Content="{loc:Localize '取消'}" ContentTemplate="{StaticResource ReminderButtonLabel}" MinHeight="34" Padding="12,4" Style="{StaticResource DialogSecondaryActionButtonStyle}" Click="OnCancelClick" AutomationProperties.Name="{loc:Localize '返回便签'}" />
+      <Button x:Name="ScheduleButton" Content="{loc:Localize '设置提醒'}" ContentTemplate="{StaticResource ReminderButtonLabel}" MinHeight="34" Padding="12,4" Style="{StaticResource DialogPrimaryActionButtonStyle}" Click="OnScheduleClick" />
+    </layout:ReminderActionsPanel>
+  </Grid>
+</UserControl>

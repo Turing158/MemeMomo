@@ -183,18 +183,26 @@ public partial class TimeWheelSelector : UserControl
         track.PreviewKeyDown += OnWheelKeyDown;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e) => ResumeInteraction();
+
+    internal void ResumeInteraction()
     {
-        _ownerWindow = Window.GetWindow(this);
+        Window? owner = Window.GetWindow(this);
+        if (ReferenceEquals(_ownerWindow, owner)) return;
+        if (_ownerWindow is not null) _ownerWindow.Deactivated -= OnOwnerDeactivated;
+        _ownerWindow = owner;
         if (_ownerWindow is not null)
         {
             _ownerWindow.Deactivated += OnOwnerDeactivated;
         }
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs e)
+    private void OnUnloaded(object sender, RoutedEventArgs e) => SuspendInteraction();
+
+    internal void SuspendInteraction()
     {
         CancelPointerInteraction();
+        if (Mouse.Captured is DependencyObject captured && IsAncestorOf(captured)) Mouse.Capture(null);
         StopWheelMotion(_hourWheel, snapToCenter: true);
         StopWheelMotion(_minuteWheel, snapToCenter: true);
         StopWheelMotion(_secondWheel, snapToCenter: true);

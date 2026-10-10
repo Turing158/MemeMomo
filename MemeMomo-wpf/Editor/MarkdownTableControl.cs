@@ -18,7 +18,7 @@ namespace MemeMomo.Editor;
 /// instance per table and hands the same element back every time AvalonEdit rebuilds the
 /// hosting visual line. Line rebuilds happen on every DesiredSize change — including a
 /// wrapped cell growing taller while the user types — and re-using the element keeps the
-/// focused TextBox, its caret, and an active IME composition alive across the rebuild;
+/// focused cell editor, its caret, and an active IME composition alive across the rebuild;
 /// removing and recreating the element would kick keyboard focus to the text area, which
 /// finalizes the composition into the document below the table and swallows keystrokes
 /// typed during the rebuild.
@@ -30,6 +30,8 @@ internal sealed class MarkdownTableControl : Border
     private const double TableMinimumColumnWidth = 72;
 
     private readonly AvalonEditMarkdownAdapter _adapter;
+    private readonly long _session;
+    private bool CanWrite => !_adapter.IsReadOnly && _session == _adapter.SessionVersion;
     private readonly int _tableOrdinal;
     private readonly TextView _textView;
     private readonly Grid _cellGrid = new();
@@ -40,7 +42,7 @@ internal sealed class MarkdownTableControl : Border
         IsHitTestVisible = false,
         Focusable = false
     };
-    private readonly Dictionary<(int Row, int Column), System.Windows.Controls.TextBox> _cells = new();
+    private readonly Dictionary<(int Row, int Column), MarkdownTableCell> _cells = new();
     private bool _syncing;
     private int _rowCount;
     private int _columnCount;
@@ -49,6 +51,7 @@ internal sealed class MarkdownTableControl : Border
     internal MarkdownTableControl(AvalonEditMarkdownAdapter adapter, int tableOrdinal)
     {
         _adapter = adapter;
+        _session = adapter.SessionVersion;
         _tableOrdinal = tableOrdinal;
         _textView = adapter.Editor.TextArea.TextView;
         Margin = new Thickness(2, 5, 2, 5);
@@ -64,8 +67,13 @@ internal sealed class MarkdownTableControl : Border
         {
             if (_cellGrid.RowDefinitions.Count == 0)
                 return;
+            // With no body rows, the header also owns the table's bottom inset and corners.
+            bool headerOnly = _rowCount == 1;
             _headerBackground.Width = _cellGrid.ActualWidth + TablePadding * 2;
-            _headerBackground.Height = _cellGrid.RowDefinitions[0].ActualHeight + TablePadding;
+            _headerBackground.Height = _cellGrid.RowDefinitions[0].ActualHeight + TablePadding * (headerOnly ? 2 : 1);
+            _headerBackground.CornerRadius = headerOnly
+                ? new CornerRadius(TableCornerRadius - 1)
+                : new CornerRadius(TableCornerRadius - 1, TableCornerRadius - 1, 0, 0);
             Canvas.SetLeft(_headerBackground, -TablePadding);
             Canvas.SetTop(_headerBackground, -TablePadding);
         };
@@ -85,7 +93,45 @@ internal sealed class MarkdownTableControl : Border
         Unloaded += (_, _) => _textView.SizeChanged -= OnTextViewSizeChanged;
     }
 
+    internal void UpdateReadOnly()
+    {
+        foreach (var cell in _cells.Values)
+        {
+            cell.IsReadOnly = !CanWrite;
+            InputMethod.SetIsInputMethodEnabled(cell, CanWrite);
+            if (!CanWrite && cell.ContextMenu is { } menu) ContextMenuAnimations.Close(menu, immediate: true);
+        }
+    }
+    internal void EndSession()
+    {
+        foreach (var cell in _cells.Values)
+        {
+            cell.IsReadOnly = true;
+            cell.MarkdownChanged -= OnCellTextChanged;
+            cell.Markdown = string.Empty;
+            cell.Select(0, 0);
+            cell.Document.UndoStack.ClearAll();
+            if (cell.ContextMenu is { } menu) ContextMenuAnimations.Close(menu, immediate: true);
+        }
+    }
     internal bool IsKeyboardFocusWithinTable => _cells.Values.Any(value => value.IsKeyboardFocusWithin);
+
+    protected override void OnPreviewMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnPreviewMouseWheel(e);
+        if (e.Handled)
+        {
+            return;
+        }
+
+        // Cell ScrollViewers consume wheel input even with scrolling disabled. Route
+        // it once from the outer TextView to preserve normal document scrolling.
+        e.Handled = true;
+        _textView.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = Mouse.MouseWheelEvent
+        });
+    }
 
     /// <summary>
     /// Re-reads the table's Markdown source and refreshes the cells. Called on every visual
@@ -148,9 +194,12 @@ internal sealed class MarkdownTableControl : Border
 
     private void AddCell(MarkdownTableEditor.Cell cell)
     {
-        System.Windows.Controls.TextBox textBox = new()
+        MarkdownTableCell textBox = new()
         {
+            IsReadOnly = !CanWrite,
             MinHeight = 30,
+            FontFamily = _adapter.Editor.FontFamily,
+            FontSize = _adapter.Editor.FontSize,
             Padding = new Thickness(6, 3, 6, 3),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(
@@ -158,9 +207,7 @@ internal sealed class MarkdownTableControl : Border
                 0,
                 cell.Column < _columnCount - 1 ? 1 : 0,
                 cell.Row < _rowCount - 1 ? 1 : 0),
-            Text = cell.Text,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
+            Markdown = cell.Text,
             Focusable = true,
             FocusVisualStyle = null,
             Tag = cell
@@ -169,7 +216,7 @@ internal sealed class MarkdownTableControl : Border
         MemeMomo.UI.Text.LocalizeExtension.Set(textBox, AutomationProperties.NameProperty, "表格第 {0} 行第 {1} 列", cell.Row + 1, cell.Column + 1);
         Grid.SetRow(textBox, cell.Row);
         Grid.SetColumn(textBox, cell.Column);
-        textBox.TextChanged += OnCellTextChanged;
+        textBox.MarkdownChanged += OnCellTextChanged;
         textBox.AddHandler(Keyboard.PreviewKeyDownEvent,
             new System.Windows.Input.KeyEventHandler(OnCellPreviewKeyDown), handledEventsToo: true);
         textBox.AddHandler(Keyboard.KeyDownEvent,
@@ -177,14 +224,19 @@ internal sealed class MarkdownTableControl : Border
         textBox.GotKeyboardFocus += OnCellGotKeyboardFocus;
         textBox.LostKeyboardFocus += OnCellLostKeyboardFocus;
         textBox.ContextMenu = CreateCellContextMenu(cell, textBox);
+        textBox.TextArea.CommandBindings.Insert(0, new CommandBinding(ApplicationCommands.Undo,
+            (_, args) => { _adapter.Editor.Document.UndoStack.Undo(); args.Handled = true; },
+            (_, args) => { args.CanExecute = _adapter.Editor.Document.UndoStack.CanUndo; args.Handled = true; }));
+        textBox.TextArea.CommandBindings.Insert(0, new CommandBinding(ApplicationCommands.Redo,
+            (_, args) => { _adapter.Editor.Document.UndoStack.Redo(); args.Handled = true; },
+            (_, args) => { args.CanExecute = _adapter.Editor.Document.UndoStack.CanRedo; args.Handled = true; }));
         _cellGrid.Children.Add(textBox);
         _cells[(cell.Row, cell.Column)] = textBox;
     }
 
     /// <summary>
-    /// Pushes source-driven cell text into the TextBoxes. The focused cell is never
-    /// rewritten: its live text is the source of truth while the user types, and rewriting
-    /// it would move the caret and finalize an active IME composition.
+    /// Pushes external source changes, including undo, into the existing cell editors.
+    /// Live typing already matches the source and does not rewrite the focused document.
     /// </summary>
     private void UpdateCellTexts(List<MarkdownTableEditor.Cell> cells)
     {
@@ -193,16 +245,15 @@ internal sealed class MarkdownTableControl : Border
         _syncing = true;
         try
         {
-            foreach (KeyValuePair<(int Row, int Column), System.Windows.Controls.TextBox> pair in _cells)
+            foreach (KeyValuePair<(int Row, int Column), MarkdownTableCell> pair in _cells)
             {
                 if (!latest.TryGetValue(pair.Key, out MarkdownTableEditor.Cell? updated))
                     continue;
                 pair.Value.Tag = updated;
-                if (!ReferenceEquals(Keyboard.FocusedElement, pair.Value) &&
-                    pair.Value.Text != updated.Text)
+                if (pair.Value.Markdown != updated.Text)
                 {
                     int caret = pair.Value.CaretIndex;
-                    pair.Value.Text = updated.Text;
+                    pair.Value.Markdown = updated.Text;
                     pair.Value.CaretIndex = Math.Min(caret, pair.Value.Text.Length);
                 }
             }
@@ -215,7 +266,7 @@ internal sealed class MarkdownTableControl : Border
 
     private (int Row, int Column, int Caret)? CaptureFocusedCell()
     {
-        foreach (KeyValuePair<(int Row, int Column), System.Windows.Controls.TextBox> pair in _cells)
+        foreach (KeyValuePair<(int Row, int Column), MarkdownTableCell> pair in _cells)
         {
             if (pair.Value.IsKeyboardFocusWithin)
             {
@@ -228,11 +279,11 @@ internal sealed class MarkdownTableControl : Border
     private void RestoreFocusedCell((int Row, int Column, int Caret)? target)
     {
         if (target is not { } focus ||
-            !_cells.TryGetValue((focus.Row, focus.Column), out System.Windows.Controls.TextBox? cell))
+            !_cells.TryGetValue((focus.Row, focus.Column), out MarkdownTableCell? cell))
         {
             return;
         }
-        Keyboard.Focus(cell);
+        cell.Focus();
         cell.CaretIndex = Math.Min(focus.Caret, cell.Text.Length);
     }
 
@@ -271,7 +322,7 @@ internal sealed class MarkdownTableControl : Border
             double widest = 0;
             for (int row = 0; row < _rowCount; row++)
             {
-                if (_cells.TryGetValue((row, column), out System.Windows.Controls.TextBox? cell))
+                if (_cells.TryGetValue((row, column), out MarkdownTableCell? cell))
                 {
                     widest = Math.Max(widest, MeasureSingleLineWidth(cell));
                 }
@@ -285,7 +336,7 @@ internal sealed class MarkdownTableControl : Border
         }
     }
 
-    private double MeasureSingleLineWidth(System.Windows.Controls.TextBox cell)
+    private double MeasureSingleLineWidth(MarkdownTableCell cell)
     {
         FormattedText text = new(
             cell.Text ?? string.Empty,
@@ -299,8 +350,9 @@ internal sealed class MarkdownTableControl : Border
             + cell.BorderThickness.Left + cell.BorderThickness.Right;
     }
 
-    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell, System.Windows.Controls.TextBox targetCell)
+    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell, MarkdownTableCell targetCell)
     {
+        if (!CanWrite) return EditorClipboardMenu.CreateReadOnly(targetCell.TextArea);
         ContextMenu menu = new()
         {
             Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuPresenterTheme") as Style
@@ -344,7 +396,7 @@ internal sealed class MarkdownTableControl : Border
         bool columnInsertAfter,
         bool columnDelete)
     {
-        if (CurrentTableSpan() is not { } table)
+        if (!CanWrite || CurrentTableSpan() is not { } table)
         {
             return;
         }
@@ -361,27 +413,28 @@ internal sealed class MarkdownTableControl : Border
         _adapter.ApplyEdit(new MarkdownEditResult(markdown, table.SourceStart, table.SourceStart));
     }
 
-    private void OnCellTextChanged(object? sender, TextChangedEventArgs args)
+    private void OnCellTextChanged(object? sender, EventArgs args)
     {
-        if (_syncing || sender is not System.Windows.Controls.TextBox { Tag: MarkdownTableEditor.Cell cell } textBox ||
-            textBox.Text == cell.Text)
+        if (!CanWrite || _syncing || sender is not MarkdownTableCell { Tag: MarkdownTableEditor.Cell cell } textBox ||
+            textBox.Markdown == cell.Text)
         {
             return;
         }
-        textBox.TextChanged -= OnCellTextChanged;
+        textBox.MarkdownChanged -= OnCellTextChanged;
         try
         {
-            ReplaceTableCell(cell, textBox.Text);
+            ReplaceTableCell(cell, textBox.Markdown);
         }
         finally
         {
-            textBox.TextChanged += OnCellTextChanged;
+            textBox.MarkdownChanged += OnCellTextChanged;
         }
         RecalculateColumnWidths();
     }
 
     private void ReplaceTableCell(MarkdownTableEditor.Cell cell, string value)
     {
+        if (!CanWrite) return;
         value = MarkdownTableEditor.NormalizeCellText(value);
         string oldTableSource = CurrentTableSource();
         MarkdownVisualSpan currentTable = CurrentTableSpan()
@@ -419,7 +472,7 @@ internal sealed class MarkdownTableControl : Border
         int replaceLength,
         int replacementLength)
     {
-        if (!_cells.TryGetValue((editedCell.Row, editedCell.Column), out System.Windows.Controls.TextBox? control))
+        if (!_cells.TryGetValue((editedCell.Row, editedCell.Column), out MarkdownTableCell? control))
         {
             return;
         }
@@ -445,7 +498,7 @@ internal sealed class MarkdownTableControl : Border
 
     private void RestoreTable(string tableSource)
     {
-        if (CurrentTableSpan() is not { } table)
+        if (!CanWrite || CurrentTableSpan() is not { } table)
         {
             return;
         }
@@ -465,6 +518,8 @@ internal sealed class MarkdownTableControl : Border
 
     private void OnCellGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs args)
     {
+        if (sender is MarkdownTableCell cell)
+            _adapter.ActiveTableCell = cell;
         _adapter.SetTableCellFocusVisual(true);
     }
 
@@ -478,11 +533,33 @@ internal sealed class MarkdownTableControl : Border
 
     private void OnCellPreviewKeyDown(object? sender, KeyEventArgs args)
     {
-        if (sender is not System.Windows.Controls.TextBox current)
+        if (!CanWrite) return;
+        if (sender is not MarkdownTableCell current)
         {
             return;
         }
 
+        if (args.KeyboardDevice.Modifiers == ModifierKeys.Control && args.Key is Key.B or Key.I)
+        {
+            current.ApplyFormat(args.Key == Key.B ? MarkdownFormatCommand.Bold : MarkdownFormatCommand.Italic);
+            args.Handled = true;
+            return;
+        }
+        if (args.KeyboardDevice.Modifiers == ModifierKeys.Control && args.Key == Key.K)
+        {
+            args.Handled = true;
+            _adapter.NotifyLinkEditRequested();
+            return;
+        }
+        if (args.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Control) && args.Key is Key.Z or Key.Y)
+        {
+            if (args.Key == Key.Y || args.KeyboardDevice.Modifiers.HasFlag(ModifierKeys.Shift))
+                _adapter.Editor.Document.UndoStack.Redo();
+            else
+                _adapter.Editor.Document.UndoStack.Undo();
+            args.Handled = true;
+            return;
+        }
         if (args.KeyboardDevice.Modifiers == ModifierKeys.None &&
             args.Key is Key.Up or Key.Down or Key.Left or Key.Right)
         {
@@ -497,15 +574,15 @@ internal sealed class MarkdownTableControl : Border
 
         if (args.Key == Key.Tab)
         {
-            List<System.Windows.Controls.TextBox> ordered = _cells
+            List<MarkdownTableCell> ordered = _cells
                 .OrderBy(pair => pair.Key.Row).ThenBy(pair => pair.Key.Column)
                 .Select(pair => pair.Value).ToList();
             int index = ordered.IndexOf(current);
             int next = index + (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1);
             if (next >= 0 && next < ordered.Count)
             {
-                System.Windows.Controls.TextBox target = ordered[next];
-                Keyboard.Focus(target);
+                MarkdownTableCell target = ordered[next];
+                target.Focus();
                 target.CaretIndex = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
                     ? target.Text.Length : 0;
             }
@@ -535,7 +612,7 @@ internal sealed class MarkdownTableControl : Border
         }
     }
 
-    private bool TryNavigateCell(System.Windows.Controls.TextBox current, Key key)
+    private bool TryNavigateCell(MarkdownTableCell current, Key key)
     {
         if (current.SelectionLength != 0 ||
             !_cells.ContainsValue(current))
@@ -544,7 +621,7 @@ internal sealed class MarkdownTableControl : Border
         }
 
         int row = Grid.GetRow(current);
-        List<System.Windows.Controls.TextBox> currentRow = CellsInRow(row);
+        List<MarkdownTableCell> currentRow = CellsInRow(row);
         int cellIndex = currentRow.IndexOf(current);
         int[] rows = _cells.Keys.Select(pair => pair.Row).Distinct().OrderBy(value => value).ToArray();
         int rowIndex = Array.IndexOf(rows, row);
@@ -567,7 +644,7 @@ internal sealed class MarkdownTableControl : Border
             return false;
         }
 
-        System.Windows.Controls.TextBox? target = null;
+        MarkdownTableCell? target = null;
         int targetCaret = 0;
         switch (key)
         {
@@ -608,7 +685,7 @@ internal sealed class MarkdownTableControl : Border
             case Key.Up:
                 if (rowIndex > 0)
                 {
-                    List<System.Windows.Controls.TextBox> previousRow = CellsInRow(rows[rowIndex - 1]);
+                    List<MarkdownTableCell> previousRow = CellsInRow(rows[rowIndex - 1]);
                     target = previousRow[Math.Min(cellIndex, previousRow.Count - 1)];
                     targetCaret = target.Text.Length;
                 }
@@ -621,7 +698,7 @@ internal sealed class MarkdownTableControl : Border
             case Key.Down:
                 if (rowIndex + 1 < rows.Length)
                 {
-                    List<System.Windows.Controls.TextBox> nextRow = CellsInRow(rows[rowIndex + 1]);
+                    List<MarkdownTableCell> nextRow = CellsInRow(rows[rowIndex + 1]);
                     target = nextRow[Math.Min(cellIndex, nextRow.Count - 1)];
                     targetCaret = 0;
                 }
@@ -641,40 +718,21 @@ internal sealed class MarkdownTableControl : Border
         return true;
     }
 
-    private List<System.Windows.Controls.TextBox> CellsInRow(int row) => _cells
+    private List<MarkdownTableCell> CellsInRow(int row) => _cells
             .Where(pair => pair.Key.Row == row)
             .OrderBy(pair => pair.Key.Column)
             .Select(pair => pair.Value)
             .ToList();
 
-    private static bool IsAtFirstVisualLine(System.Windows.Controls.TextBox cell) =>
-        GetCaretLine(cell) <= 0;
+    private static bool IsAtFirstVisualLine(MarkdownTableCell cell) => cell.IsCaretOnBoundaryLine(first: true);
 
-    private static bool IsAtLastVisualLine(System.Windows.Controls.TextBox cell)
-    {
-        int lineCount = Math.Max(1, cell.LineCount);
-        return GetCaretLine(cell) >= lineCount - 1;
-    }
+    private static bool IsAtLastVisualLine(MarkdownTableCell cell) => cell.IsCaretOnBoundaryLine(first: false);
 
-    private static int GetCaretLine(System.Windows.Controls.TextBox cell)
+    private static void FocusNavigatedCell(MarkdownTableCell target, int requestedCaret)
     {
-        try
-        {
-            return cell.GetLineIndexFromCharacterIndex(
-                Math.Clamp(cell.CaretIndex, 0, cell.Text.Length));
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return 0;
-        }
-    }
-
-    private static void FocusNavigatedCell(System.Windows.Controls.TextBox target, int requestedCaret)
-    {
-        Keyboard.Focus(target);
+        target.Focus();
         target.CaretIndex = Math.Clamp(requestedCaret, 0, target.Text.Length);
-        target.SelectionStart = target.CaretIndex;
-        target.SelectionLength = 0;
+        target.Select(target.CaretIndex, 0);
         target.BringIntoView();
     }
 

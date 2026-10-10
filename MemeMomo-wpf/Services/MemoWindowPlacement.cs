@@ -12,8 +12,8 @@ namespace MemeMomo.Services;
 /// </summary>
 public static class MemoWindowPlacement
 {
-    public const double DefaultWidthDip = 360;
-    public const double DefaultHeightDip = 280;
+    public const double DefaultWidthDip = 375;
+    public const double DefaultHeightDip = 375;
     public const double DefaultTitleBarHeightDip = 38;
     public const double DefaultMarginDip = 12;
     public const double DockedTabHeightDip = 28;

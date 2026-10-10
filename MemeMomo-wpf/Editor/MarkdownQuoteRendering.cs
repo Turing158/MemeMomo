@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.TextFormatting;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
@@ -9,6 +10,7 @@ using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
 using Brush = System.Windows.Media.Brush;
 using Pen = System.Windows.Media.Pen;
+using SystemColors = System.Windows.SystemColors;
 
 namespace MemeMomo.Editor;
 
@@ -35,45 +37,26 @@ internal sealed class MarkdownQuoteRenderer(Func<IReadOnlyList<MarkdownVisualSpa
             return;
         }
 
-        Brush background = FindBrush("MarkdownQuoteBackgroundBrush", Brushes.Linen);
-        Brush border = FindBrush("MarkdownQuoteBorderBrush", Brushes.Tan);
-        Brush accent = FindBrush("AccentPrimaryBrush", Brushes.Peru);
+        Brush background = FindBrush(textView, "MarkdownQuoteBackgroundBrush", Brushes.Linen);
+        Brush border = FindBrush(textView, "MarkdownQuoteBorderBrush", Brushes.Tan);
+        Brush accent = FindBrush(textView, "AccentPrimaryBrush", Brushes.Peru);
         Pen borderPen = new(border, 1);
 
         foreach (MarkdownVisualSpan span in spans().Where(value => value.Kind == MarkdownVisualKind.Quote))
         {
-            int startOffset = Math.Clamp(span.Start, 0, document.TextLength);
-            int endOffset = Math.Clamp(span.End, startOffset, document.TextLength);
-            int firstLine = document.GetLineByOffset(startOffset).LineNumber;
-            int lastLine = document.GetLineByOffset(endOffset).LineNumber;
-            VisualLine[] visibleLines = textView.VisualLines
-                .Where(line => line.LastDocumentLine.LineNumber >= firstLine &&
-                    line.FirstDocumentLine.LineNumber <= lastLine)
-                .ToArray();
-            if (visibleLines.Length == 0)
+            if (!TryGetCardBounds(textView, span, out Rect block))
+            {
+                continue;
+            }
+            // WPF centers the stroke on the geometry; keep it inside the clipped text view.
+            Rect borderBounds = block;
+            borderBounds.Inflate(-borderPen.Thickness / 2, -borderPen.Thickness / 2);
+            if (borderBounds.IsEmpty)
             {
                 continue;
             }
 
-            bool includesFirstLine = visibleLines.Any(line =>
-                line.FirstDocumentLine.LineNumber <= firstLine &&
-                line.LastDocumentLine.LineNumber >= firstLine);
-            bool includesLastLine = visibleLines.Any(line =>
-                line.FirstDocumentLine.LineNumber <= lastLine &&
-                line.LastDocumentLine.LineNumber >= lastLine);
-            double top = visibleLines.Min(line => line.VisualTop) - textView.VerticalOffset +
-                (includesFirstLine ? MarkdownQuoteSpacing.VerticalMargin : 0);
-            double bottom = visibleLines.Max(line => line.VisualTop + line.Height) -
-                textView.VerticalOffset -
-                (includesLastLine ? MarkdownQuoteSpacing.VerticalMargin : 0);
-            double width = textView.ActualWidth;
-            if (bottom <= top || width <= 0)
-            {
-                continue;
-            }
-
-            Rect block = new(0, top, width, bottom - top);
-            drawingContext.DrawRoundedRectangle(background, borderPen, block, CornerRadius, CornerRadius);
+            drawingContext.DrawRoundedRectangle(background, borderPen, borderBounds, CornerRadius, CornerRadius);
             double accentHeight = Math.Max(0, block.Height - (AccentInset * 2));
             if (accentHeight > 0)
             {
@@ -92,8 +75,41 @@ internal sealed class MarkdownQuoteRenderer(Func<IReadOnlyList<MarkdownVisualSpa
         }
     }
 
-    private static Brush FindBrush(string key, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    internal MarkdownVisualSpan? HitTest(TextView textView, System.Windows.Point point) => spans()
+        .Where(span => span.Kind == MarkdownVisualKind.Quote)
+        .OrderBy(span => span.Length)
+        .Where(span => TryGetCardBounds(textView, span, out Rect bounds) && bounds.Contains(point))
+        .Select(span => (MarkdownVisualSpan?)span)
+        .FirstOrDefault();
+
+    internal static bool TryGetCardBounds(TextView textView, MarkdownVisualSpan span, out Rect bounds)
+    {
+        bounds = default;
+        if (textView.Document is not { } document || !textView.VisualLinesValid) return false;
+        int startOffset = Math.Clamp(span.Start, 0, document.TextLength);
+        int endOffset = Math.Clamp(span.End, startOffset, document.TextLength);
+        int firstLine = document.GetLineByOffset(startOffset).LineNumber;
+        int lastLine = document.GetLineByOffset(endOffset).LineNumber;
+        VisualLine[] visibleLines = textView.VisualLines
+            .Where(line => line.LastDocumentLine.LineNumber >= firstLine &&
+                line.FirstDocumentLine.LineNumber <= lastLine)
+            .ToArray();
+        if (visibleLines.Length == 0) return false;
+        bool includesFirstLine = visibleLines.Any(line =>
+            line.FirstDocumentLine.LineNumber <= firstLine && line.LastDocumentLine.LineNumber >= firstLine);
+        bool includesLastLine = visibleLines.Any(line =>
+            line.FirstDocumentLine.LineNumber <= lastLine && line.LastDocumentLine.LineNumber >= lastLine);
+        double top = visibleLines.Min(line => line.VisualTop) - textView.VerticalOffset +
+            (includesFirstLine ? MarkdownQuoteSpacing.VerticalMargin : 0);
+        double bottom = visibleLines.Max(line => line.VisualTop + line.Height) - textView.VerticalOffset -
+            (includesLastLine ? MarkdownQuoteSpacing.VerticalMargin : 0);
+        if (bottom <= top || textView.ActualWidth <= 0) return false;
+        bounds = new Rect(0, top, textView.ActualWidth, bottom - top);
+        return true;
+    }
+
+    private static Brush FindBrush(TextView textView, string key, Brush fallback) =>
+        textView.TryFindResource(key) as Brush ?? fallback;
 }
 
 internal sealed class MarkdownQuotePaddingGenerator(
@@ -103,25 +119,28 @@ internal sealed class MarkdownQuotePaddingGenerator(
     public override int GetFirstInterestedOffset(int startOffset)
     {
         DocumentLine line = CurrentContext.VisualLine.FirstDocumentLine;
-        if (startOffset > line.Offset || QuoteForLine(line.Offset, line.EndOffset) is null)
+        if (QuoteForLine(line.Offset, line.EndOffset) is not { } quote)
         {
             return -1;
         }
-
-        return line.Offset;
+        if (startOffset <= line.Offset) return line.Offset;
+        return startOffset <= line.EndOffset && line.EndOffset >= quote.End ? line.EndOffset : -1;
     }
 
     public override VisualLineElement? ConstructElement(int offset)
     {
         DocumentLine line = CurrentContext.VisualLine.FirstDocumentLine;
         MarkdownVisualSpan? quote = QuoteForLine(line.Offset, line.EndOffset);
-        if (offset != line.Offset || quote is null)
+        if (quote is null || (offset != line.Offset && offset != line.EndOffset))
         {
             return null;
         }
 
-        bool hasTopSpacing = line.Offset <= quote.Value.Start;
-        bool hasBottomSpacing = line.EndOffset >= quote.Value.End;
+        bool isLeading = offset == line.Offset;
+        bool hasTopSpacing = isLeading && line.Offset <= quote.Value.Start;
+        // Bottom spacing belongs to the last formatted row, not the first row of a
+        // wrapped document line. Empty lines use the leading element for both sides.
+        bool hasBottomSpacing = (!isLeading || line.Length == 0) && line.EndOffset >= quote.Value.End;
         double topSpacing = hasTopSpacing
             ? MarkdownQuoteSpacing.VerticalMargin + MarkdownQuoteSpacing.VerticalPadding
             : 0;
@@ -130,7 +149,7 @@ internal sealed class MarkdownQuotePaddingGenerator(
             : 0;
         Border spacer = new()
         {
-            Width = MarkdownQuoteSpacing.HorizontalPadding,
+            Width = isLeading ? MarkdownQuoteSpacing.HorizontalPadding : 0,
             Height = textView.DefaultLineHeight + topSpacing + bottomSpacing,
             IsHitTestVisible = false,
             Focusable = false
@@ -140,7 +159,8 @@ internal sealed class MarkdownQuotePaddingGenerator(
             spacer,
             topSpacing,
             bottomSpacing,
-            textView.DefaultLineHeight);
+            textView.DefaultLineHeight,
+            isLeading);
     }
 
     private MarkdownVisualSpan? QuoteForLine(int lineStart, int lineEnd) => spans()
@@ -155,7 +175,8 @@ internal sealed class QuotePaddingElement(
     UIElement spacer,
     double topSpacing,
     double bottomSpacing,
-    double contentHeight) : InlineObjectElement(0, spacer)
+    double contentHeight,
+    bool isLeading) : InlineObjectElement(0, spacer)
 {
     internal double TopSpacing { get; } = topSpacing;
     internal double BottomSpacing { get; } = bottomSpacing;
@@ -163,14 +184,17 @@ internal sealed class QuotePaddingElement(
 
     public override bool HandlesLineBorders => true;
 
-    public override int GetVisualColumn(int relativeTextOffset) => VisualColumn + VisualLength;
+    public override TextRun CreateTextRun(int startVisualColumn, ITextRunConstructionContext context) =>
+        new QuotePaddingRun(VisualLength, TextRunProperties, Element);
+
+    public override int GetVisualColumn(int relativeTextOffset) => isLeading ? VisualColumn + VisualLength : VisualColumn;
 
     public override int GetNextCaretPosition(
         int visualColumn,
         System.Windows.Documents.LogicalDirection direction,
         CaretPositioningMode mode)
     {
-        int end = VisualColumn + VisualLength;
+        int end = isLeading ? VisualColumn + VisualLength : VisualColumn;
         if (direction == System.Windows.Documents.LogicalDirection.Forward && visualColumn < end)
         {
             return end;
@@ -185,6 +209,14 @@ internal sealed class QuotePaddingElement(
     }
 
     public override bool IsWhitespace(int visualColumn) => true;
+
+    private sealed class QuotePaddingRun(int length, TextRunProperties properties, UIElement element)
+        : InlineObjectRun(length, properties, element)
+    {
+        // A padding element must stay with the text instead of creating an empty wrapped row.
+        public override LineBreakCondition BreakBefore => LineBreakCondition.BreakRestrained;
+        public override LineBreakCondition BreakAfter => LineBreakCondition.BreakRestrained;
+    }
 }
 
 internal sealed class MarkdownSelectionRenderer(
@@ -194,6 +226,25 @@ internal sealed class MarkdownSelectionRenderer(
     Func<Brush> inlineCodeSelectionBrush) : IBackgroundRenderer
 {
     public KnownLayer Layer => KnownLayer.Selection;
+
+    internal static MarkdownSelectionRenderer Create(
+        ICSharpCode.AvalonEdit.TextEditor editor,
+        MarkdownDocumentModel model)
+    {
+        editor.TextArea.SetResourceReference(TextArea.SelectionForegroundProperty, "TextPrimaryBrush");
+        editor.TextArea.SelectionBrush = Brushes.Transparent;
+        editor.TextArea.SelectionBorder = null;
+        return new MarkdownSelectionRenderer(
+            editor.TextArea,
+            model,
+            () => editor.TryFindResource("TextSelectionBrush") as Brush
+                ?? (editor.TextArea.SelectionBrush is SolidColorBrush { Color.A: > 0 } currentSelection
+                    ? currentSelection
+                    : SystemColors.HighlightBrush),
+            () => editor.TryFindResource("MarkdownInlineCodeSelectionBrush") as Brush
+                ?? editor.TryFindResource("AccentPressedBrush") as Brush
+                ?? SystemColors.HighlightBrush);
+    }
 
     public void Draw(TextView textView, DrawingContext drawingContext)
     {
@@ -210,11 +261,12 @@ internal sealed class MarkdownSelectionRenderer(
 
         foreach (SelectionSegment segment in textArea.Selection.Segments)
         {
-            foreach (Rect rect in BackgroundGeometryBuilder.GetRectsForSegment(
+            foreach (Rect selectionRect in BackgroundGeometryBuilder.GetRectsForSegment(
                 textView,
                 segment,
                 textArea.Selection.EnableVirtualSpace))
             {
+                Rect rect = HtmlAlignmentLayout.ClipSelectionRect(textView, selectionRect);
                 if (!TryGetQuoteContentBounds(
                     textView,
                     rect.Top,
@@ -304,7 +356,7 @@ internal sealed class MarkdownSelectionRenderer(
 
             foreach (MarkdownVisualSpan span in model.Spans.Where(value =>
                          value.Kind == MarkdownVisualKind.Code &&
-                         MarkdownInlineCodeStyle.IsInlineCode(model, value)))
+                         MarkdownInlineCodeStyle.IsInlineCode(value)))
             {
                 int start = Math.Max(selection.StartOffset, span.Start);
                 int end = Math.Min(selection.EndOffset, span.End);
@@ -324,11 +376,12 @@ internal sealed class MarkdownSelectionRenderer(
                     double rightPadding = end == span.End
                         ? MarkdownInlineCodeStyle.HorizontalPadding
                         : 0;
+                    Rect content = MarkdownInlineCodeStyle.GetContentRect(textView, rect);
                     Rect padded = new(
-                        rect.Left - leftPadding,
-                        rect.Top - MarkdownInlineCodeStyle.VerticalPadding,
-                        rect.Width + leftPadding + rightPadding,
-                        rect.Height + MarkdownInlineCodeStyle.VerticalPadding * 2);
+                        content.Left - leftPadding,
+                        content.Top - MarkdownInlineCodeStyle.VerticalPadding,
+                        content.Width + leftPadding + rightPadding,
+                        content.Height + MarkdownInlineCodeStyle.VerticalPadding * 2);
                     drawingContext.DrawRoundedRectangle(
                         brush,
                         null,
@@ -423,6 +476,15 @@ internal sealed class MarkdownSelectionRenderer(
                 if (Math.Abs(lineTop - selectionTop) >= 0.01)
                 {
                     continue;
+                }
+
+                if (codeBlockPadding is null)
+                {
+                    contentLeft = horizontalPadding - textView.HorizontalOffset;
+                    contentTop = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextTop) - textView.VerticalOffset;
+                    contentHeight = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextBottom) -
+                        textView.VerticalOffset - contentTop;
+                    return true;
                 }
 
                 bool hasExpandedQuoteSpacing =

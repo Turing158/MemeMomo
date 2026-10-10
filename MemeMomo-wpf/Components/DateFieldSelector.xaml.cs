@@ -167,8 +167,11 @@ public partial class DateFieldSelector : WpfUserControl
 
     internal int DecadeStart => _decadeStart;
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private void OnLoaded(object sender, RoutedEventArgs e) => ResumeInteraction();
+
+    internal void ResumeInteraction()
     {
+        if (ReferenceEquals(_ownerWindow, Window.GetWindow(this)) && PopupAnimations.GetIsEnabled(CalendarPopup)) return;
         if (DisplayMonth == UnsetMonth)
         {
             SetCurrentValue(DisplayMonthProperty, MonthOf(SelectedDate ?? DateTime.Today));
@@ -182,6 +185,8 @@ public partial class DateFieldSelector : WpfUserControl
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e) => Teardown();
+
+    internal void SuspendInteraction() => Teardown();
 
     /// <summary>
     /// 关闭宿主窗口时 WPF 不保证给子元素发 Unloaded，只靠 Unloaded 会把弹窗的
@@ -223,6 +228,8 @@ public partial class DateFieldSelector : WpfUserControl
         {
             Field.ReleaseMouseCapture();
         }
+        if (Mouse.Captured is DependencyObject captured && (IsAncestorOf(captured) || CalendarSurface.IsAncestorOf(captured)))
+            Mouse.Capture(null);
 
         // 先复位组件状态，再关闭 Popup，避免 Closed 回调在卸载期间重新启动动画。
         IsDropDownOpen = false;

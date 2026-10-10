@@ -1,0 +1,33 @@
+<Button x:Class="MemeMomo.Components.RecycleBinClearButton"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:MemeMomo.UI"
+        Style="{StaticResource TitleBarButtonStyle}"
+        FocusVisualStyle="{StaticResource MemoFocusVisualStyle}"
+        Width="32" Height="32" Padding="0" FontSize="12"
+        HorizontalAlignment="Right" VerticalAlignment="Center"
+        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+        ui:InteractionState.IsDanger="True"
+        ui:InteractionAnimations.HoverBackground="{DynamicResource DangerSubtleBrush}"
+        ui:InteractionAnimations.PressedBackground="{DynamicResource DangerSubtleBrush}"
+        ToolTip="{Binding Label, RelativeSource={RelativeSource Self}}"
+        AutomationProperties.Name="{Binding Label, RelativeSource={RelativeSource Self}}">
+  <Grid IsHitTestVisible="False" VerticalAlignment="Center">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="20" />
+      <ColumnDefinition Width="Auto" />
+    </Grid.ColumnDefinitions>
+    <Viewbox x:Name="DangerIcon" Width="20" Height="20" VerticalAlignment="Center">
+      <Canvas Width="24" Height="24">
+        <Path Data="{DynamicResource ClearRecycleBinIcon}"
+              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+              StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+      </Canvas>
+    </Viewbox>
+    <Border x:Name="LabelClip" Grid.Column="1" Width="0" Opacity="0" ClipToBounds="True">
+      <TextBlock x:Name="LabelText" Text="{Binding Label, RelativeSource={RelativeSource AncestorType=Button}}"
+                 Margin="6,0,0,0" VerticalAlignment="Center"
+                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+    </Border>
+  </Grid>
+</Button>

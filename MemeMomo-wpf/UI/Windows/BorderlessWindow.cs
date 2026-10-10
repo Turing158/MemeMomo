@@ -85,6 +85,8 @@ public class BorderlessWindow : Window
     private bool _allowClose;
     private bool _closePending;
     private bool _shellBuilt;
+    private Grid? _notificationLayer;
+    private MemeMomo.Components.NotificationHost? _notificationHost;
     private int _disposed;
 
     public BorderlessWindow()
@@ -273,6 +275,7 @@ public class BorderlessWindow : Window
             UseAeroCaptionButtons = false
         };
         WindowChrome.SetWindowChrome(this, _chrome);
+        _behavior.Attach();
         if (UsePerPixelTransparency
             && PresentationSource.FromVisual(this) is HwndSource source)
         {
@@ -305,6 +308,7 @@ public class BorderlessWindow : Window
         object? body = Content;
         base.Content = null;
         Grid shellGrid = new();
+        _notificationLayer = shellGrid;
         _titleRow = new RowDefinition { Height = new GridLength(TitleBarHeight) };
         shellGrid.RowDefinitions.Add(_titleRow);
         shellGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -349,6 +353,7 @@ public class BorderlessWindow : Window
         AdornerDecorator decorator = new() { Child = content };
         Grid.SetRow(decorator, 1);
         shellGrid.Children.Add(decorator);
+        if (_notificationHost is not null) AttachNotificationHost();
 
         _shellContent = new Border
         {
@@ -369,6 +374,31 @@ public class BorderlessWindow : Window
         _transition.PrepareOpen();
         ApplyBuiltInTitleBarState();
         UpdatePinState();
+    }
+
+    internal MemeMomo.Components.NotificationHost GetNotificationHost()
+    {
+        if (_notificationHost is null)
+        {
+            _notificationHost = new MemeMomo.Components.NotificationHost();
+            if (_notificationLayer is not null) AttachNotificationHost();
+        }
+        return _notificationHost;
+    }
+
+    private void AttachNotificationHost()
+    {
+        Grid.SetRowSpan(_notificationHost!, 2);
+        System.Windows.Controls.Panel.SetZIndex(_notificationHost!, 1000);
+        WindowChrome.SetIsHitTestVisibleInChrome(_notificationHost!, true);
+        _notificationLayer!.Children.Add(_notificationHost!);
+    }
+
+    protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+    {
+        var host = FindName("Notifications") as MemeMomo.Components.NotificationHost ?? _notificationHost;
+        if (host?.HandlePromptKey(e) == true) return;
+        base.OnPreviewKeyDown(e);
     }
 
     private Button CreateTitleButton(string name, string iconKey, RoutedEventHandler click, bool danger = false)
@@ -418,6 +448,7 @@ public class BorderlessWindow : Window
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
+            _notificationHost?.Dispose();
             _transition?.Dispose();
             _transition = null;
             _behavior.Dispose();

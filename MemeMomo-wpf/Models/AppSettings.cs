@@ -9,7 +9,12 @@ public class AppSettings
     public const int DefaultMainWindowDockSize = 44;
 
     public AppLanguage Language { get; set; } = AppLanguage.ChineseSimplified;
+    [JsonConverter(typeof(MemoKindConverter))]
+    public MemoKind DefaultMemoKind { get; set; } = MemoKind.Note;
+    [JsonConverter(typeof(TaskReferenceConverter))]
+    public string DefaultTaskStatusId { get; set; } = TaskStatusDefinition.DefaultId;
     public ThemeMode ThemeMode { get; set; } = ThemeMode.FollowSystem;
+    public MemoColorPreset MemoBackgroundColor { get; set; } = MemoColorPreset.FollowTheme;
     public MotionMode MotionMode { get; set; } = MotionMode.FollowSystem;
     public CloseButtonAction CloseButtonAction { get; set; } = CloseButtonAction.MinimizeToTray;
     public bool HasAskedCloseButtonAction { get; set; }
@@ -18,6 +23,7 @@ public class AppSettings
     public HotkeySetting MinimizeHotkey { get; set; } = new() { Key = "M", Ctrl = true, Alt = true };
     public HotkeySetting ShowWindowHotkey { get; set; } = new() { Key = "N", Ctrl = true, Alt = true };
     public HotkeySetting QuickMemoHotkey { get; set; } = new() { Key = "C", Ctrl = true, Alt = true };
+    public HotkeySetting QuickAddHotkey { get; set; } = new() { Key = "Q", Ctrl = true, Alt = true };
     public bool QuickMemoEnabled { get; set; } = true;
     /// <summary>重复便签：关闭时如果已存在相同备忘录的窗体则移动位置，开启时总是创建新窗体。</summary>
     public bool DuplicateMemoEnabled { get; set; }
@@ -75,7 +81,10 @@ public class AppSettings
     {
         ArgumentNullException.ThrowIfNull(target);
         target.Language = Language;
+        target.DefaultMemoKind = DefaultMemoKind;
+        target.DefaultTaskStatusId = DefaultTaskStatusId;
         target.ThemeMode = ThemeMode;
+        target.MemoBackgroundColor = MemoBackgroundColor;
         target.MotionMode = MotionMode;
         target.CloseButtonAction = CloseButtonAction;
         target.HasAskedCloseButtonAction = HasAskedCloseButtonAction;
@@ -84,6 +93,7 @@ public class AppSettings
         target.MinimizeHotkey = MinimizeHotkey.Clone();
         target.ShowWindowHotkey = ShowWindowHotkey.Clone();
         target.QuickMemoHotkey = QuickMemoHotkey.Clone();
+        target.QuickAddHotkey = QuickAddHotkey.Clone();
         target.QuickMemoEnabled = QuickMemoEnabled;
         target.DuplicateMemoEnabled = DuplicateMemoEnabled;
         target.TraySingleClickToShow = TraySingleClickToShow;
@@ -123,7 +133,10 @@ public class AppSettings
     public AppSettings Clone() => new()
     {
         Language = Language,
+        DefaultMemoKind = DefaultMemoKind,
+        DefaultTaskStatusId = DefaultTaskStatusId,
         ThemeMode = ThemeMode,
+        MemoBackgroundColor = MemoBackgroundColor,
         MotionMode = MotionMode,
         CloseButtonAction = CloseButtonAction,
         HasAskedCloseButtonAction = HasAskedCloseButtonAction,
@@ -132,6 +145,7 @@ public class AppSettings
         MinimizeHotkey = MinimizeHotkey.Clone(),
         ShowWindowHotkey = ShowWindowHotkey.Clone(),
         QuickMemoHotkey = QuickMemoHotkey.Clone(),
+        QuickAddHotkey = QuickAddHotkey.Clone(),
         QuickMemoEnabled = QuickMemoEnabled,
         DuplicateMemoEnabled = DuplicateMemoEnabled,
         TraySingleClickToShow = TraySingleClickToShow,

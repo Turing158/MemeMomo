@@ -1,0 +1,26 @@
+<UserControl x:Class="MemeMomo.Components.NotificationHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False" ClipToBounds="True" IsVisibleChanged="OnHostVisibilityChanged">
+  <UserControl.Resources>
+    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource EditorOverlayScrollBarStyle}"/>
+  </UserControl.Resources>
+  <Grid>
+    <!-- Only the deck receives pointer input; the rest of the overlay passes through. -->
+    <ScrollViewer x:Name="DeckViewport" VerticalAlignment="Top" Margin="12,54,12,12"
+                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  HorizontalContentAlignment="Stretch" Focusable="False" Visibility="Collapsed"
+                  SizeChanged="OnViewportSizeChanged"
+                  MouseEnter="OnDeckMouseEnter" MouseLeave="OnDeckMouseLeave"
+                  IsKeyboardFocusWithinChanged="OnDeckFocusChanged">
+      <ScrollViewer.Clip><RectangleGeometry x:Name="DeckClip"/></ScrollViewer.Clip>
+      <Canvas x:Name="Deck" Background="Transparent" Margin="4"/>
+    </ScrollViewer>
+    <!-- Outgoing cards must clear the window edge, not the scroll viewport edge. -->
+    <Canvas x:Name="ExitLayer" Panel.ZIndex="1" IsHitTestVisible="False"/>
+    <Grid x:Name="PromptShield" Background="Transparent" Panel.ZIndex="2" Visibility="Collapsed"/>
+    <ScrollViewer x:Name="PromptViewport" Panel.ZIndex="3" VerticalAlignment="Top" Margin="16,54,16,12"
+                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                  HorizontalContentAlignment="Stretch" Visibility="Collapsed"/>
+  </Grid>
+</UserControl>

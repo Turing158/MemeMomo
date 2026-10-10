@@ -8,6 +8,7 @@ using System.Windows.Media.TextFormatting;
 using ICSharpCode.AvalonEdit;
 using ICSharpCode.AvalonEdit.Document;
 using ICSharpCode.AvalonEdit.Rendering;
+using Markdig.Syntax;
 using MemeMomo.Components.Dialogs;
 using MemeMomo.Markdown;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -27,6 +28,7 @@ internal sealed partial class MarkdownInputController : IDisposable
     private readonly Action _pasteImages;
     private bool _tableDeleteConfirmationPending;
     private int _disposed;
+    private readonly Func<long> _sessionVersion;
 
     /// <summary>表格删除确认钩子；未设置时弹出默认确认框。</summary>
     internal Func<Task<bool>>? TableDeleteConfirmationAsync { get; set; }
@@ -40,7 +42,7 @@ internal sealed partial class MarkdownInputController : IDisposable
         Action save,
         Action cancel,
         Action editLink,
-        Action pasteImages)
+        Action pasteImages, Func<long>? sessionVersion = null)
     {
         _editor = editor;
         _model = model;
@@ -51,6 +53,7 @@ internal sealed partial class MarkdownInputController : IDisposable
         _cancel = cancel;
         _editLink = editLink;
         _pasteImages = pasteImages;
+        _sessionVersion = sessionVersion ?? (() => 0);
         _editor.PreviewKeyDown += OnPreviewKeyDown;
     }
 
@@ -64,6 +67,7 @@ internal sealed partial class MarkdownInputController : IDisposable
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (_editor.IsReadOnly) return;
         // Inline table cells route preview keys through AvalonEdit before reaching their
         // TextBox. Let the focused cell own the key instead of acting on the hidden editor caret.
         if (IsTableCellInputFocused())
@@ -151,6 +155,11 @@ internal sealed partial class MarkdownInputController : IDisposable
             e.Handled = true;
             return;
         }
+        if ((e.Key == Key.Back || e.Key == Key.Delete) && TryDeleteEmptyQuotedLine(e.Key))
+        {
+            e.Handled = true;
+            return;
+        }
         if ((e.Key == Key.Back || e.Key == Key.Delete) && TableBeforeEmptyTrailingLine() is { } table)
         {
             _ = DeleteTableAfterConfirmationAsync(table);
@@ -174,6 +183,11 @@ internal sealed partial class MarkdownInputController : IDisposable
         }
         if (e.Key == Key.Enter && modifiers.HasFlag(ModifierKeys.Shift))
         {
+            if (modifiers == ModifierKeys.Shift && TryExitCodeBlock())
+            {
+                e.Handled = true;
+                return;
+            }
             // Shift+Enter 在列表项上断开列表（下方重头编号）；在列表续行上与 Enter
             // 一致地保留缩进。其余情况交给默认行为插入普通换行。
             if (_editor.SelectionLength == 0 && (TryBreakListAtCaret() || TryEnterOnListLine()))
@@ -189,7 +203,7 @@ internal sealed partial class MarkdownInputController : IDisposable
                 e.Handled = true;
                 return;
             }
-            if (TryContinueQuote() || TryEnterOnListLine())
+            if (TryEnterOnListLine() || TryContinueQuote())
             {
                 e.Handled = true;
             }
@@ -426,10 +440,8 @@ internal sealed partial class MarkdownInputController : IDisposable
         MarkdownDocumentModel model = _model();
         string markdown = model.Markdown;
         int source = model.SourceOffsetFromVisible(_editor.CaretOffset);
-        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', source);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        Match match = ListItemLine().Match(markdown[lineStart..lineEnd]);
+        var line = MarkdownListLine.Read(markdown, source);
+        Match match = ListItemLine().Match(line.Text);
         if (!match.Success)
         {
             return false;
@@ -444,7 +456,7 @@ internal sealed partial class MarkdownInputController : IDisposable
                 return false;
             }
             int width = match.Groups[4].Index;
-            ApplySource(markdown, lineStart, lineEnd, new string(' ', width), lineStart + width);
+            ApplySource(markdown, line.ContentStart, line.End, new string(' ', width), line.ContentStart + width);
             return true;
         }
 
@@ -455,7 +467,7 @@ internal sealed partial class MarkdownInputController : IDisposable
                 (int.Parse(value.Value, System.Globalization.CultureInfo.InvariantCulture) + 1)
                 .ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
-        string prefix = match.Groups[1].Value + marker + " " +
+        string prefix = line.QuotePrefix + match.Groups[1].Value + marker + " " +
             (match.Groups[3].Success ? "[ ] " : string.Empty);
         ApplySource(markdown, source, source, "\n" + prefix, source + prefix.Length + 1);
         return true;
@@ -467,23 +479,19 @@ internal sealed partial class MarkdownInputController : IDisposable
     /// </summary>
     private bool TryEnterOnListLine()
     {
+        if (_editor.SelectionLength != 0) return false;
         MarkdownDocumentModel model = _model();
         string markdown = model.Markdown;
         int source = model.SourceOffsetFromVisible(_editor.CaretOffset);
-        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', source);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        string line = markdown[lineStart..lineEnd];
+        var line = MarkdownListLine.Read(markdown, source);
 
-        if (_editor.SelectionLength == 0 &&
-            line.Length > 0 && line.All(char.IsWhiteSpace) &&
-            TryResumeListNumbering(markdown, lineStart, lineEnd))
+        if (line.Text.Length > 0 && line.Text.All(char.IsWhiteSpace) &&
+            TryResumeListNumbering(markdown, line))
         {
             return true;
         }
 
-        if (_editor.SelectionLength == 0 &&
-            TryContinueIndentedLine(markdown, lineStart, lineEnd, source))
+        if (TryContinueIndentedLine(markdown, line, source))
         {
             return true;
         }
@@ -495,14 +503,12 @@ internal sealed partial class MarkdownInputController : IDisposable
     /// 规则 3.4：空续行（只有占位空格、无内容）上按 Enter，退出续行模式，
     /// 该行原位恢复为上方列表项的下一个编号，继续编号列表。
     /// </summary>
-    private bool TryResumeListNumbering(string markdown, int lineStart, int lineEnd)
+    private bool TryResumeListNumbering(string markdown, MarkdownListLine line)
     {
-        int cursor = lineStart;
-        while (cursor > 0)
+        var previousLine = line;
+        while (previousLine.TryPrevious(markdown, out previousLine))
         {
-            int previousEnd = cursor - 1;
-            int previousStart = previousEnd == 0 ? 0 : markdown.LastIndexOf('\n', previousEnd - 1) + 1;
-            string previous = markdown[previousStart..previousEnd];
+            string previous = previousLine.Text;
             if (string.IsNullOrWhiteSpace(previous))
             {
                 return false;
@@ -512,7 +518,6 @@ internal sealed partial class MarkdownInputController : IDisposable
             {
                 if (previous[0] is ' ' or '\t')
                 {
-                    cursor = previousStart;
                     continue;
                 }
                 return false;
@@ -527,7 +532,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             }
             string prefix = match.Groups[1].Value + marker + " " +
                 (match.Groups[3].Success ? "[ ] " : string.Empty);
-            ApplySource(markdown, lineStart, lineEnd, prefix, lineStart + prefix.Length);
+            ApplySource(markdown, line.ContentStart, line.End, prefix, line.ContentStart + prefix.Length);
             return true;
         }
         return false;
@@ -537,9 +542,9 @@ internal sealed partial class MarkdownInputController : IDisposable
     /// 规则 3.3：有内容的续行上按 Enter，以上一行的位置为基准，新行行首沿用同样的
     /// 占位空格，继续作为上方序号的换行内容。
     /// </summary>
-    private bool TryContinueIndentedLine(string markdown, int lineStart, int lineEnd, int source)
+    private bool TryContinueIndentedLine(string markdown, MarkdownListLine context, int source)
     {
-        string line = markdown[lineStart..lineEnd];
+        string line = context.Text;
         if (line.Length == 0 || !char.IsWhiteSpace(line[0]) || string.IsNullOrWhiteSpace(line))
         {
             return false;
@@ -548,14 +553,12 @@ internal sealed partial class MarkdownInputController : IDisposable
         {
             return false;
         }
-        if (lineStart == 0)
+        if (!context.TryPrevious(markdown, out var previousLine))
         {
             return false;
         }
 
-        int previousEnd = lineStart - 1;
-        int previousStart = previousEnd == 0 ? 0 : markdown.LastIndexOf('\n', previousEnd - 1) + 1;
-        string previous = markdown[previousStart..previousEnd];
+        string previous = previousLine.Text;
         bool previousContinues = !string.IsNullOrWhiteSpace(previous) &&
             (ListItemLine().IsMatch(previous) || previous[0] is ' ' or '\t');
         if (!previousContinues)
@@ -563,7 +566,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             return false;
         }
 
-        string placeholder = line[..(line.Length - line.TrimStart().Length)];
+        string placeholder = context.QuotePrefix + line[..(line.Length - line.TrimStart().Length)];
         ApplySource(markdown, source, source, "\n" + placeholder, source + 1 + placeholder.Length);
         return true;
     }
@@ -581,33 +584,29 @@ internal sealed partial class MarkdownInputController : IDisposable
         MarkdownDocumentModel model = _model();
         string markdown = model.Markdown;
         int source = model.SourceOffsetFromVisible(_editor.CaretOffset);
-        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', source);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        string line = markdown[lineStart..lineEnd];
+        var context = MarkdownListLine.Read(markdown, source);
+        string line = context.Text;
         if (line.Length == 0 || line.Any(ch => !char.IsWhiteSpace(ch)))
         {
             return false;
         }
-        if (!IsInsideListItemContent(markdown, lineStart))
+        if (!IsInsideListItemContent(markdown, context.Start))
         {
             return false;
         }
 
-        int removeStart = lineStart > 0 ? lineStart - 1 : lineStart;
-        ApplySource(markdown, removeStart, lineEnd, string.Empty, removeStart);
+        int removeStart = context.Start > 0 ? context.Start - 1 : context.Start;
+        ApplySource(markdown, removeStart, context.End, string.Empty, removeStart);
         return true;
     }
 
     /// <summary>判断 lineStart 上方的上下文是否处于某个列表项的内容中（列表项或其缩进续行）。</summary>
     private static bool IsInsideListItemContent(string markdown, int lineStart)
     {
-        int cursor = lineStart;
-        while (cursor > 0)
+        var previousLine = MarkdownListLine.Read(markdown, lineStart);
+        while (previousLine.TryPrevious(markdown, out previousLine))
         {
-            int previousEnd = cursor - 1;
-            int previousStart = previousEnd == 0 ? 0 : markdown.LastIndexOf('\n', previousEnd - 1) + 1;
-            string previous = markdown[previousStart..previousEnd];
+            string previous = previousLine.Text;
             if (string.IsNullOrWhiteSpace(previous))
             {
                 return false;
@@ -620,7 +619,6 @@ internal sealed partial class MarkdownInputController : IDisposable
             {
                 return false;
             }
-            cursor = previousStart;
         }
         return false;
     }
@@ -639,10 +637,9 @@ internal sealed partial class MarkdownInputController : IDisposable
         MarkdownDocumentModel model = _model();
         string markdown = model.Markdown;
         int source = model.SourceOffsetFromVisible(_editor.CaretOffset);
-        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', source);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        Match match = ListItemLine().Match(markdown[lineStart..lineEnd]);
+        var context = MarkdownListLine.Read(markdown, source);
+        int lineEnd = context.End;
+        Match match = ListItemLine().Match(context.Text);
         if (!match.Success)
         {
             return false;
@@ -655,14 +652,14 @@ internal sealed partial class MarkdownInputController : IDisposable
         if (remainder.AsSpan().Trim().IsEmpty)
         {
             // 光标在内容末尾：换行后与原有分隔符组成空行，列表在此断开
-            head = "\n\n";
-            caret = source + 1;
+            head = "\n" + context.QuotePrefix + "\n";
+            caret = source + 1 + context.QuotePrefix.Length;
         }
         else
         {
             // 余下内容用与内容列等宽的空格缩进（不能用序号文本本身，否则会被当成新的列表项）
-            head = "\n" + new string(' ', contentIndent) + remainder + "\n\n";
-            caret = source + 1 + contentIndent;
+            head = "\n" + context.QuotePrefix + new string(' ', contentIndent) + remainder + "\n" + context.QuotePrefix + "\n";
+            caret = source + 1 + context.QuotePrefix.Length + contentIndent;
         }
 
         var tail = new StringBuilder();
@@ -673,15 +670,20 @@ internal sealed partial class MarkdownInputController : IDisposable
         int itemIndent = match.Groups[1].Length;
         while (cursor < markdown.Length)
         {
-            int walkEnd = markdown.IndexOf('\n', cursor);
-            bool hasBreak = walkEnd >= 0;
-            if (!hasBreak) walkEnd = markdown.Length;
-            string line = markdown[cursor..walkEnd];
+            var nextLine = MarkdownListLine.Read(markdown, cursor);
+            int walkEnd = nextLine.End;
+            bool hasBreak = walkEnd < markdown.Length;
+            if (nextLine.QuoteDepth != context.QuoteDepth)
+            {
+                replaceStop = cursor;
+                break;
+            }
+            string line = nextLine.Text;
             Match item = ListItemLine().Match(line);
             if (item.Success && item.Groups[1].Length == itemIndent &&
                 char.IsDigit(item.Groups[2].Value[0]) && item.Groups[2].Value[^1] == delimiter)
             {
-                tail.Append(match.Groups[1].Value)
+                tail.Append(nextLine.QuotePrefix).Append(match.Groups[1].Value)
                     .Append(counter.ToString(System.Globalization.CultureInfo.InvariantCulture))
                     .Append(delimiter).Append(' ')
                     .Append(item.Groups[3].Success ? "[ ] " : string.Empty)
@@ -690,7 +692,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             }
             else if (string.IsNullOrWhiteSpace(line) || line[0] is ' ' or '\t')
             {
-                tail.Append(line);
+                tail.Append(nextLine.QuotePrefix).Append(line);
             }
             else
             {
@@ -726,14 +728,14 @@ internal sealed partial class MarkdownInputController : IDisposable
         {
             return false;
         }
-        int lineStart = sourceStart == 0 ? 0 : markdown.LastIndexOf('\n', sourceStart - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', sourceStart);
-        if (lineEnd < 0) lineEnd = markdown.Length;
+        var context = MarkdownListLine.Read(markdown, sourceStart);
+        int lineStart = context.ContentStart;
+        int lineEnd = context.End;
         if (sourceEnd > lineEnd)
         {
             return false;
         }
-        string line = markdown[lineStart..lineEnd];
+        string line = context.Text;
         if (line.Length == 0 || !char.IsWhiteSpace(line[0]) ||
             string.IsNullOrWhiteSpace(line) || ListItemLine().IsMatch(line))
         {
@@ -762,11 +764,55 @@ internal sealed partial class MarkdownInputController : IDisposable
         return true;
     }
 
+    private bool TryDeleteEmptyQuotedLine(Key key)
+    {
+        int selectionLength = _editor.SelectionLength;
+        if (selectionLength > 1)
+        {
+            return false;
+        }
+
+        int lineBreak = selectionLength == 1
+            ? _editor.SelectionStart
+            : _editor.CaretOffset - (key == Key.Back ? 1 : 0);
+        MarkdownDocumentModel model = _model();
+        if (lineBreak < 0 || lineBreak >= model.VisibleText.Length || model.VisibleText[lineBreak] != '\n')
+        {
+            return false;
+        }
+        DocumentLine nextLine = _editor.Document.GetLineByOffset(lineBreak + 1);
+        if (nextLine.Length != 0)
+        {
+            return false;
+        }
+
+        string markdown = model.Markdown;
+        var line = MarkdownListLine.Read(markdown,
+            model.SourceOffsetFromVisible(nextLine.Offset, trailingAffinity: true));
+        if (line.QuoteDepth == 0 || !line.TryPrevious(markdown, out _) ||
+            model.VisibleOffsetFromSource(line.Start - 1) != lineBreak)
+        {
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(line.Text) &&
+            !(EmptyHeadingLine().IsMatch(line.Text) && model.IsHeadingOnSourceLine(line.Start, line.End)))
+        {
+            return false;
+        }
+
+        // Delete the empty line together with its hidden quote/heading prefixes.
+        // A source edit also restores those prefixes on undo; deleting only the
+        // visible newline would append the heading marker to the previous line.
+        int start = line.Start - 1;
+        ApplySource(markdown, start, line.End, string.Empty, start);
+        return true;
+    }
+
     private bool TryContinueQuote()
     {
         if (_editor.SelectionLength != 0)
         {
-            return false;
+            return TryReplaceSelectedQuoteLine();
         }
 
         MarkdownDocumentModel model = _model();
@@ -781,14 +827,63 @@ internal sealed partial class MarkdownInputController : IDisposable
             return false;
         }
 
+        if (EmptyHeadingLine().IsMatch(match.Groups[2].Value) && model.IsHeadingOnSourceLine(lineStart, lineEnd))
+        {
+            // An empty heading becomes an ordinary quote line first; a subsequent
+            // Enter can leave the empty quote through the existing rule below.
+            int contentStart = lineStart + match.Groups[2].Index;
+            ApplySource(markdown, contentStart, lineEnd, string.Empty, contentStart);
+            return true;
+        }
+
         if (string.IsNullOrWhiteSpace(match.Groups[2].Value))
         {
             ApplySource(markdown, lineStart, lineEnd, string.Empty, lineStart);
             return true;
         }
 
+        // At the visible line end, finish any hidden inline closing markers before
+        // continuing the quote. Splitting before </u>/~~ leaves the new prefix
+        // inside the old formatting run and corrupts subsequent format toggles.
+        if (_editor.CaretOffset == model.VisibleOffsetFromSource(lineEnd))
+            source = lineEnd;
+        else
+            source = Math.Max(source, lineStart + match.Groups[2].Index);
+
         string prefix = match.Groups[1].Value + "> ";
         ApplySource(markdown, source, source, "\n" + prefix, source + prefix.Length + 1);
+        return true;
+    }
+
+    private bool TryReplaceSelectedQuoteLine()
+    {
+        MarkdownDocumentModel model = _model();
+        int start = _editor.SelectionStart;
+        int end = start + _editor.SelectionLength;
+        if (!model.Spans.Any(span => span.Kind == MarkdownVisualKind.Quote &&
+                start >= span.Start && end <= span.End + 1))
+            return false;
+
+        string markdown = model.Markdown;
+        int source = model.SourceOffsetFromVisible(start);
+        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
+        int lineEnd = markdown.IndexOf('\n', source);
+        if (lineEnd < 0) lineEnd = markdown.Length;
+        Match match = QuoteItemLine().Match(markdown[lineStart..lineEnd]);
+        if (!match.Success) return false;
+
+        int contentStart = lineStart + match.Groups[2].Index;
+        int visibleLineEnd = model.VisibleOffsetFromSource(lineEnd);
+        bool includesLineBreak = end == visibleLineEnd + 1 && lineEnd < markdown.Length;
+        if (start != model.VisibleOffsetFromSource(contentStart) ||
+            end != visibleLineEnd && !includesLineBreak)
+            return false;
+
+        // Replace the complete source content, including its inline wrappers, in one
+        // undoable edit. A selected existing line break already supplies the new line.
+        string replacement = includesLineBreak ? string.Empty : "\n" + match.Groups[1].Value + "> ";
+        int caret = contentStart + (includesLineBreak ? 1 : replacement.Length);
+        ApplySource(markdown, contentStart, lineEnd, replacement, caret);
         return true;
     }
 
@@ -808,10 +903,10 @@ internal sealed partial class MarkdownInputController : IDisposable
         string markdown = model.Markdown;
         int visibleCaret = _editor.CaretOffset;
         int visibleLineStart = _editor.Document.GetLineByOffset(visibleCaret).Offset;
-        int lineStart = model.SourceOffsetFromVisible(visibleLineStart, trailingAffinity: false);
-        int lineEnd = markdown.IndexOf('\n', lineStart);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        Match match = ListItemLine().Match(markdown[lineStart..lineEnd]);
+        var context = MarkdownListLine.Read(markdown, model.SourceOffsetFromVisible(visibleLineStart, trailingAffinity: false));
+        int lineStart = context.ContentStart;
+        int lineEnd = context.End;
+        Match match = ListItemLine().Match(context.Text);
         if (!match.Success)
         {
             return false;
@@ -829,7 +924,15 @@ internal sealed partial class MarkdownInputController : IDisposable
         if (string.IsNullOrWhiteSpace(match.Groups[4].Value))
         {
             // 空列表项上按 Backspace：整行连同相邻换行一起删除，退出列表。
-            int removeStart = lineStart > 0 ? lineStart - 1 : lineStart;
+            if (context.QuoteDepth > 0)
+            {
+                // Keep the next quoted line separate, and keep the outer quote when
+                // this is its first item instead of joining it to the preceding block.
+                int start = context.TryPrevious(markdown, out _) ? context.Start - 1 : context.ContentStart;
+                ApplySource(markdown, start, lineEnd, string.Empty, start, lineStart);
+                return true;
+            }
+            int removeStart = context.Start > 0 ? context.Start - 1 : context.Start;
             int removeEnd = lineEnd < markdown.Length && markdown[lineEnd] == '\n'
                 ? lineEnd + 1
                 : lineEnd;
@@ -860,10 +963,9 @@ internal sealed partial class MarkdownInputController : IDisposable
         {
             return false;
         }
-        int lineStart = model.SourceOffsetFromVisible(visibleLineStart, trailingAffinity: false);
-        int lineEnd = markdown.IndexOf('\n', lineStart);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        string line = markdown[lineStart..lineEnd];
+        var context = MarkdownListLine.Read(markdown, model.SourceOffsetFromVisible(visibleLineStart, trailingAffinity: false));
+        int lineStart = context.ContentStart;
+        string line = context.Text;
         // 空续行交给规则 4（连同换行一起删除），列表项行由列表占位符处理。
         if (line.Length == 0 || !char.IsWhiteSpace(line[0]) ||
             string.IsNullOrWhiteSpace(line) || ListItemLine().IsMatch(line))
@@ -897,12 +999,10 @@ internal sealed partial class MarkdownInputController : IDisposable
     /// </summary>
     private static int? ListContentColumn(string markdown, int lineStart)
     {
-        int cursor = lineStart;
-        while (cursor > 0)
+        var previousLine = MarkdownListLine.Read(markdown, lineStart);
+        while (previousLine.TryPrevious(markdown, out previousLine))
         {
-            int previousEnd = cursor - 1;
-            int previousStart = previousEnd == 0 ? 0 : markdown.LastIndexOf('\n', previousEnd - 1) + 1;
-            string previous = markdown[previousStart..previousEnd];
+            string previous = previousLine.Text;
             if (string.IsNullOrWhiteSpace(previous))
             {
                 return null;
@@ -916,7 +1016,6 @@ internal sealed partial class MarkdownInputController : IDisposable
             {
                 return null;
             }
-            cursor = previousStart;
         }
         return null;
     }
@@ -946,10 +1045,9 @@ internal sealed partial class MarkdownInputController : IDisposable
         DocumentLine lastLine = _editor.Document.GetLineByOffset(Math.Max(visibleStart, visibleEnd - 1));
         while (line is not null)
         {
-            int lineStart = model.SourceOffsetFromVisible(line.Offset, trailingAffinity: false);
-            int lineEnd = markdown.IndexOf('\n', lineStart);
-            if (lineEnd < 0) lineEnd = markdown.Length;
-            Match match = ListItemLine().Match(markdown[lineStart..lineEnd]);
+            var context = MarkdownListLine.Read(markdown, model.SourceOffsetFromVisible(line.Offset, trailingAffinity: false));
+            int lineStart = context.ContentStart;
+            Match match = ListItemLine().Match(context.Text);
             if (match.Success)
             {
                 int contentStartVisible = model.VisibleOffsetFromSource(lineStart + match.Groups[4].Index);
@@ -976,7 +1074,41 @@ internal sealed partial class MarkdownInputController : IDisposable
         }
         // 占位符的可见字符映射到整段前缀，但行首缩进逐字可见：吸收缩进，保证整体删除。
         sourceStart = Math.Min(sourceStart, undoCaret);
+        var firstLine = MarkdownListLine.Read(markdown, sourceStart);
+        if (firstLine.QuoteDepth > 0) sourceStart = Math.Max(firstLine.ContentStart, sourceStart);
         ApplySource(markdown, sourceStart, sourceEnd, string.Empty, sourceStart, undoCaret);
+        return true;
+    }
+
+    private bool TryExitCodeBlock()
+    {
+        MarkdownDocumentModel model = _model();
+        int selectionStart = _editor.SelectionStart;
+        int selectionEnd = selectionStart + _editor.SelectionLength;
+        MarkdownVisualSpan? candidate = model.Spans
+            .Where(span => span.Kind == MarkdownVisualKind.CodeBlock &&
+                selectionStart >= span.Start && selectionEnd <= span.End)
+            .Select(span => (MarkdownVisualSpan?)span)
+            .FirstOrDefault();
+        if (candidate is not { } codeBlock ||
+            model.Ast.OfType<CodeBlock>().FirstOrDefault(block => block.Span.Start == codeBlock.SourceStart) is not { } block)
+        {
+            return false;
+        }
+
+        int end = codeBlock.SourceStart + codeBlock.SourceLength;
+        string replacement = "\n";
+        if (block is FencedCodeBlock { ClosingFencedCharCount: 0 } fence)
+        {
+            // An unterminated fence owns the remaining document. Close it before
+            // creating the outside line, preserving its marker type and length.
+            replacement = "\n" + new string(fence.FencedChar, fence.OpeningFencedCharCount) + "\n";
+        }
+
+        // Insert after the whole block, regardless of the caret's position inside
+        // it. Existing text or blank lines below the block move down one line.
+        ApplySource(model.Markdown, end, end, replacement, end + replacement.Length);
+        _editor.ScrollToLine(_editor.TextArea.Caret.Line);
         return true;
     }
 
@@ -1034,10 +1166,9 @@ internal sealed partial class MarkdownInputController : IDisposable
         MarkdownDocumentModel model = _model();
         string markdown = model.Markdown;
         int source = model.SourceOffsetFromVisible(_editor.CaretOffset);
-        int lineStart = source == 0 ? 0 : markdown.LastIndexOf('\n', source - 1) + 1;
-        int lineEnd = markdown.IndexOf('\n', lineStart);
-        if (lineEnd < 0) lineEnd = markdown.Length;
-        if (!ListItemLine().IsMatch(markdown[lineStart..lineEnd]))
+        var context = MarkdownListLine.Read(markdown, source);
+        int lineStart = context.ContentStart;
+        if (!ListItemLine().IsMatch(context.Text))
         {
             return false;
         }
@@ -1086,15 +1217,18 @@ internal sealed partial class MarkdownInputController : IDisposable
 
     private async Task DeleteTableAfterConfirmationAsync(MarkdownVisualSpan table)
     {
+        if (_editor.IsReadOnly) return;
         if (_tableDeleteConfirmationPending)
         {
             return;
         }
 
         _tableDeleteConfirmationPending = true;
+        long session = _sessionVersion();
+        string source = _model().Markdown;
         try
         {
-            if (await ConfirmTableDeletionAsync())
+            if (await ConfirmTableDeletionAsync() && !_editor.IsReadOnly && session == _sessionVersion() && source == _model().Markdown)
             {
                 DeleteTable(_model(), table);
             }
@@ -1118,8 +1252,7 @@ internal sealed partial class MarkdownInputController : IDisposable
             return Task.FromResult(false);
         }
 
-        ConfirmDialog dialog = new(LocalizationService.Get("删除表格"), LocalizationService.Get("此空行是表格的结束位置。继续删除将删除整个表格，是否确认？"));
-        return Task.FromResult(dialog.ShowDialog(owner));
+        return MemeMomo.UI.Notifications.WindowNotifications.ConfirmAsync(owner, LocalizationService.Get("删除表格"), LocalizationService.Get("此空行是表格的结束位置。继续删除将删除整个表格，是否确认？"));
     }
 
     private void DeleteTable(MarkdownDocumentModel model, MarkdownVisualSpan table)
@@ -1180,4 +1313,7 @@ internal sealed partial class MarkdownInputController : IDisposable
 
     [GeneratedRegex(@"^([ \t]*)>[ \t]?(.*)$")]
     private static partial Regex QuoteItemLine();
+
+    [GeneratedRegex(@"^[ \t]{0,3}#{1,6}[ \t]*$")]
+    private static partial Regex EmptyHeadingLine();
 }

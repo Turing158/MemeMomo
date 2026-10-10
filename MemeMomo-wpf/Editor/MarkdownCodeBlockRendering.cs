@@ -43,9 +43,9 @@ internal sealed class MarkdownCodeBlockRenderer(MarkdownDocumentModel model) : I
             return;
         }
 
-        Brush background = FindBrush("MarkdownCodeBlockBackgroundBrush", Brushes.LightSteelBlue);
-        Brush border = FindBrush("MarkdownCodeBlockBorderBrush", Brushes.SlateGray);
-        Brush labelForeground = FindBrush("TextSecondaryBrush", Brushes.DimGray);
+        Brush background = FindBrush(textView, "MarkdownCodeBlockBackgroundBrush", Brushes.LightSteelBlue);
+        Brush border = FindBrush(textView, "MarkdownCodeBlockBorderBrush", Brushes.SlateGray);
+        Brush labelForeground = FindBrush(textView, "TextSecondaryBrush", Brushes.DimGray);
         Pen borderPen = new(border, 1);
 
         foreach (MarkdownVisualSpan span in model.Spans.Where(value => value.Kind == MarkdownVisualKind.CodeBlock))
@@ -55,10 +55,18 @@ internal sealed class MarkdownCodeBlockRenderer(MarkdownDocumentModel model) : I
                 continue;
             }
 
+            // Inset only the drawing geometry so the stroke fits without moving labels or hit targets.
+            Rect borderBounds = layout.Bounds;
+            borderBounds.Inflate(-borderPen.Thickness / 2, -borderPen.Thickness / 2);
+            if (borderBounds.IsEmpty)
+            {
+                continue;
+            }
+
             drawingContext.DrawRoundedRectangle(
                 background,
                 borderPen,
-                layout.Bounds,
+                borderBounds,
                 MarkdownCodeBlockStyle.CornerRadius,
                 MarkdownCodeBlockStyle.CornerRadius);
 
@@ -131,8 +139,8 @@ internal sealed class MarkdownCodeBlockRenderer(MarkdownDocumentModel model) : I
         return bounds.Width > 0;
     }
 
-    private static Brush FindBrush(string key, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    private static Brush FindBrush(TextView textView, string key, Brush fallback) =>
+        textView.TryFindResource(key) as Brush ?? fallback;
 }
 
 internal static class MarkdownCodeBlockLayoutCalculator

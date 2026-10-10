@@ -1,108 +1,99 @@
-using System.ComponentModel;
+using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using MemeMomo.Components;
-using MemeMomo.Components.Dialogs;
 using MemeMomo.Infrastructure;
 using MemeMomo.Models;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Animation;
-using MemeMomo.UI.Windows;
+using MemeMomo.UI.Notifications;
+using MemeMomo.UI.Layout;
+using MemeMomo.ViewModels;
+using UserControl = System.Windows.Controls.UserControl;
 
 namespace MemeMomo.Views;
 
 using WpfButton = System.Windows.Controls.Button;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 
-public partial class SettingsWindow : BorderlessWindow
+public partial class SettingsView : UserControl, IDisposable
 {
-    private AppSettings _settings = AppSettings.CreateDefault();
-    private ISettingsRuntimeCoordinator _coordinator = new DelegateSettingsRuntimeCoordinator(
-        static _ => { },
-        static _ => Task.CompletedTask);
-    private readonly object _saveLock = new();
-    private Task _saveChain = Task.CompletedTask;
-    private bool _applyingUi;
-    private bool _closingAfterFlush;
+    private readonly Window _owner;
+    private readonly ISettingsRuntimeCoordinator _coordinator;
+    private AppSettings _settings => Session.Settings;
+    private bool _applyingUi = true;
     private HotkeyAction? _capturingAction;
     private WpfButton? _capturingButton;
     private WpfButton? _conflictingButton;
     private readonly HashSet<string> _heldModifiers = [];
     private string? _captureMainKey;
     private readonly HotkeySetting _captureCandidate = new();
+    private static readonly string DisplayVersion = ReadDisplayVersion();
+    private readonly SafeHyperlinkCommand _projectLinkCommand;
+    private readonly Func<CancellationToken, Task<GitHubRelease>> _getLatestReleaseAsync;
+    private AboutUpdateState _aboutUpdateState;
+    private Uri? _aboutUpdateReleaseUri;
+    private NotificationFeedback? _hotkeyFeedback;
+    private NotificationFeedback? _captureFeedback;
+    private NotificationFeedback? _updateFeedback;
 
-    public SettingsWindow()
+    private enum AboutUpdateState { Initial, Checking, UpdateAvailable, UpToDate, Failed }
+
+    public SettingsView(Window owner, AppSettings settings, ISettingsRuntimeCoordinator coordinator)
+        : this(owner, settings, coordinator, null, null) { }
+
+    internal SettingsView(Window owner, AppSettings settings, ISettingsRuntimeCoordinator coordinator,
+        Action<Uri>? launchProjectUri, Func<CancellationToken, Task<GitHubRelease>>? getLatestReleaseAsync)
     {
+        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+        Session = new SettingsViewModel(settings, coordinator, error =>
+        {
+            if (!_disposed) _coordinator.ReportSaveFailure(_owner, error);
+        });
+        _projectLinkCommand = new SafeHyperlinkCommand(launchProjectUri);
+        _getLatestReleaseAsync = getLatestReleaseAsync ?? new GitHubReleaseService().GetLatestReleaseAsync;
         InitializeComponent();
+        _categoryTransition = new PageTransitionController(CategoryViewport, SettingsScrollViewer, CategoryTransitionSnapshot);
+        _subpageTransition = new PageTransitionController(SettingsViewport, SettingsSurface, SettingsTransitionSnapshot);
         InitializeSelectors();
+        InitializeCategories();
+        _layout = new SettingsPageLayoutController(SettingsBody, CategoryNavigation, CategorySelector,
+            CategoryContentHost, RestoreCategoryPosition);
         DockSizeSlider.ValueCommitted += OnDockSizeValueCommitted;
         TrayClickToggle.ValueChanged += OnTrayClickValueChanged;
         MotionPreferences.Changed += OnMotionPreferencesChanged;
         LocalizationService.LanguageChanged += OnLanguageChanged;
-        Closed += OnClosed;
+        IsVisibleChanged += OnPresentationChanged;
+        IsHitTestVisibleChanged += OnPresentationChanged;
+        TaskSettingsCard.Visibility = Visibility.Collapsed;
         ApplySettingsToUi();
+        RenderAboutContent();
     }
 
-    public SettingsWindow(
-        AppSettings settings,
-        Action<AppSettings> previewSettings,
-        Func<AppSettings, Task> saveSettingsAsync)
-        : this(settings, new DelegateSettingsRuntimeCoordinator(previewSettings, saveSettingsAsync))
-    {
-    }
-
-    public SettingsWindow(AppSettings settings, ISettingsRuntimeCoordinator coordinator)
-        : this()
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(coordinator);
-        _settings = settings.Clone();
-        _coordinator = coordinator;
-        LocalizationService.SetLanguage(_settings.Language);
-        ApplySettingsToUi();
-    }
-
-    public AppSettings SettingsSnapshot => _settings.Clone();
-    internal override WindowTransitionProfile TransitionProfile => WindowTransitionProfile.Panel;
+    public SettingsViewModel Session { get; }
+    public AppSettings SettingsSnapshot => Session.SettingsSnapshot;
     public bool IsCapturingHotkey => _capturingAction is not null;
-    public string? LastSaveError { get; private set; }
+    public string? LastSaveError => Session.LastSaveError;
     internal CollapsibleSection MemoTaskbarHotkeySectionPart => MemoTaskbarHotkeySection;
     internal CollapsibleSection QuickMemoPopoutSectionPart => QuickMemoPopoutSection;
     internal CollapsibleSection DockSizeSectionPart => DockSizeSection;
-    internal CollapsibleSection HotkeyValidationSectionPart => HotkeyValidationSection;
+    internal string HotkeyValidationMessage => _hotkeyFeedback?.Text ?? string.Empty;
     internal WpfButton ToggleTopmostHotkeyButtonPart => ToggleTopmostHotkeyButton;
     internal WpfButton ToggleMemoTaskbarHotkeyButtonPart => ToggleMemoTaskbarHotkeyButton;
     internal AnimatedSlider DockSizeSliderPart => DockSizeSlider;
     internal AnimatedCheckBox QuickMemoEnabledCheckBoxPart => QuickMemoEnabledCheckBox;
     internal AnimatedCheckBox PopoutDockEnabledCheckBoxPart => PopoutDockEnabledCheckBox;
     internal AnimatedCheckBox MemoWindowTopmostCheckBoxPart => MemoWindowTopmostCheckBox;
-    internal void CloseImmediatelyForTest() => CloseImmediately();
 
     public static bool FindFirstDuplicatePair(AppSettings settings, out string fieldA, out string fieldB) =>
         HotkeyValidation.FindFirstDuplicatePair(settings, out fieldA, out fieldB);
 
-    public async Task WaitForPendingSaveAsync()
-    {
-        while (true)
-        {
-            Task pending;
-            lock (_saveLock)
-            {
-                pending = _saveChain;
-            }
-
-            await pending;
-            lock (_saveLock)
-            {
-                if (ReferenceEquals(pending, _saveChain))
-                {
-                    return;
-                }
-            }
-        }
-    }
+    public Task WaitForPendingSaveAsync() => Session.WaitForPendingSaveAsync();
 
     internal async Task ResetToDefaultsAsync()
     {
@@ -117,22 +108,6 @@ public partial class SettingsWindow : BorderlessWindow
         await WaitForPendingSaveAsync();
     }
 
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        if (!IsCloseApproved)
-        {
-            e.Cancel = true;
-            if (!_closingAfterFlush)
-            {
-                FlushAndCloseAsync().Observe();
-            }
-
-            return;
-        }
-
-        base.OnClosing(e);
-    }
-
     private void InitializeSelectors()
     {
         LanguageSelector.Options =
@@ -145,12 +120,14 @@ public partial class SettingsWindow : BorderlessWindow
         CloseActionSelector.SelectionChanged += OnCloseActionSelectionChanged;
         LanguageSelector.SelectionChanged += OnLanguageSelectionChanged;
         ThemeSelector.SelectionChanged += OnThemeSelectionChanged;
+        MemoBackgroundSelector.SelectionChanged += OnMemoColorSelectionChanged;
         MotionSelector.SelectionChanged += OnMotionSelectionChanged;
         ReminderNotificationSelector.SelectionChanged += OnReminderNotificationSelectionChanged;
     }
 
     private void ApplySettingsToUi()
     {
+        RefreshTaskSettings();
         _applyingUi = true;
         try
         {
@@ -161,6 +138,7 @@ public partial class SettingsWindow : BorderlessWindow
             LanguageSelector.SelectedKey = _settings.Language.ToString();
             CloseActionSelector.SelectedKey = _settings.CloseButtonAction.ToString();
             ThemeSelector.SelectedKey = _settings.ThemeMode.ToString();
+            MemoBackgroundSelector.SelectedPreset = _settings.MemoBackgroundColor;
             MotionSelector.SelectedKey = _settings.MotionMode.ToString();
             ReminderNotificationSelector.SelectedKey = _settings.ReminderNotification.ToString();
             QuickMemoEnabledCheckBox.IsChecked = _settings.QuickMemoEnabled;
@@ -257,80 +235,13 @@ public partial class SettingsWindow : BorderlessWindow
         MinimizeHotkeyButton.Content = _settings.MinimizeHotkey.ToString();
         ShowWindowHotkeyButton.Content = _settings.ShowWindowHotkey.ToString();
         QuickMemoHotkeyButton.Content = _settings.QuickMemoHotkey.ToString();
+        QuickAddHotkeyButton.Content = _settings.QuickAddHotkey.ToString();
     }
 
-    private void CommitChange(bool preview = true)
+    private void CommitChange()
     {
-        if (_applyingUi || _closingAfterFlush)
-        {
-            return;
-        }
-
-        AppSettings snapshot = _settings.Clone();
-        if (preview)
-        {
-            try
-            {
-                _coordinator.Preview(snapshot.Clone());
-            }
-            catch (Exception ex)
-            {
-                LastSaveError = ex.Message;
-                _coordinator.ReportSaveFailure(this, ex);
-            }
-        }
-
-        lock (_saveLock)
-        {
-            _saveChain = _saveChain
-                .ContinueWith(
-                    _ => SaveSnapshotAsync(snapshot),
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default)
-                .Unwrap();
-        }
+        if (!_applyingUi && !_leaving && !_disposed) Session.CommitChange();
     }
-
-    private async Task SaveSnapshotAsync(AppSettings snapshot)
-    {
-        try
-        {
-            Task saveTask = await Dispatcher.InvokeAsync(() => _coordinator.SaveAsync(snapshot));
-            await saveTask;
-            LastSaveError = null;
-        }
-        catch (Exception ex)
-        {
-            LastSaveError = ex.Message;
-            await Dispatcher.InvokeAsync(() => _coordinator.ReportSaveFailure(this, ex));
-        }
-    }
-
-    private async Task FlushAndCloseAsync()
-    {
-        if (_closingAfterFlush)
-        {
-            return;
-        }
-
-        _closingAfterFlush = true;
-        EndCapture();
-        await WaitForPendingSaveAsync();
-        // A zero-length exit can complete synchronously inside OnClosing.
-        await Dispatcher.InvokeAsync(CloseWithTransition);
-    }
-
-    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == MouseButton.Left && e.ButtonState == MouseButtonState.Pressed)
-        {
-            try { DragMove(); } catch (InvalidOperationException) { }
-            e.Handled = true;
-        }
-    }
-
-    private void OnCloseClick(object sender, RoutedEventArgs e) => FlushAndCloseAsync().Observe();
 
     private void OnCloseActionSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
     {
@@ -354,11 +265,18 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
+        _subpageTransition.Reset();
+        ResetCategoryTransition();
+        SaveCategoryPosition();
+        RefreshTaskSettings();
         RefreshLocalizedSelectors();
+        RefreshCategoryLabels();
         EndCapture();
         ClearValidation();
         ClearConflict();
         UpdateMotionStatus();
+        RenderAboutContent();
+        RestoreCategoryPosition();
     }
 
     private void OnThemeSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
@@ -378,6 +296,13 @@ public partial class SettingsWindow : BorderlessWindow
         CommitChange();
     }
 
+    private void OnMemoColorSelectionChanged(object? sender, EventArgs e)
+    {
+        if (_applyingUi) return;
+        _settings.MemoBackgroundColor = MemoBackgroundSelector.SelectedPreset;
+        CommitChange();
+    }
+
     private void OnReminderNotificationSelectionChanged(object? sender, SegmentedSelectionChangedEventArgs e)
     {
         if (_applyingUi || !Enum.TryParse(e.NewKey, out ReminderNotificationMode mode) || _settings.ReminderNotification == mode) return;
@@ -386,7 +311,15 @@ public partial class SettingsWindow : BorderlessWindow
         CommitChange();
     }
 
-    private void OnMotionPreferencesChanged(object? sender, EventArgs e) => UpdateMotionStatus();
+    private void OnMotionPreferencesChanged(object? sender, EventArgs e)
+    {
+        if (!MotionPreferences.AnimationsEnabled)
+        {
+            ResetCategoryTransition();
+            _subpageTransition.Reset();
+        }
+        UpdateMotionStatus();
+    }
 
     private void OnQuickMemoEnabledChanged(object sender, RoutedEventArgs e)
     {
@@ -468,13 +401,118 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void OnTutorialClick(object sender, RoutedEventArgs e) => _coordinator.OpenTutorial(_settings.Clone());
 
-    private void OnResetClick(object sender, RoutedEventArgs e)
+    private async void OnUpdateStatusClick(object sender, RoutedEventArgs e)
     {
-        ConfirmDialog dialog = new(LocalizationService.Get("重置设置"), LocalizationService.Get("确定要恢复默认设置吗？"));
-        if (dialog.ShowDialog(this))
+        if (!_active || _leaving || _pageCancellation is null || _aboutUpdateState is AboutUpdateState.Checking or AboutUpdateState.UpToDate)
         {
-            ResetToDefaultsAsync().Observe();
+            return;
         }
+
+        if (_aboutUpdateState == AboutUpdateState.UpdateAvailable)
+        {
+            _projectLinkCommand.Execute(_aboutUpdateReleaseUri);
+            return;
+        }
+
+        int generation = _pageGeneration;
+        CancellationToken token = _pageCancellation.Token;
+        _aboutUpdateState = AboutUpdateState.Checking;
+        RenderAboutContent();
+        try
+        {
+            GitHubRelease release = await _getLatestReleaseAsync(token);
+            if (!IsCurrentPage(generation)) return;
+
+            _aboutUpdateReleaseUri = release.HtmlUrl;
+            _aboutUpdateState = release.MatchesVersion(DisplayVersion)
+                ? AboutUpdateState.UpToDate
+                : AboutUpdateState.UpdateAvailable;
+        }
+        catch (Exception exception)
+        {
+            if (!IsCurrentPage(generation)) return;
+
+            Debug.WriteLine($"[Settings] checking for updates failed: {exception.Message}");
+            _aboutUpdateState = AboutUpdateState.Failed;
+        }
+
+        RenderAboutContent();
+    }
+
+    private void RenderAboutContent()
+    {
+        CurrentVersionText.Text = DisplayVersion;
+        AutomationProperties.SetName(
+            CurrentVersionBadge,
+            LocalizationService.Format("当前版本：{0}", DisplayVersion));
+        string statusSource = _aboutUpdateState switch
+        {
+            AboutUpdateState.Initial => "检测更新",
+            AboutUpdateState.Checking => "检测中",
+            AboutUpdateState.UpdateAvailable => "有新版本",
+            AboutUpdateState.UpToDate => "已是最新",
+            AboutUpdateState.Failed => "检测失败",
+            _ => throw new InvalidOperationException($"Unknown update state: {_aboutUpdateState}")
+        };
+        string status = LocalizationService.Get(statusSource);
+        UpdateStatusLabel.Text = LocalizationService.Get(_aboutUpdateState == AboutUpdateState.UpdateAvailable ? "查看新版本" : "检测更新");
+        if (_aboutUpdateState != AboutUpdateState.Initial && _active && !_leaving && IsVisible)
+        {
+            int generation = _pageGeneration;
+            Func<Task<bool>>? openRelease = _aboutUpdateState == AboutUpdateState.UpdateAvailable
+                ? () => { if (!IsCurrentPage(generation)) return Task.FromResult(false); _projectLinkCommand.Execute(_aboutUpdateReleaseUri); return Task.FromResult(true); }
+            : null;
+            (_updateFeedback ??= new(this)).Show(status,
+                _aboutUpdateState == AboutUpdateState.Failed ? NotificationKind.Error
+                    : _aboutUpdateState == AboutUpdateState.Checking ? NotificationKind.Information : NotificationKind.Success,
+                persistent: _aboutUpdateState == AboutUpdateState.Checking,
+                actionText: openRelease is null ? null : LocalizationService.Get("查看新版本"), action: openRelease);
+        }
+
+        UpdateStatusButton.IsEnabled = _aboutUpdateState is
+            AboutUpdateState.Initial or AboutUpdateState.UpdateAvailable or AboutUpdateState.Failed;
+        AutomationProperties.SetName(UpdateStatusButton, UpdateStatusLabel.Text);
+    }
+
+    private void OnProjectLinkClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is WpfButton { Tag: string target })
+        {
+            _projectLinkCommand.Execute(target);
+        }
+    }
+
+    internal static string FormatDisplayVersion(string? informationalVersion, string? assemblyVersion)
+    {
+        string version = string.IsNullOrWhiteSpace(informationalVersion)
+            ? assemblyVersion ?? string.Empty
+            : informationalVersion.Trim();
+        int metadataIndex = version.IndexOf('+', StringComparison.Ordinal);
+        return metadataIndex >= 0 ? version[..metadataIndex] : version;
+    }
+
+    private static string ReadDisplayVersion()
+    {
+        Assembly assembly = typeof(SettingsView).Assembly;
+        string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        string? assemblyVersion = assembly.GetName().Version?.ToString();
+        return FormatDisplayVersion(informationalVersion, assemblyVersion);
+    }
+
+    private async void OnResetClick(object sender, RoutedEventArgs e)
+    {
+        if (!_active || _leaving || _resetPrompt is not null) return;
+        EndCapture();
+        var host = WindowNotifications.FindHost(_owner);
+        if (host is null) return;
+        int generation = _pageGeneration;
+        Task<int> prompt = host.ChooseAsync(LocalizationService.Get("重置设置") + "\n" +
+            LocalizationService.Get("确定要恢复默认设置吗？"),
+            [LocalizationService.Get("取消"), LocalizationService.Get("确定")]);
+        _resetPrompt = prompt;
+        int choice = await prompt;
+        if (ReferenceEquals(_resetPrompt, prompt)) _resetPrompt = null;
+        if (choice == 1 && IsCurrentPage(generation)) await ResetToDefaultsAsync();
     }
 
     private void OnHotkeyButtonClick(object sender, RoutedEventArgs e)
@@ -487,19 +525,21 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void StartCapture(HotkeyAction action, WpfButton button)
     {
+        if (!_active || _leaving || !button.IsEnabled || !button.IsVisible) return;
         EndCapture();
         _capturingAction = action;
         _capturingButton = button;
+        _coordinator.SetHotkeyCaptureActive(true);
         _heldModifiers.Clear();
         _captureMainKey = null;
         ClearHotkey(_captureCandidate);
         ClearValidation();
         ClearConflict();
-        button.Content = LocalizationService.Get("按下快捷键...");
-        Focus();
+        (_captureFeedback ??= new(this)).Show(LocalizationService.Get("按下快捷键..."), persistent: true);
+        button.Focus();
     }
 
-    private void OnWindowPreviewKeyDown(object sender, WpfKeyEventArgs e)
+    internal void HandlePreviewKeyDown(WpfKeyEventArgs e)
     {
         if (_capturingAction is null || _capturingButton is null) return;
         e.Handled = true;
@@ -533,7 +573,7 @@ public partial class SettingsWindow : BorderlessWindow
         UpdateCapturePreview();
     }
 
-    private void OnWindowPreviewKeyUp(object sender, WpfKeyEventArgs e)
+    internal void HandlePreviewKeyUp(WpfKeyEventArgs e)
     {
         if (_capturingAction is null || _capturingButton is null) return;
         e.Handled = true;
@@ -600,10 +640,13 @@ public partial class SettingsWindow : BorderlessWindow
 
     private void EndCapture()
     {
+        bool wasCapturing = IsCapturingHotkey;
+        _captureFeedback?.Clear();
         _capturingAction = null;
         _capturingButton = null;
         _heldModifiers.Clear();
         _captureMainKey = null;
+        if (wasCapturing) _coordinator.SetHotkeyCaptureActive(false);
         UpdateHotkeyButtons();
     }
 
@@ -614,6 +657,7 @@ public partial class SettingsWindow : BorderlessWindow
         HotkeyAction.Minimize => _settings.MinimizeHotkey,
         HotkeyAction.ShowWindow => _settings.ShowWindowHotkey,
         HotkeyAction.QuickMemo => _settings.QuickMemoHotkey,
+        HotkeyAction.QuickAdd => _settings.QuickAddHotkey,
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 
@@ -624,16 +668,16 @@ public partial class SettingsWindow : BorderlessWindow
         HotkeyAction.Minimize => MinimizeHotkeyButton,
         HotkeyAction.ShowWindow => ShowWindowHotkeyButton,
         HotkeyAction.QuickMemo => QuickMemoHotkeyButton,
+        HotkeyAction.QuickAdd => QuickAddHotkeyButton,
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 
     private void ShowValidation(string message)
     {
-        HotkeyValidationText.Text = message;
-        HotkeyValidationSection.IsExpanded = true;
+        (_hotkeyFeedback ??= new(this)).Show(message, NotificationKind.Error);
     }
 
-    private void ClearValidation() => HotkeyValidationSection.IsExpanded = false;
+    private void ClearValidation() => _hotkeyFeedback?.Clear();
 
     private void MarkConflict(WpfButton button)
     {
@@ -666,14 +710,27 @@ public partial class SettingsWindow : BorderlessWindow
         target.Win = source.Win;
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    public void Dispose()
     {
+        if (_disposed) return;
+        CancelPageOperations();
+        _disposed = true;
+        _active = false;
+        _positionRestore?.Abort();
+        _categoryTransition.Dispose();
+        _subpageTransition.Dispose();
+        _taskStatusManager?.Dispose();
+        _layout.Dispose();
+        DetachTaskSettings();
+        IsVisibleChanged -= OnPresentationChanged;
+        IsHitTestVisibleChanged -= OnPresentationChanged;
         MotionPreferences.Changed -= OnMotionPreferencesChanged;
         LocalizationService.LanguageChanged -= OnLanguageChanged;
         DockSizeSlider.ValueCommitted -= OnDockSizeValueCommitted;
         TrayClickToggle.ValueChanged -= OnTrayClickValueChanged;
         CloseActionSelector.SelectionChanged -= OnCloseActionSelectionChanged;
         ThemeSelector.SelectionChanged -= OnThemeSelectionChanged;
+        MemoBackgroundSelector.SelectionChanged -= OnMemoColorSelectionChanged;
         MotionSelector.SelectionChanged -= OnMotionSelectionChanged;
         ReminderNotificationSelector.SelectionChanged -= OnReminderNotificationSelectionChanged;
         LanguageSelector.SelectionChanged -= OnLanguageSelectionChanged;

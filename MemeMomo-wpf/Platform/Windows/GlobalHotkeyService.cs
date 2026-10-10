@@ -4,7 +4,7 @@ using MemeMomo.Models;
 
 namespace MemeMomo.Platform.Windows;
 
-/// <summary>Registers the five production hotkey groups on one message-only HWND.</summary>
+/// <summary>Registers the production hotkey groups on one message-only HWND.</summary>
 public sealed class GlobalHotkeyService : IDisposable
 {
     private const uint ModAlt = 0x0001;
@@ -16,6 +16,7 @@ public sealed class GlobalHotkeyService : IDisposable
     private readonly Dictionary<int, Action> _actions = [];
     private int _nextId = 1;
     private int _disposed;
+    private bool _captureActive;
 
     public GlobalHotkeyService()
     {
@@ -28,12 +29,21 @@ public sealed class GlobalHotkeyService : IDisposable
     internal int RegisteredCount => _actions.Count;
     internal nint Handle => _window.Handle;
 
+    // Release registered combinations so the settings editor receives the actual
+    // keystrokes. App reapplies the current preferences when capture ends.
+    public void SetCaptureActive(bool active)
+    {
+        _captureActive = active;
+        if (active) UnregisterAll();
+    }
+
     public void Apply(
         AppSettings settings,
         MainWindow mainWindow,
         Action toggleTopmostTarget,
         Action toggleMemoTaskbarTarget,
-        Action quickMemoFromClipboard)
+        Action quickMemoFromClipboard,
+        Action? quickAdd = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(mainWindow);
@@ -43,9 +53,14 @@ public sealed class GlobalHotkeyService : IDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
         UnregisterAll();
+        if (_captureActive) return;
         TryRegister(settings.ToggleTopmostHotkey, toggleTopmostTarget);
         TryRegister(settings.MinimizeHotkey, mainWindow.HideToTrayWithTransition);
         TryRegister(settings.ShowWindowHotkey, mainWindow.ShowWithTransition);
+        if (quickAdd is not null)
+        {
+            TryRegister(settings.QuickAddHotkey, quickAdd);
+        }
         if (settings.QuickMemoEnabled)
         {
             TryRegister(settings.QuickMemoHotkey, quickMemoFromClipboard);

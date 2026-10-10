@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using MemeMomo.UI.Windows;
+using MemeMomo.UI.Notifications;
 using Window = System.Windows.Window;
 
 namespace MemeMomo.Components.Dialogs;
@@ -14,6 +15,8 @@ public abstract class MemoDialogWindow : BorderlessWindow
     private bool _resultAssigned;
     private bool _closeRequested;
     private Window? _subscribedOwner;
+    private NotificationFeedback? _feedback;
+    private protected NotificationFeedback Feedback => _feedback ??= new(this);
 
     protected MemoDialogWindow()
     {

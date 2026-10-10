@@ -88,7 +88,7 @@ public partial class ImageUrlDialog : MemoDialogWindow
         InteractionState.SetIsInvalid(UrlInputRoot, showError);
         ClearUrlButton.Visibility = hasValue ? Visibility.Visible : Visibility.Collapsed;
         SubmitButton.IsEnabled = hasValue;
-        HelperText.Opacity = showError ? 0 : 1;
-        ErrorText.Opacity = showError ? 1 : 0;
+        if (showError) Feedback.Show(LocalizationService.Get("请输入有效的 HTTPS 图片地址"), MemeMomo.UI.Notifications.NotificationKind.Error);
+        else Feedback.Clear();
     }
 }

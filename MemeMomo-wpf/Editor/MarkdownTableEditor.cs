@@ -75,9 +75,9 @@ internal static class MarkdownTableEditor
         row = Math.Clamp(row, 0, Math.Max(0, lines.Length - 1));
 
         // The divider line is not exposed as a cell, so cell rows are 0 (header),
-        // 2+ (body). Keep deletion separate from insertion: when a protected/last
-        // row cannot be deleted it must be a no-op, never fall through to inserting
-        // an empty row.
+        // 2+ (body). A header and divider alone still form a valid table. Protect
+        // only the divider and a header without body rows; rejected deletions must
+        // be a no-op, never fall through to inserting an empty row.
         int[] bodyRows = ParseCells(source, 0)
             .Where(cell => cell.Row >= 2)
             .Select(cell => cell.Row)
@@ -95,7 +95,7 @@ internal static class MarkdownTableEditor
                 lines[0] = lines[firstBodyRow];
                 lines = lines.Where((_, index) => index != firstBodyRow).ToArray();
             }
-            else if (row >= 2 && bodyRows.Length > 1 && bodyRows.Contains(row))
+            else if (row >= 2 && bodyRows.Contains(row))
             {
                 lines = lines.Where((_, index) => index != row).ToArray();
             }

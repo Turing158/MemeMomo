@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using MemeMomo.UI;
 using MemeMomo.UI.Text;
+using MemeMomo.UI.Notifications;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using TextBox = System.Windows.Controls.TextBox;
 
@@ -131,16 +132,13 @@ public partial class LinkEditDialog : MemoDialogWindow
         bool valid = TryCreateValue(LabelBox.Text, UrlBox.Text, out _, out string? labelError, out string? urlError);
         bool showLabel = labelError is not null && (showAllErrors || _labelWasEdited);
         bool showUrl = urlError is not null && (showAllErrors || _urlWasEdited);
-        SetValidation(LabelInputRoot, LabelErrorText, labelError, showLabel);
-        SetValidation(UrlInputRoot, UrlErrorText, urlError, showUrl);
+        InteractionState.SetIsInvalid(LabelInputRoot, showLabel);
+        InteractionState.SetIsInvalid(UrlInputRoot, showUrl);
+        string errors = string.Join("\n", new[] { showLabel ? labelError : null, showUrl ? urlError : null }.Where(error => error is not null));
+        if (errors.Length > 0) Feedback.Show(errors, NotificationKind.Error);
+        else Feedback.Clear();
         ClearUrlButton.Visibility = string.IsNullOrEmpty(UrlBox.Text) ? Visibility.Collapsed : Visibility.Visible;
         SubmitButton.IsEnabled = valid;
     }
 
-    private static void SetValidation(Border root, TextBlock errorText, string? error, bool show)
-    {
-        InteractionState.SetIsInvalid(root, show);
-        errorText.Text = error ?? string.Empty;
-        errorText.Opacity = show ? 1 : 0;
-    }
 }

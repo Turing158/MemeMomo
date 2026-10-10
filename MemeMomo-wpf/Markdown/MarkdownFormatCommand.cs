@@ -18,4 +18,5 @@ public enum MarkdownFormatCommand
     Link,
     HorizontalRule,
     Table,
+    Underline,
 }

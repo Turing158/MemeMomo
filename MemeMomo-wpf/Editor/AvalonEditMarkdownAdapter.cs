@@ -17,17 +17,14 @@ using MemeMomo.UI;
 using MemeMomo.UI.Popup;
 using Application = System.Windows.Application;
 using DataObject = System.Windows.DataObject;
-using Brushes = System.Windows.Media.Brushes;
 using Image = System.Windows.Controls.Image;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using Stretch = System.Windows.Media.Stretch;
 using Point = System.Windows.Point;
 using WpfControl = System.Windows.Controls.Control;
-using SystemColors = System.Windows.SystemColors;
 
 namespace MemeMomo.Editor;
 
-internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
+internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 {
     private readonly MarkdownDocumentModel _model = new();
     private readonly MarkdownRuleInteraction _ruleInteraction;
@@ -39,11 +36,13 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     private readonly MarkdownCodeBlockRenderer _codeBlockRenderer;
     private readonly MarkdownInlineCodePaddingGenerator _inlineCodePaddingGenerator;
     private readonly MarkdownInlineCodeRenderer _inlineCodeRenderer;
+    private readonly HtmlAlignmentLayout _htmlAlignment;
     private readonly MarkdownSelectionRenderer _selectionRenderer;
     private readonly MarkdownColorizer _colorizer;
     private readonly MarkdownImageLoader _imageLoader;
     private readonly string _imageRoot;
     private readonly MarkdownInputController _inputController;
+    private readonly MarkdownBlockInteraction _blockInteraction;
     private bool _updatingProjection;
     private bool _projectionRefreshPending;
     private int _pendingSelectionStart;
@@ -71,6 +70,8 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto
         };
+        CommandManager.AddPreviewExecutedHandler(Editor, OnPreviewReadOnlyCommand);
+        CommandManager.AddPreviewCanExecuteHandler(Editor, OnPreviewReadOnlyCanExecute);
         Editor.Options.EnableImeSupport = true;
         Editor.Options.ConvertTabsToSpaces = true;
         Editor.Options.IndentationSize = 4;
@@ -103,29 +104,20 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _inlineCodeRenderer = new MarkdownInlineCodeRenderer(_model);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_inlineCodeRenderer);
-        Editor.TextArea.SetResourceReference(
-            ICSharpCode.AvalonEdit.Editing.TextArea.SelectionForegroundProperty,
-            "TextPrimaryBrush");
-        Editor.TextArea.SelectionBrush = Brushes.Transparent;
-        Editor.TextArea.SelectionBorder = null;
-        _selectionRenderer = new MarkdownSelectionRenderer(
-            Editor.TextArea,
-            _model,
-            () => Application.Current?.TryFindResource("TextSelectionBrush") as System.Windows.Media.Brush
-                ?? (Editor.TextArea.SelectionBrush is SolidColorBrush { Color.A: > 0 } currentSelection
-                    ? currentSelection
-                    : SystemColors.HighlightBrush),
-            () => Application.Current?.TryFindResource("MarkdownInlineCodeSelectionBrush") as System.Windows.Media.Brush
-                ?? Application.Current?.TryFindResource("AccentPressedBrush") as System.Windows.Media.Brush
-                ?? SystemColors.HighlightBrush);
+        _selectionRenderer = MarkdownSelectionRenderer.Create(Editor, _model);
         Editor.TextArea.TextView.BackgroundRenderers.Add(_selectionRenderer);
         _colorizer = new MarkdownColorizer(() => _model.Spans);
         Editor.TextArea.TextView.LineTransformers.Add(_colorizer);
+        _htmlAlignment = new HtmlAlignmentLayout(() => _model.Spans);
+        Editor.TextArea.TextView.ElementGenerators.Insert(0, _htmlAlignment);
+        Editor.TextArea.TextView.LineTransformers.Add(_htmlAlignment);
+        Editor.TextArea.TextView.SizeChanged += _htmlAlignment.OnViewportChanged;
         Editor.Document.Changed += OnDocumentChanged;
         Editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
         Editor.TextArea.PreviewMouseLeftButtonDown += OnTextAreaPreviewMouseLeftButtonDown;
         Editor.TextArea.PreviewTextInput += OnTextAreaPreviewTextInput;
         Editor.Unloaded += OnUnloaded;
+        Editor.TextArea.GotKeyboardFocus += OnEditorGotKeyboardFocus;
         _inputController = new MarkdownInputController(
             Editor,
             () => _model,
@@ -135,17 +127,21 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             () => SaveRequested?.Invoke(this, EventArgs.Empty),
             () => CancelRequested?.Invoke(this, EventArgs.Empty),
             () => LinkEditRequested?.Invoke(this, EventArgs.Empty),
+            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), () => SessionVersion);
+        _blockInteraction = new MarkdownBlockInteraction(this,
             () => PasteImagesRequested?.Invoke(this, EventArgs.Empty));
-        Editor.TextArea.ContextMenu = EditorClipboardMenu.CreateForTextArea(
-            Editor.TextArea,
-            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty));
+        Editor.TextArea.ContextMenu = _blockInteraction.CreateMenu(null);
         Editor.TextArea.MouseRightButtonDown += OnTextAreaMouseRightButtonDown;
+        Editor.TextArea.ContextMenuOpening += OnTextAreaContextMenuOpening;
         Editor.TextArea.AddHandler(DataObject.CopyingEvent, new DataObjectCopyingEventHandler(OnClipboardCopy));
         RefreshProjection(clearUndo: true, selectionStart: 0, selectionEnd: 0);
     }
 
     internal TextEditor Editor { get; }
     internal MarkdownDocumentModel Model => _model;
+    internal System.Windows.Controls.ContextMenu CreateImageContextMenu(Action edit, Action delete) =>
+        IsReadOnly ? EditorClipboardMenu.CreateReadOnly(Editor.TextArea) : EditorClipboardMenu.CreateForTextArea(Editor.TextArea,
+            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), edit, delete);
     internal MarkdownCodeBlockRenderer CodeBlockRenderer => _codeBlockRenderer;
     internal MarkdownRuleRenderer RuleRenderer => _ruleRenderer;
     internal MarkdownRuleInteraction RuleInteraction => _ruleInteraction;
@@ -165,6 +161,25 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         }
         offset = Editor.Document.GetOffset(value.Location);
         return true;
+    }
+
+    internal MarkdownVisualSpan? LinkAtPoint(Point point)
+    {
+        for (DependencyObject? element = Editor.InputHitTest(point) as DependencyObject;
+             element is not null; element = System.Windows.Media.VisualTreeHelper.GetParent(element))
+        {
+            if (element is MarkdownTableCell cell)
+            {
+                var position = cell.GetPositionFromPoint(Editor.TranslatePoint(point, cell));
+                return position is { } value
+                    ? cell.Model.VisualAt(cell.Document.GetOffset(value.Location), MarkdownVisualKind.Link)
+                    : null;
+            }
+            if (ReferenceEquals(element, Editor)) break;
+        }
+        return TryGetVisibleOffset(point, out int offset)
+            ? Model.VisualAt(offset, MarkdownVisualKind.Link)
+            : null;
     }
 
     public FrameworkElement View => Editor;
@@ -199,7 +214,15 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     public void Execute(MarkdownFormatCommand command)
     {
+        if (IsReadOnly) return;
         ThrowIfDisposed();
+        if (ActiveTableCell is { IsLoaded: true } cell)
+        {
+            if (command is MarkdownFormatCommand.Bold or MarkdownFormatCommand.Italic or
+                MarkdownFormatCommand.Strikethrough or MarkdownFormatCommand.Underline or MarkdownFormatCommand.InlineCode)
+                cell.ApplyFormat(command);
+            return;
+        }
         MarkdownEditResult result = MarkdownFormatter.Apply(
             _model.Markdown,
             SelectionStart,
@@ -210,6 +233,7 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     public void ApplyEdit(MarkdownEditResult result, bool clearUndo = false)
     {
+        if (IsReadOnly) return;
         ThrowIfDisposed();
         string beforeMarkdown = _model.Markdown;
         // UndoCaret 覆盖撤销时的光标位置：占位符这类整体结构删除后，撤销要把光标放回
@@ -258,9 +282,11 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     public void SetMarkdown(string? markdown, bool clearUndo, bool preserveViewState)
     {
         ThrowIfDisposed();
+        if (!preserveViewState) ResetInteractionSession();
         int sourceStart = preserveViewState ? SelectionStart : 0;
         int sourceEnd = preserveViewState ? SelectionEnd : 0;
-        _model.SetEditableMarkdown(markdown);
+        if (IsReadOnly) _model.SetMarkdown(markdown);
+        else _model.SetEditableMarkdown(markdown);
         RefreshProjection(
             clearUndo,
             _model.VisibleOffsetFromSource(sourceStart),
@@ -282,6 +308,33 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Keyboard.Focus(Editor.TextArea);
     }
 
+    private MarkdownTableCell? _activeTableCell;
+
+    internal MarkdownTableCell? ActiveTableCell
+    {
+        get => _activeTableCell;
+        set
+        {
+            if (ReferenceEquals(_activeTableCell, value)) return;
+            // Body and cells own separate editors. Clear the previous selection when
+            // editing moves between them; temporary toolbar/menu focus keeps this owner.
+            _activeTableCell?.TextArea.ClearSelection();
+            if (value is not null)
+            {
+                Editor.TextArea.ClearSelection();
+            }
+            _activeTableCell = value;
+        }
+    }
+
+    internal bool RestoreTableCellFocus()
+    {
+        if (ActiveTableCell is not { IsLoaded: true } cell)
+            return false;
+        cell.Focus();
+        return true;
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -290,10 +343,14 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         }
 
         Editor.Document.Changed -= OnDocumentChanged;
+        Editor.TextArea.GotKeyboardFocus -= OnEditorGotKeyboardFocus;
+        ActiveTableCell = null;
         Editor.TextArea.Caret.PositionChanged -= OnCaretPositionChanged;
         Editor.TextArea.PreviewMouseLeftButtonDown -= OnTextAreaPreviewMouseLeftButtonDown;
         Editor.TextArea.PreviewTextInput -= OnTextAreaPreviewTextInput;
         Editor.TextArea.MouseRightButtonDown -= OnTextAreaMouseRightButtonDown;
+        Editor.TextArea.ContextMenuOpening -= OnTextAreaContextMenuOpening;
+        _blockInteraction.Dispose();
         Editor.TextArea.RemoveHandler(DataObject.CopyingEvent, new DataObjectCopyingEventHandler(OnClipboardCopy));
         Editor.TextArea.ContextMenu = null;
         Editor.Unloaded -= OnUnloaded;
@@ -309,6 +366,9 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.ElementGenerators.Remove(_quotePaddingGenerator);
         Editor.TextArea.TextView.ElementGenerators.Remove(_objectGenerator);
         Editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
+        Editor.TextArea.TextView.ElementGenerators.Remove(_htmlAlignment);
+        Editor.TextArea.TextView.LineTransformers.Remove(_htmlAlignment);
+        Editor.TextArea.TextView.SizeChanged -= _htmlAlignment.OnViewportChanged;
     }
 
     private void RefreshProjection(
@@ -453,7 +513,7 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)
     {
-        if (_updatingProjection || Volatile.Read(ref _disposed) != 0)
+        if (IsReadOnly || _updatingProjection || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
@@ -613,6 +673,7 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     private void OnTextAreaPreviewTextInput(object sender, TextCompositionEventArgs e)
     {
+        if (IsReadOnly) { e.Handled = true; return; }
         // Typing while a rule is bordered starts editing below the rule instead of at the
         // stale caret position.
         if (_ruleInteraction.IsBordered)
@@ -713,6 +774,16 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             return;
         }
         TryPlaceCaretForRightClick(e.GetPosition(Editor));
+        PrepareContextMenu(e.GetPosition(Editor));
+    }
+
+    internal void PrepareContextMenu(Point? pointToEditor) =>
+        Editor.TextArea.ContextMenu = _blockInteraction.CreateMenu(pointToEditor);
+
+    private void OnTextAreaContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (e.CursorLeft < 0 && !IsInsideTableCell(e.OriginalSource as DependencyObject))
+            PrepareContextMenu(null);
     }
 
     /// <summary>
@@ -772,6 +843,12 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Keyboard.ClearFocus();
     }
 
+    private void OnEditorGotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (ReferenceEquals(e.NewFocus, Editor.TextArea))
+            ActiveTableCell = null;
+    }
+
     internal void ScheduleProjectionRefresh(int selectionStart, int selectionEnd)
     {
         _pendingSelectionStart = selectionStart;
@@ -782,10 +859,12 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         }
 
         _projectionRefreshPending = true;
+        long session = SessionVersion;
         Editor.Dispatcher.BeginInvoke(
             DispatcherPriority.DataBind,
             new Action(() =>
             {
+                if (session != SessionVersion) return;
                 _projectionRefreshPending = false;
                 if (Volatile.Read(ref _disposed) != 0)
                 {
@@ -915,11 +994,25 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         System.Windows.Controls.CheckBox checkBox = TaskCheckBoxFactory.Create(
             textView.DefaultLineHeight,
             textView.DefaultBaseline);
+        int lineStart = Editor.Document.GetLineByOffset(span.Start).Offset;
+        if (_model.Spans.Any(value => value.Kind == MarkdownVisualKind.Quote &&
+            value.Start >= lineStart && value.Start <= span.Start && value.End >= span.End))
+        {
+            // Inline controls are arranged at the text line's top. Include the
+            // quote's leading space in the slot so the bottom-aligned indicator
+            // moves down with the text, without including the quote's bottom pad.
+            double topSpacing = MarkdownQuoteSpacing.VerticalMargin + MarkdownQuoteSpacing.VerticalPadding;
+            checkBox.Height += topSpacing;
+            TextBlock.SetBaselineOffset(checkBox, TextBlock.GetBaselineOffset(checkBox) + topSpacing);
+        }
+        long session = SessionVersion;
+        checkBox.IsHitTestVisible = !IsReadOnly;
+        checkBox.Focusable = !IsReadOnly;
         checkBox.IsChecked = IsTaskChecked(span);
         MemeMomo.UI.Text.LocalizeExtension.Set(checkBox, AutomationProperties.NameProperty, "任务复选框");
         RoutedEventHandler update = (_, _) =>
         {
-            if (syncing || !checkBox.IsLoaded)
+            if (IsReadOnly || session != SessionVersion || syncing || !checkBox.IsLoaded)
             {
                 return;
             }
@@ -970,10 +1063,13 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     private void RestoreSourceState(string markdown, int selectionStart, int selectionEnd)
     {
+        if (IsReadOnly) return;
         _model.SetEditableMarkdown(markdown);
         int visibleStart = _model.VisibleOffsetFromSource(selectionStart);
         int visibleEnd = _model.VisibleOffsetFromSource(selectionEnd);
-        if (!string.Equals(Editor.Text, _model.VisibleText, StringComparison.Ordinal))
+        // A projection refresh queued during undo/redo must use the final restored
+        // selection, even when the document text has already caught up.
+        if (_projectionRefreshPending || !string.Equals(Editor.Text, _model.VisibleText, StringComparison.Ordinal))
         {
             ScheduleProjectionRefresh(visibleStart, visibleEnd);
         }
@@ -990,6 +1086,8 @@ internal sealed class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     internal void NotifyMarkdownChanged() => MarkdownChanged?.Invoke(this, EventArgs.Empty);
 
     internal void NotifySaveRequested() => SaveRequested?.Invoke(this, EventArgs.Empty);
+
+    internal void NotifyLinkEditRequested() => LinkEditRequested?.Invoke(this, EventArgs.Empty);
 
     internal void NotifyCancelRequested() => CancelRequested?.Invoke(this, EventArgs.Empty);
 

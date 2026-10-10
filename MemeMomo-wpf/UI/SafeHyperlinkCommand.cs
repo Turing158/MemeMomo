@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Input;
 
@@ -8,10 +9,7 @@ internal sealed class SafeHyperlinkCommand : ICommand
     private readonly Action<Uri> _launch;
 
     public SafeHyperlinkCommand(Action<Uri>? launch = null) =>
-        _launch = launch ?? (uri => Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
-        {
-            UseShellExecute = true
-        }));
+        _launch = launch ?? Launch;
 
     public event EventHandler? CanExecuteChanged { add { } remove { } }
 
@@ -19,10 +17,27 @@ internal sealed class SafeHyperlinkCommand : ICommand
 
     public void Execute(object? parameter)
     {
-        if (TryGetSafeUri(parameter, out Uri? uri))
+        if (!TryGetSafeUri(parameter, out Uri? uri))
+        {
+            return;
+        }
+
+        try
         {
             _launch(uri);
         }
+        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        {
+            Debug.WriteLine($"[UI] opening hyperlink failed: {exception.Message}");
+        }
+    }
+
+    private static void Launch(Uri uri)
+    {
+        using Process? process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+        {
+            UseShellExecute = true
+        });
     }
 
     internal static bool TryGetSafeUri(object? parameter, out Uri uri)

@@ -28,14 +28,14 @@ public static partial class MarkdownFormatter
             MarkdownFormatCommand.Bold => ToggleInline(text, selectionStart, selectionEnd, "**", [BoldRuns(), BoldUnderscoreRuns()], "__"),
             MarkdownFormatCommand.Italic => ToggleInline(text, selectionStart, selectionEnd, "*", [ItalicRuns(), ItalicUnderscoreRuns()], "_"),
             MarkdownFormatCommand.Strikethrough => ToggleInline(text, selectionStart, selectionEnd, "~~", [StrikeRuns()]),
+            MarkdownFormatCommand.Underline => ToggleInline(text, selectionStart, selectionEnd, "<u>", [UnderlineRuns()], closingDelimiter: "</u>"),
             MarkdownFormatCommand.InlineCode => ToggleInline(text, selectionStart, selectionEnd, "`", [CodeRuns()]),
             MarkdownFormatCommand.Heading => SetHeadingLevel(text, selectionStart, selectionEnd, 1),
             MarkdownFormatCommand.Heading2 => SetHeadingLevel(text, selectionStart, selectionEnd, 2),
             MarkdownFormatCommand.Heading3 => SetHeadingLevel(text, selectionStart, selectionEnd, 3),
             MarkdownFormatCommand.Heading4 => SetHeadingLevel(text, selectionStart, selectionEnd, 4),
-            MarkdownFormatCommand.BulletList => PrefixLines(text, selectionStart, selectionEnd, "- ", ListPrefix()),
-            MarkdownFormatCommand.OrderedList => PrefixOrderedLines(text, selectionStart, selectionEnd),
-            MarkdownFormatCommand.TaskList => PrefixLines(text, selectionStart, selectionEnd, "- [ ] ", TaskPrefix()),
+            MarkdownFormatCommand.BulletList or MarkdownFormatCommand.OrderedList or MarkdownFormatCommand.TaskList =>
+                PrefixListLines(text, selectionStart, selectionEnd, command),
             MarkdownFormatCommand.Quote => PrefixQuoteLines(text, selectionStart, selectionEnd),
             MarkdownFormatCommand.CodeBlock => WrapBlock(text, selectionStart, selectionEnd, "```\n", "\n```", LocalizationService.Get("代码")),
             MarkdownFormatCommand.Link => InsertLink(text, selectionStart, selectionEnd),
@@ -83,17 +83,21 @@ public static partial class MarkdownFormatter
         int end,
         string delimiter,
         IReadOnlyList<Regex> syntaxes,
-        string? adjacentAsteriskDelimiter = null)
+        string? adjacentAsteriskDelimiter = null,
+        string? closingDelimiter = null)
     {
         if (end <= start) return new MarkdownEditResult(text, start, end);
 
-        var matches = syntaxes.SelectMany(syntax => syntax.Matches(text).Cast<Match>())
-            .OrderBy(match => match.Index).ToArray();
         var projection = new MarkdownDocumentModel(text);
+        // HTML-looking text inside code is literal, not underline syntax.
+        var matches = syntaxes.SelectMany(syntax => syntax.Matches(text).Cast<Match>())
+            .Where(match => closingDelimiter is null ||
+                projection.VisibleOffsetFromSource(match.Index) == projection.VisibleOffsetFromSource(match.Groups[1].Index))
+            .OrderBy(match => match.Index).ToArray();
         var delimiterRanges = matches
             .SelectMany(match => new[] {
-                (Start: match.Index, End: match.Index + delimiter.Length),
-                (Start: match.Index + match.Length - delimiter.Length, End: match.Index + match.Length),
+                (Start: match.Index, End: match.Groups[1].Index),
+                (Start: match.Groups[1].Index + match.Groups[1].Length, End: match.Index + match.Length),
             }).OrderBy(range => range.Start).ToArray();
 
         var baseText = new System.Text.StringBuilder(text.Length);
@@ -115,9 +119,11 @@ public static partial class MarkdownFormatter
             var isVisible = projection.VisibleOffsetFromSource(source + 1) >
                 projection.VisibleOffsetFromSource(source);
             visibleCharacters.Add(isVisible);
-            formatted.Add(isVisible && matches.Any(match =>
-                source >= match.Index + delimiter.Length &&
-                source < match.Index + match.Length - delimiter.Length));
+            // Inline formatting belongs to text on each line. Including a line break
+            // puts closing markers on the next quote line and can expose them as text.
+            formatted.Add(isVisible && text[source] != '\n' && matches.Any(match =>
+                source >= match.Groups[1].Index &&
+                source < match.Groups[1].Index + match.Groups[1].Length));
             originalToBase[++source] = baseText.Length;
         }
 
@@ -125,7 +131,7 @@ public static partial class MarkdownFormatter
         var baseEnd = originalToBase[end];
         if (baseEnd <= baseStart) return new MarkdownEditResult(text, start, end);
         var selectedVisible = Enumerable.Range(baseStart, baseEnd - baseStart)
-            .Where(index => visibleCharacters[index]).ToArray();
+            .Where(index => visibleCharacters[index] && baseText[index] != '\n').ToArray();
         if (selectedVisible.Length == 0) return new MarkdownEditResult(text, start, end);
         var remove = selectedVisible.All(index => formatted[index]);
         foreach (var index in selectedVisible) formatted[index] = !remove;
@@ -149,14 +155,14 @@ public static partial class MarkdownFormatter
                         ? adjacentAsteriskDelimiter
                         : delimiter;
                 }
-                output.Append(activeDelimiter);
+                output.Append(formatted[index] ? activeDelimiter : closingDelimiter ?? activeDelimiter);
                 active = formatted[index];
             }
             baseToOutput[index] = output.Length;
             output.Append(baseText[index]);
         }
-        if (active) output.Append(activeDelimiter);
-        baseToOutput[baseText.Length] = active ? output.Length - activeDelimiter.Length : output.Length;
+        if (active) output.Append(closingDelimiter ?? activeDelimiter);
+        baseToOutput[baseText.Length] = active ? output.Length - (closingDelimiter ?? activeDelimiter).Length : output.Length;
         return new MarkdownEditResult(output.ToString(), baseToOutput[baseStart], baseToOutput[baseEnd]);
     }
 
@@ -250,32 +256,54 @@ public static partial class MarkdownFormatter
         return new MarkdownEditResult(result, caret, caret);
     }
 
-    private static MarkdownEditResult PrefixLines(
+    private static MarkdownEditResult PrefixListLines(
         string text,
         int start,
         int end,
-        string prefix,
-        Regex removablePrefix)
+        MarkdownFormatCommand command)
     {
-        GetLineRange(text, start, end, out var lineStart, out var lineEnd);
+        // A selection ending at the next line's start does not include that line.
+        int rangeEnd = end > start && text[end - 1] == '\n' ? end - 1 : end;
+        GetLineRange(text, start, rangeEnd, out var lineStart, out var lineEnd);
         var selected = text[lineStart..lineEnd];
         var lines = selected.Split('\n');
-        var allPrefixed = lines.All(line => removablePrefix.IsMatch(line));
-        var oldPrefixLength = start == end ? removablePrefix.Match(selected).Length : 0;
+        var quotes = lines.Select(MarkdownListLine.QuotePrefixLength).ToArray();
+        var items = lines.Select((line, index) => AnyListPrefix().Match(line[quotes[index]..])).ToArray();
+        var allPrefixed = items.All(item => item.Success && command switch
+        {
+            MarkdownFormatCommand.TaskList => item.Groups[3].Success,
+            MarkdownFormatCommand.OrderedList => char.IsDigit(item.Groups[2].Value[0]) && !item.Groups[3].Success,
+            _ => !char.IsDigit(item.Groups[2].Value[0]) && !item.Groups[3].Success,
+        });
+        int oldPrefixLength = 0;
+        int newPrefixLength = 0;
 
         for (var index = 0; index < lines.Length; index++)
         {
-            var content = removablePrefix.Replace(lines[index], string.Empty, 1);
-            lines[index] = allPrefixed
-                ? content
-                : prefix + content;
+            string quote = lines[index][..quotes[index]];
+            string inner = lines[index][quotes[index]..];
+            Match item = items[index];
+            int indentLength = item.Success ? item.Groups[1].Length : inner.Length - inner.TrimStart(' ', '\t').Length;
+            int contentStart = item.Success ? item.Length : indentLength;
+            string marker = allPrefixed ? string.Empty : command switch
+            {
+                MarkdownFormatCommand.OrderedList => $"{index + 1}. ",
+                MarkdownFormatCommand.TaskList => "- [ ] ",
+                _ => "- ",
+            };
+            lines[index] = quote + inner[..indentLength] + marker + inner[contentStart..];
+            if (index == 0)
+            {
+                oldPrefixLength = quote.Length + contentStart;
+                newPrefixLength = quote.Length + indentLength + marker.Length;
+            }
         }
 
         var replacement = string.Join("\n", lines);
         var result = text[..lineStart] + replacement + text[lineEnd..];
         return LineEditResult(
             result, start, end, lineStart, replacement.Length,
-            oldPrefixLength, allPrefixed ? 0 : prefix.Length);
+            oldPrefixLength, newPrefixLength);
     }
 
     private static MarkdownEditResult PrefixQuoteLines(string text, int start, int end)
@@ -332,46 +360,36 @@ public static partial class MarkdownFormatter
 
     private static MarkdownEditResult SetHeadingLevel(string text, int start, int end, int level)
     {
-        GetLineRange(text, start, end, out var lineStart, out var lineEnd);
+        int rangeEnd = end > start && text[end - 1] == '\n' ? end - 1 : end;
+        GetLineRange(text, start, rangeEnd, out var lineStart, out var lineEnd);
         var lines = text[lineStart..lineEnd].Split('\n');
+        var quotes = lines.Select(MarkdownListLine.QuotePrefixLength).ToArray();
+        var headings = lines.Select((line, index) => HeadingPrefix().Match(line[quotes[index]..])).ToArray();
         var requestedPrefix = new string('#', level) + " ";
-        var removeHeading = lines.All(line =>
-            line.StartsWith(requestedPrefix, StringComparison.Ordinal));
-        var oldPrefixLength = start == end ? HeadingPrefix().Match(lines[0]).Length : 0;
+        var removeHeading = headings.All(heading => heading.Success && heading.Groups[2].Length == level);
+        int oldPrefixLength = 0;
+        int newPrefixLength = 0;
 
         for (var index = 0; index < lines.Length; index++)
         {
-            var content = HeadingPrefix().Replace(lines[index], string.Empty, 1);
-            lines[index] = removeHeading ? content : requestedPrefix + content;
+            string quote = lines[index][..quotes[index]];
+            string inner = lines[index][quotes[index]..];
+            Match heading = headings[index];
+            string indent = heading.Success ? heading.Groups[1].Value : string.Empty;
+            string prefix = removeHeading ? string.Empty : requestedPrefix;
+            lines[index] = quote + indent + prefix + inner[heading.Length..];
+            if (index == 0)
+            {
+                oldPrefixLength = quote.Length + heading.Length;
+                newPrefixLength = quote.Length + indent.Length + prefix.Length;
+            }
         }
 
         var replacement = string.Join("\n", lines);
         var result = text[..lineStart] + replacement + text[lineEnd..];
         return LineEditResult(
             result, start, end, lineStart, replacement.Length,
-            oldPrefixLength, removeHeading ? 0 : requestedPrefix.Length);
-    }
-
-    private static MarkdownEditResult PrefixOrderedLines(string text, int start, int end)
-    {
-        GetLineRange(text, start, end, out var lineStart, out var lineEnd);
-        var lines = text[lineStart..lineEnd].Split('\n');
-        var allPrefixed = lines.All(line => OrderedPrefix().IsMatch(line));
-        var oldPrefixLength = start == end ? OrderedPrefix().Match(lines[0]).Length : 0;
-        var order = 1;
-        for (var index = 0; index < lines.Length; index++)
-        {
-            var content = OrderedPrefix().Replace(lines[index], string.Empty, 1);
-            lines[index] = allPrefixed
-                ? content
-                : $"{order++}. {content}";
-        }
-
-        var replacement = string.Join("\n", lines);
-        var result = text[..lineStart] + replacement + text[lineEnd..];
-        return LineEditResult(
-            result, start, end, lineStart, replacement.Length,
-            oldPrefixLength, allPrefixed ? 0 : "1. ".Length);
+            oldPrefixLength, newPrefixLength);
     }
 
     private static MarkdownEditResult LineEditResult(
@@ -412,17 +430,11 @@ public static partial class MarkdownFormatter
     private static string Normalize(string? source) =>
         (source ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
 
-    [GeneratedRegex(@"^#{1,6}\s+")]
+    [GeneratedRegex(@"^([ \t]{0,3})(#{1,6})(?:[ \t]+|$)")]
     private static partial Regex HeadingPrefix();
 
-    [GeneratedRegex(@"^\s*[-+*]\s+")]
-    private static partial Regex ListPrefix();
-
-    [GeneratedRegex(@"^\s*\d+[.)]\s+")]
-    private static partial Regex OrderedPrefix();
-
-    [GeneratedRegex(@"^\s*[-+*]\s+\[[ xX]\]\s+")]
-    private static partial Regex TaskPrefix();
+    [GeneratedRegex(@"^([ \t]*)([-+*]|\d+[.)])[ \t](\[[ xX]\][ \t])?")]
+    private static partial Regex AnyListPrefix();
 
     [GeneratedRegex(@"^\s*>\s?")]
     private static partial Regex QuotePrefix();
@@ -444,6 +456,9 @@ public static partial class MarkdownFormatter
 
     [GeneratedRegex(@"~~(?=\S)(.+?)(?<=\S)~~", RegexOptions.Singleline)]
     private static partial Regex StrikeRuns();
+
+    [GeneratedRegex(@"<(?<tag>u|ins)\s*>(.+?)</\k<tag>\s*>", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    private static partial Regex UnderlineRuns();
 
     [GeneratedRegex(@"(?<!`)`([^`\n]+)`(?!`)")]
     private static partial Regex CodeRuns();

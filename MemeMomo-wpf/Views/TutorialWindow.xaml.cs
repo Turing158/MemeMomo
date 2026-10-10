@@ -113,6 +113,7 @@ public partial class TutorialWindow : BorderlessWindow
             LocalizationService.Format("切换最近便签任务栏图标：{0}", FormatHotkey(s.ToggleMemoTaskbarHotkey, s.ShowMemoWindowTaskbarIcon)),
             LocalizationService.Format("最小化到托盘：{0}", FormatHotkey(s.MinimizeHotkey, enabled: true)),
             LocalizationService.Format("显示软件：{0}", FormatHotkey(s.ShowWindowHotkey, enabled: true)),
+            LocalizationService.Format("快速添加：{0}", FormatHotkey(s.QuickAddHotkey, enabled: true)),
             LocalizationService.Format("快速添加（剪贴板）：{0}", FormatHotkey(s.QuickMemoHotkey, s.QuickMemoEnabled))
         ];
 

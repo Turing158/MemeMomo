@@ -10,6 +10,7 @@ public enum HotkeyAction
     Minimize,
     ShowWindow,
     QuickMemo,
+    QuickAdd,
 }
 
 public readonly record struct HotkeyValidationResult(bool IsValid, string Error, HotkeyAction? Conflict)
@@ -120,6 +121,7 @@ public static class HotkeyValidation
         HotkeyAction.Minimize => "最小化",
         HotkeyAction.ShowWindow => "显示软件",
         HotkeyAction.QuickMemo => "快速添加（剪贴板）",
+        HotkeyAction.QuickAdd => "快速添加",
         _ => "其他功能",
     });
 
@@ -137,6 +139,7 @@ public static class HotkeyValidation
         yield return (HotkeyAction.ToggleTopmost, settings.ToggleTopmostHotkey);
         yield return (HotkeyAction.Minimize, settings.MinimizeHotkey);
         yield return (HotkeyAction.ShowWindow, settings.ShowWindowHotkey);
+        yield return (HotkeyAction.QuickAdd, settings.QuickAddHotkey);
         if (settings.ShowMemoWindowTaskbarIcon)
         {
             yield return (HotkeyAction.ToggleMemoTaskbar, settings.ToggleMemoTaskbarHotkey);

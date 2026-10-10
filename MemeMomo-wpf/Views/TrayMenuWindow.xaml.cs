@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using MemeMomo.Platform.Windows;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Windows;
@@ -21,6 +22,7 @@ public partial class TrayMenuWindow : BorderlessWindow
 {
     private readonly ITrayMenuHostActions? _actions;
     private HwndSource? _hwndSource;
+    private WindowsOutsideClickMonitor? _outsideClickMonitor;
     private bool _inputMonitoring;
     private bool _hasBeenShown;
 
@@ -28,6 +30,7 @@ public partial class TrayMenuWindow : BorderlessWindow
     {
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
+        IsVisibleChanged += OnIsVisibleChanged;
         Closed += OnClosed;
     }
 
@@ -111,7 +114,13 @@ public partial class TrayMenuWindow : BorderlessWindow
 
         // Keep the flyout above a shell-owned tray popup without activating it.
         Dispatcher.BeginInvoke(
-            new Action(() => PlaceWithoutActivation(placementPixels)),
+            new Action(() =>
+            {
+                if (IsVisible && _inputMonitoring)
+                {
+                    PlaceWithoutActivation(placementPixels);
+                }
+            }),
             System.Windows.Threading.DispatcherPriority.Render);
     }
 
@@ -243,6 +252,8 @@ public partial class TrayMenuWindow : BorderlessWindow
         }
 
         InputManager.Current.PreProcessInput += OnPreProcessInput;
+        _outsideClickMonitor = WindowsOutsideClickMonitor.TryStart(
+            new WindowInteropHelper(this).Handle, Dispatcher, HideMenu);
         _inputMonitoring = true;
     }
 
@@ -254,7 +265,17 @@ public partial class TrayMenuWindow : BorderlessWindow
         }
 
         InputManager.Current.PreProcessInput -= OnPreProcessInput;
+        _outsideClickMonitor?.Dispose();
+        _outsideClickMonitor = null;
         _inputMonitoring = false;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (!IsVisible)
+        {
+            StopInputMonitoring();
+        }
     }
 
     private void HideMenu()
@@ -285,6 +306,7 @@ public partial class TrayMenuWindow : BorderlessWindow
         }
 
         SourceInitialized -= OnSourceInitialized;
+        IsVisibleChanged -= OnIsVisibleChanged;
         Closed -= OnClosed;
     }
 

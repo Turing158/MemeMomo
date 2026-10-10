@@ -45,6 +45,8 @@ public sealed class ReminderToastQueue
     private bool _recordEndAtNextPump;
 
     public IBalloonNotificationSink? Sink { get; set; }
+    /// <summary>False drops a stale entry; null defers a task whose commit is in flight.</summary>
+    public Func<Guid, bool?>? DeliveryGuard { get; set; }
 
     /// <summary>等待投递的条目数（不含活动条目）。</summary>
     internal int Count => _entries.Count;
@@ -122,6 +124,8 @@ public sealed class ReminderToastQueue
             return;
         }
 
+        while (_entries.Count > 0 && DeliveryGuard?.Invoke(_entries[0].MemoId) == false) _entries.RemoveAt(0);
+        if (_entries.Count == 0 || (DeliveryGuard is not null && DeliveryGuard(_entries[0].MemoId) is null)) return;
         Entry entry = _entries[0];
         _entries.RemoveAt(0);
         _active = entry;

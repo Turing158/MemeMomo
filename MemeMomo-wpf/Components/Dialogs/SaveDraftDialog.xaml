@@ -1,0 +1,19 @@
+<dialogs:MemoDialogWindow x:Class="MemeMomo.Components.Dialogs.SaveDraftDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:loc="clr-namespace:MemeMomo.UI.Text"
+    xmlns:dialogs="clr-namespace:MemeMomo.Components.Dialogs"
+    Title="{loc:Localize '保存便签？'}" Width="360" SizeToContent="Height"
+    ShellBackground="{DynamicResource SurfacePrimaryBrush}"
+    ShellBorderBrush="{DynamicResource BorderEmphasisBrush}"
+    PreviewKeyDown="OnPreviewKeyDown">
+  <StackPanel Margin="18">
+    <TextBlock Text="{loc:Localize '保存便签？'}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+    <TextBlock Margin="0,8,0,20" Text="{loc:Localize '此便签尚未添加，是否保存后关闭？'}" TextWrapping="Wrap" FontSize="12.5" LineHeight="18" Foreground="{DynamicResource TextSecondaryBrush}" />
+    <WrapPanel HorizontalAlignment="Right">
+      <Button Height="32" Padding="12,0" Content="{loc:Localize '取消'}" Style="{StaticResource DialogSecondaryActionButtonStyle}" Click="OnCancel" />
+      <Button Height="32" Margin="8,0,0,0" Padding="12,0" Content="{loc:Localize '不保存'}" Style="{StaticResource DialogSecondaryActionButtonStyle}" Click="OnDiscard" />
+      <Button x:Name="SaveButton" Height="32" Margin="8,0,0,0" Padding="12,0" Content="{loc:Localize '保存'}" Style="{StaticResource DialogPrimaryActionButtonStyle}" Click="OnSave" />
+    </WrapPanel>
+  </StackPanel>
+</dialogs:MemoDialogWindow>

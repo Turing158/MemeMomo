@@ -22,6 +22,18 @@ namespace MemeMomo.Editor;
 /// </summary>
 internal static class EditorClipboardMenu
 {
+    internal static ContextMenu CreateReadOnly(FrameworkElement target)
+    {
+        ContextMenu menu = new() { Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuPresenterTheme") as Style };
+        var copy = CreateItem(CopyHeader, target);
+        copy.Command = ApplicationCommands.Copy;
+        menu.Items.Add(copy);
+        var select = CreateItem("全选", target);
+        select.Command = ApplicationCommands.SelectAll;
+        menu.Items.Add(select);
+        return menu;
+    }
+
     internal const string CutHeader = "剪切";
     internal const string CopyHeader = "复制";
     internal const string PasteHeader = "粘贴";
@@ -30,7 +42,8 @@ internal static class EditorClipboardMenu
     /// 为主编辑区创建右键菜单。剪贴板是图片/文件列表时粘贴走 <paramref name="pasteImages"/>
     /// （与 Ctrl+V 的图片拦截一致），其余情况执行普通文本粘贴。
     /// </summary>
-    internal static ContextMenu CreateForTextArea(TextArea textArea, Action pasteImages)
+    internal static ContextMenu CreateForTextArea(TextArea textArea, Action pasteImages,
+        Action? editImage = null, Action? deleteImage = null)
     {
         ContextMenu menu = new()
         {
@@ -38,6 +51,22 @@ internal static class EditorClipboardMenu
         };
         ContextMenuAnimations.SetIsEnabled(menu, true);
         AppendClipboardItems(menu, textArea, pasteImages, includeImageContent: true, trailingSeparator: false);
+        if (editImage is not null)
+        {
+            MenuItem edit = CreateItem("编辑图片", textArea);
+            edit.Click += (_, _) => editImage();
+            menu.Items.Insert(0, edit);
+            if (deleteImage is not null)
+            {
+                MenuItem delete = CreateItem("删除图片", textArea);
+                delete.Click += (_, _) => deleteImage();
+                menu.Items.Insert(1, delete);
+            }
+            menu.Items.Insert(deleteImage is null ? 1 : 2, new Separator
+            {
+                Style = Application.Current?.TryFindResource("MarkdownToolbarMenuSeparatorTheme") as Style
+            });
+        }
         return menu;
     }
 
@@ -49,6 +78,48 @@ internal static class EditorClipboardMenu
     {
         AppendClipboardItems(menu, cell, pasteImages: null, includeImageContent: false,
             trailingSeparator: true, cellContentFallback: true);
+    }
+
+    internal static void PrependBlockItems(ContextMenu menu, TextArea target,
+        string deleteHeader, Action delete, Action? editLanguage = null)
+    {
+        int index = 0;
+        if (editLanguage is not null)
+        {
+            MenuItem edit = CreateItem("编辑代码语言", target);
+            edit.Click += (_, _) => editLanguage();
+            menu.Items.Insert(index++, edit);
+        }
+        MenuItem remove = CreateItem(deleteHeader, target);
+        remove.Click += (_, _) => delete();
+        menu.Items.Insert(index++, remove);
+        menu.Items.Insert(index, new Separator
+        {
+            Style = Application.Current?.TryFindResource("MarkdownToolbarMenuSeparatorTheme") as Style
+        });
+    }
+
+    internal static void PrependToCellMenu(ContextMenu menu, MarkdownTableCell cell)
+    {
+        AppendClipboardItems(menu, cell.TextArea, pasteImages: null, includeImageContent: false,
+            trailingSeparator: true);
+        MenuItem cut = (MenuItem)menu.Items[0];
+        MenuItem copy = (MenuItem)menu.Items[1];
+        cut.Command = null;
+        copy.Command = null;
+        copy.Click += (_, _) =>
+        {
+            if (cell.SelectionLength > 0)
+                cell.Copy();
+            else if (cell.Text.Length > 0)
+                TrySetClipboardText(cell.Text);
+        };
+        cut.Click += (_, _) =>
+        {
+            if (cell.SelectionLength == 0)
+                cell.SelectAll();
+            cell.Cut();
+        };
     }
 
     private static void AppendClipboardItems(

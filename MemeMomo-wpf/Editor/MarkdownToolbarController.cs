@@ -15,6 +15,7 @@ internal sealed class MarkdownToolbarController : IDisposable
 
     private readonly FrameworkElement _toolbar;
     private readonly FrameworkElement _formatToolbar;
+    private readonly FrameworkElement _leadingContent;
     private readonly FrameworkElement _actions;
     private readonly Button _editSourceButton;
     private readonly Button _moreButton;
@@ -30,6 +31,7 @@ internal sealed class MarkdownToolbarController : IDisposable
     internal MarkdownToolbarController(
         FrameworkElement toolbar,
         FrameworkElement formatToolbar,
+        FrameworkElement leadingContent,
         FrameworkElement actions,
         Button editSourceButton,
         Button moreButton,
@@ -39,6 +41,7 @@ internal sealed class MarkdownToolbarController : IDisposable
     {
         _toolbar = toolbar;
         _formatToolbar = formatToolbar;
+        _leadingContent = leadingContent;
         _actions = actions;
         _editSourceButton = editSourceButton;
         _moreButton = moreButton;
@@ -51,6 +54,7 @@ internal sealed class MarkdownToolbarController : IDisposable
         };
         _closeTimer.Tick += OnCloseTimerTick;
         _toolbar.SizeChanged += OnToolbarSizeChanged;
+        _leadingContent.SizeChanged += OnToolbarSizeChanged;
     }
 
     internal void UpdateResponsiveItems()
@@ -234,6 +238,7 @@ internal sealed class MarkdownToolbarController : IDisposable
             return;
         }
         _toolbar.SizeChanged -= OnToolbarSizeChanged;
+        _leadingContent.SizeChanged -= OnToolbarSizeChanged;
         _closeTimer.Tick -= OnCloseTimerTick;
         _closeTimer.Stop();
         if (_activeMenu is { IsOpen: true } menu)

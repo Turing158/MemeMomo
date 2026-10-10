@@ -16,6 +16,7 @@ using MemeMomo.Markdown;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Popup;
+using MemeMomo.UI.Notifications;
 using Microsoft.Win32;
 using WinFormsClipboard = System.Windows.Forms.Clipboard;
 using Brush = System.Windows.Media.Brush;
@@ -64,15 +65,18 @@ public partial class MarkdownEditor : UserControl, IDisposable
     public static readonly DependencyProperty EditorContentProperty = DependencyProperty.Register(
         nameof(EditorContent), typeof(object), typeof(MarkdownEditor));
 
+    public static readonly DependencyProperty ToolbarLeadingContentProperty = DependencyProperty.Register(
+        nameof(ToolbarLeadingContent), typeof(object), typeof(MarkdownEditor));
+
     private readonly MarkdownImageStore _imageStore;
     private readonly AvalonEditMarkdownAdapter _adapter;
     private readonly MarkdownEditSession _editSession = new();
     private readonly DebouncedAction _autoSave;
-    private readonly DispatcherTimer _statusTimer;
+    private readonly NotificationFeedback _status;
+    private readonly NotificationFeedback _dropStatus;
     private readonly MarkdownToolbarController _toolbarController;
     private Window? _ownerWindow;
     private MarkdownVisualSpan? _hoveredCodeBlock;
-    private bool _saveInProgress;
     private bool _dropInProgress;
     private int _disposed;
 
@@ -82,6 +86,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
     {
         _imageStore = new MarkdownImageStore(imageRoot);
         InitializeComponent();
+        _status = new NotificationFeedback(this);
+        _dropStatus = new NotificationFeedback(this);
         _adapter = new AvalonEditMarkdownAdapter(_imageStore.RootDirectory, imageHttpHandler);
         _adapter.MarkdownChanged += OnAdapterMarkdownChanged;
         _adapter.SaveRequested += OnAdapterSaveRequested;
@@ -97,17 +103,18 @@ public partial class MarkdownEditor : UserControl, IDisposable
         textView.VisualLinesChanged += OnTextViewVisualLinesChanged;
         SetCurrentValue(EditorContentProperty, _adapter.View);
         _autoSave = new DebouncedAction(TimeSpan.FromMilliseconds(500));
-        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1100) };
-        _statusTimer.Tick += OnStatusTimerTick;
         _toolbarController = new MarkdownToolbarController(
             Toolbar,
             FormatToolbar,
+            ToolbarLeadingContentHost,
             ToolbarActions,
             EditSourceButton,
             MoreButton,
             EditSourceMenuItem,
             ResponsiveMenuSeparator,
             [
+                (StrikeButton, StrikeMenuItem),
+                (UnderlineButton, UnderlineMenuItem),
                 (TableButton, TableMenuItem),
                 (BulletListButton, BulletListMenuItem),
                 (OrderedListButton, OrderedListMenuItem),
@@ -162,6 +169,12 @@ public partial class MarkdownEditor : UserControl, IDisposable
         set => SetValue(EditorContentProperty, value);
     }
 
+    public object? ToolbarLeadingContent
+    {
+        get => GetValue(ToolbarLeadingContentProperty);
+        set => SetValue(ToolbarLeadingContentProperty, value);
+    }
+
     public Func<MarkdownSaveRequest, Task<bool>>? SaveRequestedAsync { get; set; }
     public Func<string, Task>? CancelRequestedAsync { get; set; }
     public event EventHandler? EditRequested { add { } remove { } }
@@ -170,7 +183,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
     public event EventHandler? EditingCompleted;
     public event EventHandler<MarkdownToolbarCommandEventArgs>? ToolbarCommandInvoked;
 
-    public bool IsEditing => true;
+    public bool IsEditing => !IsReadOnlyPreview;
     public bool IsNewMemo { get; private set; }
     public string Markdown => _adapter.Markdown;
     public string AssetPathRoot => _imageStore.RootDirectory;
@@ -211,6 +224,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
     public void BeginNew(string? draft = null)
     {
         ThrowIfDisposed();
+        ResetSession(preview: false);
+        long version = _sessionVersion;
         _autoSave.Cancel();
         IsNewMemo = true;
         _editSession.Begin(draft);
@@ -220,7 +235,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         HideStatus();
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
-            if (Volatile.Read(ref _disposed) == 0 && IsLoaded)
+            if (CanWriteSession(version) && IsLoaded && IsVisible && IsEnabled)
             {
                 FocusEditor();
             }
@@ -233,6 +248,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     public void SetExternalMarkdown(string? markdown)
     {
+        if (IsReadOnlyPreview || _lifecycleSuspended) return;
         ThrowIfDisposed();
         string next = markdown ?? string.Empty;
         if (next == Markdown)
@@ -256,10 +272,12 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     public async Task CancelEditingAsync()
     {
+        if (IsReadOnlyPreview || _lifecycleSuspended) return;
         ThrowIfDisposed();
         _autoSave.Cancel();
         string restore = _editSession.Restore();
         _adapter.SetMarkdown(restore, clearUndo: true, preserveViewState: false);
+        HideStatus();
         if (CancelRequestedAsync is { } callback)
         {
             await callback(restore);
@@ -273,6 +291,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     internal void AbortForSourceDeletion()
     {
+        ResetSession(preview: true);
         _autoSave.Cancel();
         _adapter.SetMarkdown(string.Empty, clearUndo: true, preserveViewState: false);
         UpdateWatermark();
@@ -288,8 +307,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
         Unloaded -= OnUnloaded;
         DetachOwnerWindow();
         _autoSave.Dispose();
-        _statusTimer.Stop();
-        _statusTimer.Tick -= OnStatusTimerTick;
+        HideStatus();
+        _dropStatus.Clear();
         _toolbarController.Dispose();
         if (ReferenceEquals(EditorContent, _adapter.View))
         {
@@ -313,6 +332,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void LoadExisting(string? markdown, bool focus)
     {
         ThrowIfDisposed();
+        ResetSession(preview: false);
+        long version = _sessionVersion;
         _autoSave.Cancel();
         IsNewMemo = false;
         _editSession.Begin(markdown);
@@ -324,7 +345,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
-                if (Volatile.Read(ref _disposed) == 0 && IsLoaded)
+                if (CanWriteSession(version) && IsLoaded && IsVisible && IsEnabled)
                 {
                     FocusEditor();
                 }
@@ -344,7 +365,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _autoSave.Cancel();
-        _statusTimer.Stop();
+        HideStatus();
+        _dropStatus.Clear();
         _toolbarController.CancelClose();
         PopupAnimations.Close(TablePickerPopup, immediate: true, restoreFocus: false);
         DetachOwnerWindow();
@@ -377,12 +399,14 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void OnAdapterMarkdownChanged(object? sender, EventArgs e)
     {
+        if (IsReadOnlyPreview || _lifecycleSuspended) return;
         UpdateWatermark();
         DraftChanged?.Invoke(Markdown);
         ShowStatus("未保存", isError: false, autoHide: false);
         if (!IsNewMemo)
         {
-            _autoSave.Schedule(() => RequestSaveAsync(completeEditing: false));
+            long version = _sessionVersion;
+            _autoSave.Schedule(() => CanWriteSession(version) ? RequestSaveAsync(completeEditing: false) : Task.FromResult(false));
         }
     }
 
@@ -399,12 +423,11 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void OnEditorPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
-            !_adapter.TryGetVisibleOffset(e.GetPosition(_adapter.Editor), out int offset))
+        if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             return;
         }
-        if (TryOpenLinkAtVisibleOffset(offset))
+        if (TryOpenLink(_adapter.LinkAtPoint(e.GetPosition(_adapter.Editor))))
         {
             e.Handled = true;
         }
@@ -413,12 +436,11 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void OnTextViewQueryCursor(object sender, QueryCursorEventArgs e)
     {
         if (Volatile.Read(ref _disposed) != 0 ||
-            !Keyboard.Modifiers.HasFlag(ModifierKeys.Control) ||
-            !_adapter.TryGetVisibleOffset(e.GetPosition(_adapter.Editor), out int offset))
+            !Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             return;
         }
-        if (_adapter.Model.VisualAt(offset, MarkdownVisualKind.Link) is { LinkTarget: not null })
+        if (_adapter.LinkAtPoint(e.GetPosition(_adapter.Editor)) is { LinkTarget: not null })
         {
             e.Handled = true;
             e.Cursor = Cursors.Hand;
@@ -482,6 +504,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         {
             return;
         }
+        long version = _sessionVersion;
         try
         {
             if (CodeClipboardWriter is { } writer)
@@ -492,67 +515,67 @@ public partial class MarkdownEditor : UserControl, IDisposable
             {
                 System.Windows.Clipboard.SetText(content);
             }
-            ShowStatus("已复制代码", isError: false, autoHide: true);
+            if (IsCurrentSession(version)) ShowStatus("已复制代码", isError: false, autoHide: true);
         }
         catch
         {
-            ShowStatus("复制失败", isError: true, autoHide: true);
+            if (IsCurrentSession(version)) ShowStatus("复制失败", isError: true, autoHide: true);
         }
     }
 
     private async Task<bool> RequestSaveAsync(bool completeEditing)
     {
         _autoSave.Cancel();
-        if (_saveInProgress)
-        {
-            return false;
-        }
-        string markdown = Markdown;
-        if (IsNewMemo && !MarkdownFormatter.HasMeaningfulContent(markdown))
-        {
-            ShowStatus("内容不能为空", isError: true, autoHide: false);
-            return false;
-        }
-        if (SaveRequestedAsync is not { } save)
-        {
-            return false;
-        }
-
-        _saveInProgress = true;
-        ShowStatus("保存中", isError: false, autoHide: false);
-        bool wasNew = IsNewMemo;
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return false;
+        await _editorSaveGate.WaitAsync();
         try
         {
-            bool saved = await save(new MarkdownSaveRequest(markdown, completeEditing, wasNew));
-            if (!saved)
+            if (!CanWriteSession(version)) return false;
+            string markdown = Markdown;
+            if (IsNewMemo && !MarkdownFormatter.HasMeaningfulContent(markdown))
             {
-                ShowStatus("保存失败", isError: true, autoHide: false);
+                ShowStatus("内容不能为空", isError: true, autoHide: false);
                 return false;
             }
-            if (completeEditing)
+            if (SaveRequestedAsync is not { } save)
             {
-                _editSession.Commit(markdown);
+                return false;
             }
-            ShowStatus("已保存", isError: false, autoHide: true);
-            if (wasNew)
+
+            ShowStatus("保存中", isError: false, autoHide: false);
+            bool wasNew = IsNewMemo;
+            try
             {
-                BeginNew();
+                bool saved = await save(new MarkdownSaveRequest(markdown, completeEditing, wasNew));
+                if (!IsCurrentSession(version)) return saved;
+                if (!saved)
+                {
+                    ShowStatus("保存失败", isError: true, autoHide: false);
+                    return false;
+                }
+                if (completeEditing)
+                {
+                    _editSession.Commit(markdown);
+                }
+                ShowStatus("已保存", isError: false, autoHide: true);
+                if (wasNew && IsNewMemo)
+                {
+                    BeginNew();
+                }
+                else if (completeEditing)
+                {
+                    EditingCompleted?.Invoke(this, EventArgs.Empty);
+                }
+                return true;
             }
-            else if (completeEditing)
+            catch (Exception exception)
             {
-                EditingCompleted?.Invoke(this, EventArgs.Empty);
+                if (IsCurrentSession(version)) ShowStatus(exception.Message, isError: true, autoHide: false);
+                return false;
             }
-            return true;
         }
-        catch (Exception exception)
-        {
-            ShowStatus(exception.Message, isError: true, autoHide: false);
-            return false;
-        }
-        finally
-        {
-            _saveInProgress = false;
-        }
+        finally { _editorSaveGate.Release(); }
     }
 
     private void OnToolbarClick(object sender, RoutedEventArgs e)
@@ -577,6 +600,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void InvokeToolbarCommand(string command)
     {
+        if (IsReadOnlyPreview || _lifecycleSuspended) return;
         ToolbarCommandInvoked?.Invoke(this, new MarkdownToolbarCommandEventArgs(command));
         switch (command)
         {
@@ -740,24 +764,38 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void EditLink()
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         Window? owner = Window.GetWindow(this);
         if (owner is null)
         {
             return;
         }
-        int sourceStart = _adapter.SelectionStart;
-        int sourceEnd = _adapter.SelectionEnd;
-        string label = sourceEnd > sourceStart ? Markdown[sourceStart..sourceEnd] : LocalizationService.Get("链接文本");
+        MarkdownTableCell? cell = _adapter.ActiveTableCell is { IsLoaded: true } activeCell ? activeCell : null;
+        var targetEditor = cell ?? _adapter.Editor;
+        MarkdownDocumentModel model = cell?.Model ?? _adapter.Model;
+        string documentMarkdown = Markdown;
+        string markdown = model.Markdown;
+        int selectionStart = targetEditor.SelectionStart;
+        int selectionLength = targetEditor.SelectionLength;
+        int sourceStart = model.SourceOffsetFromVisible(selectionStart, trailingAffinity: true);
+        // At hidden markers, the two selection affinities can map a caret to reversed
+        // source offsets. Insert at the content-side boundary without copying the markers.
+        int sourceEnd = selectionLength == 0 ? sourceStart :
+            model.SourceOffsetFromVisible(selectionStart + selectionLength, trailingAffinity: false);
+        string label = sourceEnd > sourceStart ? markdown[sourceStart..sourceEnd] : LocalizationService.Get("链接文本");
         string url = string.Empty;
         int replaceStart = sourceStart;
         int replaceEnd = sourceEnd;
-        MarkdownVisualSpan? span = _adapter.Model.VisualAt(_adapter.Editor.CaretOffset, MarkdownVisualKind.Link);
+        MarkdownVisualSpan? span = model.VisualAt(selectionStart, MarkdownVisualKind.Link);
+        if (span is { } selectedLink && selectionStart + selectionLength > selectedLink.End)
+            span = null;
         if (span is { LinkTarget: { } target } link)
         {
-            label = _adapter.VisibleText.Substring(link.Start, link.Length);
+            label = model.VisibleText.Substring(link.Start, link.Length);
             url = target;
-            replaceStart = Markdown.LastIndexOf('[', link.SourceStart);
-            int close = Markdown.IndexOf(')', link.SourceStart + link.SourceLength);
+            replaceStart = markdown.LastIndexOf('[', link.SourceStart);
+            int close = markdown.IndexOf(')', link.SourceStart + link.SourceLength);
             if (replaceStart < 0 || close < replaceStart)
             {
                 replaceStart = sourceStart;
@@ -769,23 +807,37 @@ public partial class MarkdownEditor : UserControl, IDisposable
             }
         }
         LinkEditValue? value = new LinkEditDialog(label, url).ShowDialog(owner);
+        if (!CanWriteSession(version) || Markdown != documentMarkdown || cell is { IsLoaded: false })
+            return;
         if (value is null)
         {
-            RestoreEditorFocus(sourceStart, sourceEnd);
+            if (cell is not null)
+            {
+                cell.Select(selectionStart, selectionLength);
+                RestoreEditorFocus();
+            }
+            else
+                RestoreEditorFocus(sourceStart, sourceEnd);
             return;
         }
         string safeLabel = value.Label.Replace("]", "\\]", StringComparison.Ordinal);
         string replacement = $"[{safeLabel}]({value.Url})";
-        string result = Markdown[..replaceStart] + replacement + Markdown[replaceEnd..];
-        _adapter.ApplyEdit(new MarkdownEditResult(
+        string result = markdown[..replaceStart] + replacement + markdown[replaceEnd..];
+        MarkdownEditResult edit = new(
             result,
             replaceStart + 1,
-            replaceStart + 1 + safeLabel.Length));
+            replaceStart + 1 + safeLabel.Length);
+        if (cell is not null)
+            cell.ApplyEdit(edit);
+        else
+            _adapter.ApplyEdit(edit);
         RestoreEditorFocus();
     }
 
     private void EditRemoteImage()
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         Window? owner = Window.GetWindow(this);
         if (owner is null)
         {
@@ -794,6 +846,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         int selectionStart = _adapter.SelectionStart;
         int selectionEnd = _adapter.SelectionEnd;
         string? url = new ImageUrlDialog().ShowDialog(owner);
+        if (!CanWriteSession(version)) return;
         if (url is null)
         {
             RestoreEditorFocus(selectionStart, selectionEnd);
@@ -806,6 +859,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void EditSource()
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         Window? owner = Window.GetWindow(this);
         if (owner is null)
         {
@@ -814,6 +869,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
         int selectionStart = _adapter.SelectionStart;
         int selectionEnd = _adapter.SelectionEnd;
         string? value = new MarkdownSourceDialog(Markdown).ShowDialog(owner);
+        if (!CanWriteSession(version)) return;
         if (value is null || value == Markdown)
         {
             RestoreEditorFocus(selectionStart, selectionEnd);
@@ -823,9 +879,11 @@ public partial class MarkdownEditor : UserControl, IDisposable
         RestoreEditorFocus();
     }
 
-    internal bool TryOpenLinkAtVisibleOffset(int offset)
+    internal bool TryOpenLinkAtVisibleOffset(int offset) =>
+        TryOpenLink(_adapter.Model.VisualAt(offset, MarkdownVisualKind.Link));
+
+    internal bool TryOpenLink(MarkdownVisualSpan? span)
     {
-        MarkdownVisualSpan? span = _adapter.Model.VisualAt(offset, MarkdownVisualKind.Link);
         if (span is not { LinkTarget: { } target })
         {
             return false;
@@ -841,6 +899,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private async Task SelectLocalImagesAsync()
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         OpenFileDialog dialog = new()
         {
             Title = LocalizationService.Get("插入图片"),
@@ -849,6 +909,7 @@ public partial class MarkdownEditor : UserControl, IDisposable
             Filter = LocalizationService.Get("图片|*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg")
         };
         bool? accepted = dialog.ShowDialog(Window.GetWindow(this));
+        if (!CanWriteSession(version)) return;
         if (accepted == true)
         {
             await InsertFilePathsAsync(dialog.FileNames);
@@ -861,6 +922,8 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private async Task InsertClipboardImagesAsync()
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         try
         {
             if (WinFormsClipboard.ContainsFileDropList())
@@ -878,16 +941,19 @@ public partial class MarkdownEditor : UserControl, IDisposable
             image.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
             stream.Position = 0;
             string stored = await _imageStore.StoreAsync(stream, ".png");
+            if (!CanWriteSession(version)) return;
             InsertStoredImages([(LocalizationService.Get("粘贴的图片"), stored)]);
         }
         catch (Exception exception)
         {
-            ShowStatus(exception.Message, isError: true, autoHide: false);
+            if (IsCurrentSession(version)) ShowStatus(exception.Message, isError: true, autoHide: false);
         }
     }
 
     private async Task InsertFilePathsAsync(IEnumerable<string> files)
     {
+        long version = _sessionVersion;
+        if (!CanWriteSession(version)) return;
         string[] paths = files.Where(path => !string.IsNullOrWhiteSpace(path)).ToArray();
         if (!ValidateImageFiles(paths, out string? error))
         {
@@ -906,11 +972,12 @@ public partial class MarkdownEditor : UserControl, IDisposable
                 string uri = await _imageStore.StoreFileAsync(path);
                 stored.Add((Path.GetFileNameWithoutExtension(path), uri));
             }
+            if (!CanWriteSession(version)) return;
             InsertStoredImages(stored);
         }
         catch (Exception exception)
         {
-            ShowStatus(exception.Message, isError: true, autoHide: false);
+            if (IsCurrentSession(version)) ShowStatus(exception.Message, isError: true, autoHide: false);
         }
     }
 
@@ -958,21 +1025,22 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void UpdateDragEffects(DragEventArgs e)
     {
         string[] files = GetDroppedFiles(e.Data);
-        bool accepted = !_dropInProgress && ValidateImageFiles(files, out _);
+        bool accepted = !IsReadOnlyPreview && !_lifecycleSuspended && !_dropInProgress && ValidateImageFiles(files, out _);
         e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
-        DropCue.Opacity = accepted ? 1 : 0;
+        if (accepted) _dropStatus.Show(LocalizationService.Get("放开以插入图片"), persistent: true);
+        else _dropStatus.Clear();
     }
 
-    private void OnDragLeave(object sender, DragEventArgs e) => DropCue.Opacity = 0;
+    private void OnDragLeave(object sender, DragEventArgs e) => _dropStatus.Clear();
 
     private async void OnDrop(object sender, DragEventArgs e)
     {
         string[] files = GetDroppedFiles(e.Data);
-        bool accepted = ValidateImageFiles(files, out _);
+        bool accepted = !IsReadOnlyPreview && !_lifecycleSuspended && ValidateImageFiles(files, out _);
         e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
-        DropCue.Opacity = 0;
+        _dropStatus.Clear();
         if (!accepted || _dropInProgress)
         {
             return;
@@ -995,29 +1063,28 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void RestoreEditorFocus(int? selectionStart = null, int? selectionEnd = null)
     {
+        long version = _sessionVersion;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
-            if (Volatile.Read(ref _disposed) != 0)
-            {
-                return;
-            }
+            if (!CanWriteSession(version)) return;
             if (selectionStart is { } start)
             {
                 _adapter.SelectSourceRange(start, selectionEnd ?? start);
             }
-            _adapter.FocusEditor();
+            if (selectionStart is not null || !_adapter.RestoreTableCellFocus())
+                _adapter.FocusEditor();
         }));
     }
 
     private void UpdateActions()
     {
         NewButton.Visibility = !IsNewMemo && ShowNewAction ? Visibility.Visible : Visibility.Collapsed;
-        Toolbar.Visibility = HideToolbarInPreview ? Visibility.Collapsed : Visibility.Visible;
+        Toolbar.Visibility = IsReadOnlyPreview || HideToolbarInPreview ? Visibility.Collapsed : Visibility.Visible;
         UpdateChrome();
     }
 
     private void UpdateWatermark() =>
-        WatermarkText.Visibility = _adapter.VisibleText.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        WatermarkText.Visibility = !IsReadOnlyPreview && _adapter.VisibleText.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private void UpdateChrome()
     {
@@ -1040,27 +1107,28 @@ public partial class MarkdownEditor : UserControl, IDisposable
 
     private void ShowStatus(string message, bool isError, bool autoHide)
     {
-        _statusTimer.Stop();
-        MemeMomo.UI.Text.LocalizeExtension.Set(StatusText, TextBlock.TextProperty, message);
-        StatusText.Foreground = FindBrush(isError ? "DangerPrimaryBrush" : "TextSecondaryBrush", Brushes.DimGray);
-        StatusBadge.Background = FindBrush(isError ? "DangerSubtleBrush" : "BgTertiaryBrush", Brushes.WhiteSmoke);
-        StatusBadge.Opacity = 1;
-        if (autoHide)
+        if (IsReadOnlyPreview) return;
+        bool unsaved = message == "未保存";
+        UnsavedBadge.Visibility = unsaved ? Visibility.Visible : Visibility.Collapsed;
+        if (unsaved)
         {
-            _statusTimer.Start();
+            _status.Clear();
+            return;
         }
+        _status.Show(LocalizationService.Get(message), isError ? NotificationKind.Error
+            : autoHide ? NotificationKind.Success : NotificationKind.Information, persistent: message == "保存中");
     }
 
     private void HideStatus()
     {
-        _statusTimer.Stop();
-        StatusBadge.Opacity = 0;
+        UnsavedBadge.Visibility = Visibility.Collapsed;
+        _status.Clear();
     }
 
-    private void OnStatusTimerTick(object? sender, EventArgs e) => HideStatus();
+    internal void RefreshAppearance() => _adapter.Editor.TextArea.TextView.Redraw();
 
-    private static Brush FindBrush(string key, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    private Brush FindBrush(string key, Brush fallback) =>
+        TryFindResource(key) as Brush ?? fallback;
 
     private static void OnChromeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((MarkdownEditor)d).UpdateChrome();

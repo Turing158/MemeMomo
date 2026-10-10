@@ -18,30 +18,40 @@ internal static class MarkdownInlineCodeStyle
     internal const double VerticalPadding = 0;
     internal const double CornerRadius = 3;
 
-    internal static bool IsInlineCode(MarkdownDocumentModel model, MarkdownVisualSpan span)
+    internal static Rect GetContentRect(TextView textView, Rect rect)
     {
-        int sourceStart = Math.Clamp(span.SourceStart, 0, model.Markdown.Length);
-        int sourceEnd = Math.Clamp(
-            span.SourceStart + span.SourceLength,
-            sourceStart,
-            model.Markdown.Length);
-        if (sourceStart > 0 && sourceEnd < model.Markdown.Length &&
-            model.Markdown[sourceStart - 1] == '`' && model.Markdown[sourceEnd] == '`')
+        rect = HtmlAlignmentLayout.ClipSelectionRect(textView, rect);
+        // Block padding expands the formatted line, but inline backgrounds belong
+        // only to its text content, just like the normal selection highlight.
+        foreach (VisualLine line in textView.VisualLines)
         {
-            return true;
+            if (!line.Elements.OfType<QuotePaddingElement>().Any())
+            {
+                continue;
+            }
+
+            foreach (System.Windows.Media.TextFormatting.TextLine textLine in line.TextLines)
+            {
+                double lineTop = line.GetTextLineVisualYPosition(textLine, VisualYPosition.LineTop) -
+                    textView.VerticalOffset;
+                if (Math.Abs(lineTop - rect.Top) >= 0.01)
+                {
+                    continue;
+                }
+
+                double top = line.GetTextLineVisualYPosition(textLine, VisualYPosition.TextTop) -
+                    textView.VerticalOffset;
+                double bottom = line.GetTextLineVisualYPosition(textLine, VisualYPosition.TextBottom) -
+                    textView.VerticalOffset;
+                return new Rect(rect.Left, top, rect.Width, bottom - top);
+            }
         }
 
-        const string openTag = "<code>";
-        const string closeTag = "</code>";
-        return sourceStart >= openTag.Length &&
-            sourceEnd + closeTag.Length <= model.Markdown.Length &&
-            model.Markdown.AsSpan(sourceStart - openTag.Length, openTag.Length)
-                .Equals(openTag, StringComparison.OrdinalIgnoreCase) &&
-            model.Markdown.AsSpan(sourceEnd, closeTag.Length)
-                .Equals(closeTag, StringComparison.OrdinalIgnoreCase);
+        return rect;
     }
-}
 
+    internal static bool IsInlineCode(MarkdownVisualSpan span) => span.Kind == MarkdownVisualKind.Code;
+}
 internal sealed class MarkdownInlineCodeRenderer(
     MarkdownDocumentModel model) : IBackgroundRenderer
 {
@@ -54,10 +64,10 @@ internal sealed class MarkdownInlineCodeRenderer(
             return;
         }
 
-        Brush background = FindBrush("MarkdownInlineCodeBackgroundBrush", "AccentMutedBrush", Brushes.BurlyWood);
+        Brush background = FindBrush(textView, "MarkdownInlineCodeBackgroundBrush", "AccentMutedBrush", Brushes.BurlyWood);
         foreach (MarkdownVisualSpan span in model.Spans.Where(value =>
                      value.Kind == MarkdownVisualKind.Code &&
-                     MarkdownInlineCodeStyle.IsInlineCode(model, value)))
+                     MarkdownInlineCodeStyle.IsInlineCode(value)))
         {
             int start = Math.Clamp(span.Start, 0, document.TextLength);
             int length = Math.Clamp(span.Length, 0, document.TextLength - start);
@@ -72,11 +82,12 @@ internal sealed class MarkdownInlineCodeRenderer(
                          segment,
                          extendToFullWidthAtLineEnd: false))
             {
+                Rect content = MarkdownInlineCodeStyle.GetContentRect(textView, rect);
                 Rect padded = new(
-                    rect.Left - MarkdownInlineCodeStyle.HorizontalPadding,
-                    rect.Top - MarkdownInlineCodeStyle.VerticalPadding,
-                    rect.Width + MarkdownInlineCodeStyle.HorizontalPadding * 2,
-                    rect.Height + MarkdownInlineCodeStyle.VerticalPadding * 2);
+                    content.Left - MarkdownInlineCodeStyle.HorizontalPadding,
+                    content.Top - MarkdownInlineCodeStyle.VerticalPadding,
+                    content.Width + MarkdownInlineCodeStyle.HorizontalPadding * 2,
+                    content.Height + MarkdownInlineCodeStyle.VerticalPadding * 2);
                 drawingContext.DrawRoundedRectangle(
                     background,
                     null,
@@ -87,9 +98,9 @@ internal sealed class MarkdownInlineCodeRenderer(
         }
     }
 
-    internal static Brush FindBrush(string key, string fallbackKey, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ??
-        Application.Current?.TryFindResource(fallbackKey) as Brush ?? fallback;
+    internal static Brush FindBrush(TextView textView, string key, string fallbackKey, Brush fallback) =>
+        textView.TryFindResource(key) as Brush ??
+        textView.TryFindResource(fallbackKey) as Brush ?? fallback;
 }
 
 internal sealed class MarkdownInlineCodePaddingGenerator(
@@ -102,7 +113,7 @@ internal sealed class MarkdownInlineCodePaddingGenerator(
         foreach (MarkdownVisualSpan span in model.Spans.Where(value =>
                      value.Kind == MarkdownVisualKind.Code &&
                      value.Length > 0 &&
-                     MarkdownInlineCodeStyle.IsInlineCode(model, value)))
+                     MarkdownInlineCodeStyle.IsInlineCode(value)))
         {
             if (span.Start >= startOffset && span.Start <= line.EndOffset)
             {
@@ -125,7 +136,7 @@ internal sealed class MarkdownInlineCodePaddingGenerator(
         foreach (MarkdownVisualSpan span in model.Spans.Where(value =>
                      value.Kind == MarkdownVisualKind.Code &&
                      value.Length > 0 &&
-                     MarkdownInlineCodeStyle.IsInlineCode(model, value)))
+                     MarkdownInlineCodeStyle.IsInlineCode(value)))
         {
             if (span.Start == offset)
             {

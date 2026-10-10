@@ -1,0 +1,91 @@
+<UserControl x:Class="MemeMomo.Components.MemoColorSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:MemeMomo.UI"
+             Focusable="False">
+  <ListBox x:Name="Choices"
+           Background="Transparent" BorderThickness="0" Padding="0"
+           SelectedValuePath="Preset" SelectionMode="Single"
+           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+           ScrollViewer.VerticalScrollBarVisibility="Disabled"
+           SelectionChanged="OnSelectionChanged"
+           AutomationProperties.Name="{Binding Path=(AutomationProperties.Name), RelativeSource={RelativeSource AncestorType=UserControl}}">
+    <ListBox.ItemsPanel>
+      <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+    </ListBox.ItemsPanel>
+    <ListBox.ItemContainerStyle>
+      <Style TargetType="ListBoxItem">
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="{DynamicResource BgSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource MemoFocusVisualStyle}" />
+        <Setter Property="AutomationProperties.Name" Value="{Binding Label}" />
+        <Setter Property="ToolTip" Value="{Binding Label}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ui:InteractionAnimations.Profile" Value="Surface" />
+        <Setter Property="ui:InteractionAnimations.TargetName" Value="ChoiceMotionSurface" />
+        <Setter Property="ui:InteractionAnimations.SurfaceHoverLayerName" Value="ChoiceHoverLayer" />
+        <Setter Property="ui:InteractionAnimations.SurfacePressedLayerName" Value="ChoicePressedLayer" />
+        <EventSetter Event="Loaded" Handler="OnChoiceLoaded" />
+        <EventSetter Event="Unloaded" Handler="OnChoiceUnloaded" />
+        <EventSetter Event="Selected" Handler="OnChoiceSelectionChanged" />
+        <EventSetter Event="Unselected" Handler="OnChoiceSelectionChanged" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ListBoxItem">
+              <Border Background="Transparent">
+                <Grid x:Name="ChoiceMotionSurface">
+                  <Border x:Name="Frame" Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" />
+                  <Border x:Name="ChoiceSelectedLayer" Opacity="0" IsHitTestVisible="False"
+                          Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentPrimaryBrush}"
+                          BorderThickness="1" CornerRadius="8" />
+                  <Border x:Name="ChoiceHoverLayer" Opacity="0" IsHitTestVisible="False"
+                          Background="{DynamicResource BgHoverBrush}" BorderBrush="{DynamicResource BorderHoverBrush}"
+                          BorderThickness="1" CornerRadius="8" />
+                  <Border x:Name="ChoicePressedLayer" Opacity="0" IsHitTestVisible="False"
+                          Background="{DynamicResource AccentSubtlePressedBrush}" BorderBrush="{DynamicResource AccentPrimaryBrush}"
+                          BorderThickness="1" CornerRadius="8" />
+                  <Border BorderThickness="1" Padding="{TemplateBinding Padding}">
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="14" /></Grid.ColumnDefinitions>
+                      <ContentPresenter VerticalAlignment="Center" />
+                      <Path x:Name="SelectedMark" Grid.Column="1" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.5,0.5"
+                            Width="10" Height="8" Stretch="Uniform" Margin="3,0,0,0"
+                            Data="M 1,4 L 4,7 L 10,1" StrokeThickness="1.6"
+                            Stroke="{DynamicResource AccentPrimaryBrush}">
+                        <Path.RenderTransform><ScaleTransform ScaleX="0.7" ScaleY="0.7" /></Path.RenderTransform>
+                      </Path>
+                    </Grid>
+                  </Border>
+                </Grid>
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                  <Setter TargetName="ChoiceHoverLayer" Property="Background" Value="{DynamicResource AccentSubtlePressedBrush}" />
+                  <Setter TargetName="ChoiceHoverLayer" Property="BorderBrush" Value="{DynamicResource AccentPrimaryBrush}" />
+                  <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+    </ListBox.ItemContainerStyle>
+    <ListBox.ItemTemplate>
+      <DataTemplate>
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Border Width="20" Height="20" CornerRadius="6" Background="{Binding Swatch}"
+                  BorderBrush="{DynamicResource BorderEmphasisBrush}" BorderThickness="1" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Margin="7,0,1,0" Text="{Binding Label}" FontSize="11.5"
+                     VerticalAlignment="Center" TextWrapping="Wrap" />
+        </Grid>
+      </DataTemplate>
+    </ListBox.ItemTemplate>
+  </ListBox>
+</UserControl>

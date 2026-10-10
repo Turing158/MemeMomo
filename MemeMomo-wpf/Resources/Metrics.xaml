@@ -10,5 +10,24 @@
   <CornerRadius x:Key="RadiusXl">20</CornerRadius>
   <CornerRadius x:Key="RadiusFull">999</CornerRadius>
   <FontFamily x:Key="AppFontFamily">Inter, Microsoft YaHei, Microsoft YaHei UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>
+  <Thickness x:Key="SettingsAboutCardMargin">0,12,0,16</Thickness>
+  <Thickness x:Key="SettingsAboutIconMargin">0,0,12,0</Thickness>
+  <Thickness x:Key="SettingsAboutDescriptionMargin">0,3,0,0</Thickness>
+  <Thickness x:Key="SettingsAboutIdentityMargin">0,12,0,0</Thickness>
+  <Thickness x:Key="SettingsAboutSectionMargin">0,14,0,0</Thickness>
+  <Thickness x:Key="SettingsAboutVersionMargin">0,0,10,0</Thickness>
+  <Thickness x:Key="SettingsAboutVersionBadgePadding">10,4,11,4</Thickness>
+  <Thickness x:Key="SettingsAboutVersionBadgeDotMargin">0,0,7,0</Thickness>
+  <Thickness x:Key="SettingsAboutVersionBadgeLabelMargin">0,0,5,0</Thickness>
+  <Thickness x:Key="SettingsAboutGitHubMargin">6,0,0,0</Thickness>
+  <Thickness x:Key="SettingsAboutUpdatePadding">12,0</Thickness>
+  <Thickness x:Key="SettingsAboutUpdateDotsMargin">1,0,0,0</Thickness>
+  <Thickness x:Key="SettingsAboutFooterMargin">0,10,0,0</Thickness>
+  <sys:Double x:Key="SettingsAboutIconSize">48</sys:Double>
+  <sys:Double x:Key="SettingsAboutGitHubIconSize">18</sys:Double>
+  <sys:Double x:Key="SettingsAboutProductFontSize">17</sys:Double>
+  <sys:Double x:Key="SettingsAboutFooterFontSize">10.5</sys:Double>
+  <sys:Double x:Key="SettingsAboutButtonHeight">34</sys:Double>
+  <sys:Double x:Key="SettingsAboutUpdateMinWidth">96</sys:Double>
   <BooleanToVisibilityConverter x:Key="BooleanToCollapsedVisibilityConverter" />
 </ResourceDictionary>

@@ -23,6 +23,16 @@ public sealed class SegmentedSelectionChangedEventArgs(string? oldKey, string ne
 
 public partial class SegmentedSelector : UserControl
 {
+    public static readonly DependencyProperty WrapLabelsProperty = DependencyProperty.Register(
+        nameof(WrapLabels), typeof(bool), typeof(SegmentedSelector),
+        new FrameworkPropertyMetadata(false, (d, _) => ((SegmentedSelector)d).RebuildOptions()));
+
+    public bool WrapLabels
+    {
+        get => (bool)GetValue(WrapLabelsProperty);
+        set => SetValue(WrapLabelsProperty, value);
+    }
+
     public static readonly DependencyProperty OptionsProperty = DependencyProperty.Register(
         nameof(Options),
         typeof(IReadOnlyList<SegmentedSelectorOption>),
@@ -253,12 +263,13 @@ public partial class SegmentedSelector : UserControl
             TextBlock label = new()
             {
                 Text = option.Label,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                TextTrimming = WrapLabels ? TextTrimming.None : TextTrimming.CharacterEllipsis,
+                TextWrapping = WrapLabels ? TextWrapping.Wrap : TextWrapping.NoWrap,
+                HorizontalAlignment = WrapLabels ? System.Windows.HorizontalAlignment.Stretch : System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = System.Windows.VerticalAlignment.Center,
                 TextAlignment = TextAlignment.Center,
                 FontSize = 13,
-                Margin = new Thickness(10, 0, 10, 0)
+                Margin = WrapLabels ? new Thickness(8, 6, 8, 6) : new Thickness(10, 0, 10, 0)
             };
             label.Name = "OptionLabel";
             label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");

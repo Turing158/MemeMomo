@@ -1,0 +1,35 @@
+<UserControl x:Class="MemeMomo.Components.MemoTaskStatusSelector"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:ui="clr-namespace:MemeMomo.UI" Focusable="False">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid x:Name="SelectorLayout">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+   <Button x:Name="StatusButton" MinHeight="26" Padding="7,2" HorizontalContentAlignment="Stretch" Click="OnOpenMenu"
+           ui:InteractionAnimations.HoverScale="1" ui:InteractionAnimations.PressedScale="1">
+    <Grid x:Name="StatusContent">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <ui:TaskStatusIcon x:Name="StatusIcon" Width="14" Height="14" Margin="0,0,4,0" VerticalAlignment="Center"/>
+     <TextBlock x:Name="StatusText" Grid.Column="1" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+     <ui:TaskStatusIcon x:Name="StatusArrow" Grid.Column="2" IconKey="ChevronDown" Width="12" Height="12" Margin="3,0,0,0" VerticalAlignment="Center"/>
+    </Grid>
+   </Button>
+   <Grid x:Name="QuickPosition" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+    <Grid.RenderTransform><TranslateTransform x:Name="QuickOffset"/></Grid.RenderTransform>
+    <Grid x:Name="QuickPresence" RenderTransformOrigin="1,0.5">
+     <Grid.RenderTransform><ScaleTransform x:Name="QuickScale"/></Grid.RenderTransform>
+     <Button x:Name="QuickButton" Width="26" Height="26" Padding="0" Margin="3,0,0,0" Click="OnQuickClick">
+      <Grid x:Name="QuickContent">
+       <ui:TaskStatusIcon x:Name="QuickIcon" IconKey="Selection" Width="14" Height="14" HorizontalAlignment="Left"/>
+       <Border x:Name="QuickTextClip" Margin="20,0,0,0" ClipToBounds="True" Visibility="Collapsed">
+        <TextBlock x:Name="QuickText" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0">
+         <TextBlock.RenderTransform><TranslateTransform x:Name="QuickTextOffset" X="-6"/></TextBlock.RenderTransform>
+        </TextBlock>
+       </Border>
+      </Grid>
+     </Button>
+    </Grid>
+   </Grid>
+  </Grid>
+ </Grid>
+</UserControl>

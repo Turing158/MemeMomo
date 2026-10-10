@@ -106,47 +106,47 @@ internal static class ThemePreferences
 
     private static readonly IReadOnlyDictionary<string, string> DarkPalette = new Dictionary<string, string>
     {
-        ["BgPrimary"] = "#FF181917",
-        ["BgSecondary"] = "#FF1D1F1C",
-        ["BgTertiary"] = "#FF282A26",
-        ["BgHover"] = "#FF2D302B",
-        ["SurfacePrimary"] = "#FF222420",
-        ["SurfaceHover"] = "#FF282B26",
-        ["SurfaceActive"] = "#FF31342E",
-        ["BorderDefault"] = "#FF3B3F38",
-        ["BorderHover"] = "#FF4B5147",
-        ["BorderSubtle"] = "#FF30342E",
-        ["BorderEmphasis"] = "#FF596052",
-        ["BorderFocus"] = "#FFD69A78",
-        ["AccentPrimary"] = "#FFD58B68",
-        ["AccentHover"] = "#FFE1A080",
-        ["AccentMuted"] = "#FF98664F",
-        ["AccentSubtle"] = "#FF3A2B24",
-        ["AccentSubtlePressed"] = "#FF573C30",
-        ["AccentPressed"] = "#FFB87355",
-        ["MarkdownInlineCodeBackground"] = "#FF98664F",
-        ["MarkdownInlineCodeSelection"] = "#FF6A4637",
-        ["DangerPrimary"] = "#FFD87361",
-        ["DangerHover"] = "#FFE58A79",
-        ["DangerSubtle"] = "#FF3D2926",
-        ["SuccessPrimary"] = "#FF72AD8F",
-        ["SuccessHover"] = "#FF86C2A2",
-        ["SuccessPressed"] = "#FF579174",
-        ["SuccessSubtle"] = "#FF22352C",
-        ["TextPrimary"] = "#FFF0ECE3",
-        ["TextSecondary"] = "#FFC8C1B6",
-        ["TextTertiary"] = "#FFA49D92",
-        ["TextDisabled"] = "#FF746F67",
-        ["IconDefault"] = "#FFBAB2A6",
-        ["IconHover"] = "#FFF0ECE3",
-        ["IconAccent"] = "#FFD58B68",
-        ["MarkdownCodeBlockBackground"] = "#FF252A2D",
-        ["MarkdownCodeBlockBorder"] = "#FF65717A",
-        ["MarkdownQuoteBackground"] = "#FF352A24",
-        ["MarkdownQuoteBorder"] = "#FF765B4C",
-        ["MarkdownTableBorder"] = "#FF7D8376",
-        ["MarkdownTableDivider"] = "#FF62695F",
-        ["MarkdownTableHeader"] = "#14FFFFFF"
+        ["BgPrimary"] = "#FF202225",
+        ["BgSecondary"] = "#FF25272B",
+        ["BgTertiary"] = "#FF30343A",
+        ["BgHover"] = "#FF353A41",
+        ["SurfacePrimary"] = "#FF292C31",
+        ["SurfaceHover"] = "#FF30343A",
+        ["SurfaceActive"] = "#FF393F47",
+        ["BorderDefault"] = "#FF414750",
+        ["BorderHover"] = "#FF535D6A",
+        ["BorderSubtle"] = "#FF353A42",
+        ["BorderEmphasis"] = "#FF657285",
+        ["BorderFocus"] = "#FF9BB9DC",
+        ["AccentPrimary"] = "#FF8FAFD5",
+        ["AccentHover"] = "#FFA5C0E2",
+        ["AccentMuted"] = "#FF506B8C",
+        ["AccentSubtle"] = "#FF2B3746",
+        ["AccentSubtlePressed"] = "#FF394D65",
+        ["AccentPressed"] = "#FF799AC3",
+        ["MarkdownInlineCodeBackground"] = "#FF394D65",
+        ["MarkdownInlineCodeSelection"] = "#FF4B6789",
+        ["DangerPrimary"] = "#FFD0928B",
+        ["DangerHover"] = "#FFDEAAA4",
+        ["DangerSubtle"] = "#FF3D3033",
+        ["SuccessPrimary"] = "#FF8DB59F",
+        ["SuccessHover"] = "#FFA2C7B2",
+        ["SuccessPressed"] = "#FF77A08A",
+        ["SuccessSubtle"] = "#FF2D3A35",
+        ["TextPrimary"] = "#FFE1E4E8",
+        ["TextSecondary"] = "#FFB9C0C9",
+        ["TextTertiary"] = "#FFA2ABB7",
+        ["TextDisabled"] = "#FF68717D",
+        ["IconDefault"] = "#FFB0BAC6",
+        ["IconHover"] = "#FFE1E4E8",
+        ["IconAccent"] = "#FF8FAFD5",
+        ["MarkdownCodeBlockBackground"] = "#FF252D36",
+        ["MarkdownCodeBlockBorder"] = "#FF56677B",
+        ["MarkdownQuoteBackground"] = "#FF293442",
+        ["MarkdownQuoteBorder"] = "#FF5C7798",
+        ["MarkdownTableBorder"] = "#FF667384",
+        ["MarkdownTableDivider"] = "#FF4C5868",
+        ["MarkdownTableHeader"] = "#148FAFD5"
     };
 
     private static System.Windows.Application? _application;
@@ -157,6 +157,8 @@ internal static class ThemePreferences
     internal static event EventHandler? PaletteChanged;
     internal static ThemeMode Mode { get; private set; } = ThemeMode.FollowSystem;
     internal static bool IsDark => _dark;
+
+    internal static IReadOnlyDictionary<string, string> GetPalette(bool dark) => dark ? DarkPalette : LightPalette;
 
     internal static void Initialize(System.Windows.Application application, ISystemThemeProbe? probe = null)
     {
@@ -236,7 +238,7 @@ internal static class ThemePreferences
 
         SetBrushColor("TransparentBrush", dark ? WpfColor.FromArgb(0, 0, 0, 0) : WpfColor.FromArgb(0, 255, 255, 255));
         SetBrushColor("TextSelectionBrush", (WpfColor)WpfColorConverter.ConvertFromString(palette["AccentSubtlePressed"])!);
-        SetBrushColor("TextOnAccentBrush", dark ? (WpfColor)WpfColorConverter.ConvertFromString("#FF211914")! : Colors.White);
+        SetBrushColor("TextOnAccentBrush", dark ? (WpfColor)WpfColorConverter.ConvertFromString("#FF1E252E")! : Colors.White);
 
         PaletteChanged?.Invoke(null, EventArgs.Empty);
     }

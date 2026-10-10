@@ -9,35 +9,23 @@ namespace MemeMomo.Services;
 
 public class JsonSettingsStorage
 {
-    private readonly string _filePath;
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly AtomicJsonFile _file;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public JsonSettingsStorage() : this(null) { }
 
-    internal JsonSettingsStorage(string? filePath)
-    {
-        if (!string.IsNullOrWhiteSpace(filePath))
-        {
-            var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
-            if (directory != null) Directory.CreateDirectory(directory);
-            _filePath = Path.GetFullPath(filePath);
-            return;
-        }
-        var dir = MemoDataPaths.RootDirectory;
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "settings.json");
-    }
+    internal JsonSettingsStorage(string? filePath) => _file = new(filePath ?? Path.Combine(MemoDataPaths.RootDirectory, "settings.json"));
+    public string? LoadDiagnostic => _file.ReadError;
 
     public async Task<AppSettings> LoadAsync()
     {
         try
         {
-            if (!File.Exists(_filePath)) return AppSettings.CreateDefault();
-            var json = await File.ReadAllTextAsync(_filePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
+            var settings = await _file.ReadAsync(json => JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? throw new JsonException("Expected settings object.")) ?? AppSettings.CreateDefault();
+            if (string.IsNullOrWhiteSpace(settings.DefaultTaskStatusId)) settings.DefaultTaskStatusId = TaskStatusDefinition.DefaultId;
             if (!Enum.IsDefined(settings.Language)) settings.Language = AppLanguage.ChineseSimplified;
             if (!Enum.IsDefined(settings.ThemeMode)) settings.ThemeMode = ThemeMode.FollowSystem;
+            if (!Enum.IsDefined(settings.MemoBackgroundColor)) settings.MemoBackgroundColor = MemoColorPreset.FollowTheme;
             if (!Enum.IsDefined(settings.MotionMode)) settings.MotionMode = MotionMode.AlwaysOn;
             if (!Enum.IsDefined(settings.ReminderNotification)) settings.ReminderNotification = ReminderNotificationMode.SystemToast;
             settings.MainWindowDockSize = Math.Clamp(
@@ -55,23 +43,10 @@ public class JsonSettingsStorage
         }
     }
 
-    public async Task SaveAsync(AppSettings settings)
-    {
-        await _semaphore.WaitAsync();
-        try
-        {
-            var json = JsonSerializer.Serialize(settings, JsonOptions);
-            await File.WriteAllTextAsync(_filePath, json);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SettingsStorage] Save failed: {ex.Message}");
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
-    }
+    public virtual Task<StorageResult> TrySaveAsync(AppSettings settings) =>
+        _file.WriteAsync(() => JsonSerializer.Serialize(settings, JsonOptions));
+
+    public async Task SaveAsync(AppSettings settings) => (await TrySaveAsync(settings)).ThrowIfFailed();
 
     private static void SanitizePopoutDock(AppSettings settings)
     {

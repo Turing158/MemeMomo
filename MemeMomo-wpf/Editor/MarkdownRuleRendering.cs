@@ -37,7 +37,7 @@ internal sealed class MarkdownRuleRenderer(
             return;
         }
 
-        Brush brush = FindBrush("BorderEmphasisBrush", Brushes.Gray);
+        Brush brush = FindBrush(textView, "BorderEmphasisBrush", Brushes.Gray);
         MarkdownVisualSpan? selected = interaction.SelectedRule;
 
         foreach (MarkdownVisualSpan span in model.Spans.Where(value => value.Kind == MarkdownVisualKind.Rule))
@@ -48,15 +48,25 @@ internal sealed class MarkdownRuleRenderer(
             }
 
             double middle = lineBounds.Top + lineBounds.Height / 2;
+            HtmlPresentation? html = span.Presentation;
+            double available = Math.Max(0, textView.ActualWidth - MarkdownRuleStyle.HorizontalMargin * 2);
+            double width = Math.Min(available, html?.WidthPercent is { } percent ? available * percent / 100 : html?.Width ?? available);
+            double thickness = Math.Clamp(html?.Height ?? MarkdownRuleStyle.Thickness, 1, Math.Max(1, lineBounds.Height));
+            double left = MarkdownRuleStyle.HorizontalMargin + (html?.Alignment switch
+            {
+                "right" => available - width,
+                "left" => 0,
+                _ => (available - width) / 2
+            });
             Rect ruleRect = new(
-                MarkdownRuleStyle.HorizontalMargin,
-                middle - MarkdownRuleStyle.Thickness / 2,
-                Math.Max(0, textView.ActualWidth - MarkdownRuleStyle.HorizontalMargin * 2),
-                MarkdownRuleStyle.Thickness);
+                left,
+                middle - thickness / 2,
+                width,
+                thickness);
             if (ruleRect.Width > 0)
             {
                 drawingContext.DrawRoundedRectangle(
-                    brush,
+                    HtmlTextStyle.BrushFromCss(html?.Foreground) ?? brush,
                     null,
                     ruleRect,
                     MarkdownRuleStyle.CornerRadius,
@@ -67,7 +77,7 @@ internal sealed class MarkdownRuleRenderer(
             {
                 drawingContext.DrawRoundedRectangle(
                     null,
-                    CreateBorderPen(),
+                    CreateBorderPen(textView),
                     new Rect(
                         ruleRect.Left - MarkdownRuleStyle.BorderPaddingX,
                         ruleRect.Top - MarkdownRuleStyle.BorderPaddingY,
@@ -79,7 +89,7 @@ internal sealed class MarkdownRuleRenderer(
         }
     }
 
-    private static Pen CreateBorderPen() => new(FindBrush("AccentPrimaryBrush", Brushes.DarkCyan), 1);
+    private static Pen CreateBorderPen(TextView textView) => new(FindBrush(textView, "AccentPrimaryBrush", Brushes.DarkCyan), 1);
 
     /// <summary>The full-width visual band of the rule's line, in TextView coordinates.</summary>
     internal static bool TryGetLineBounds(TextView textView, MarkdownVisualSpan span, out Rect bounds)
@@ -111,6 +121,6 @@ internal sealed class MarkdownRuleRenderer(
         return false;
     }
 
-    private static Brush FindBrush(string key, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    private static Brush FindBrush(TextView textView, string key, Brush fallback) =>
+        textView.TryFindResource(key) as Brush ?? fallback;
 }

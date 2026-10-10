@@ -15,7 +15,7 @@ namespace MemeMomo.UI;
 internal sealed class CheckBoxVisualAnimator
 {
     private const double HiddenSelectionScale = 0.65;
-    private const double PressPreviewScale = 0.5;
+    private const double PressPreviewScale = 0.7;
 
     private readonly CheckBox _checkBox;
     private readonly string _fillName;

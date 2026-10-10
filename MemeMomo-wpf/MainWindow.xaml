@@ -4,6 +4,7 @@
                           xmlns:loc="clr-namespace:MemeMomo.UI.Text"
                           xmlns:windows="clr-namespace:MemeMomo.UI.Windows"
                           xmlns:ui="clr-namespace:MemeMomo.UI"
+                          xmlns:layout="clr-namespace:MemeMomo.UI.Layout"
                           xmlns:models="clr-namespace:MemeMomo.Models"
                           xmlns:components="clr-namespace:MemeMomo.Components"
                           Title="MemeMomo"
@@ -29,6 +30,9 @@
               Style="{StaticResource MemoCardStyle}"
               Margin="0,0,0,10"
               Padding="0"
+              Focusable="True"
+              MouseRightButtonUp="OnMemoCardMouseRightButtonUp"
+              PreviewKeyDown="OnMemoCardPreviewKeyDown"
               MouseEnter="OnMemoCardMouseEnter"
               MouseLeave="OnMemoCardMouseLeave"
               PreviewMouseLeftButtonDown="OnMemoCardPreviewMouseLeftButtonDown">
@@ -36,6 +40,7 @@
           <Grid x:Name="MemoCardMotionSurface">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="3" />
+              <ColumnDefinition Width="Auto" />
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -46,32 +51,39 @@
                     CornerRadius="2"
                     Background="{DynamicResource AccentPrimaryBrush}"
                     Opacity="0.5" />
-            <Grid Grid.Column="1" Margin="13,14,8,14">
+            <Button x:Name="RestoreButton" Grid.Column="1" Visibility="Collapsed" Margin="7,0,0,0" Padding="5"
+                    VerticalAlignment="Center" Click="OnRestoreClick" ToolTip="{loc:Localize '恢复'}" AutomationProperties.Name="{loc:Localize '恢复'}">
+              <Path Width="14" Height="14" Stretch="Uniform" Data="{DynamicResource RestoreIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+            </Button>
+            <Grid Grid.Column="2" Margin="13,14,8,14">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
               </Grid.RowDefinitions>
-              <Grid Grid.Row="0">
+              <Grid x:Name="MemoTitleRow" Grid.Row="0">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*" />
                   <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
+                <TextBlock x:Name="MemoTitle" Grid.Column="0"
                            Text="{Binding Title}"
                            FontSize="14"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            TextTrimming="CharacterEllipsis"
                            Margin="0,0,8,0" />
+                <Grid x:Name="MemoActions" Grid.Column="1">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <components:MemoTaskStatusSelector x:Name="CardTaskSelector" Grid.Column="0" Memo="{Binding}" CompactNote="True" CardPresentation="True" MaxWidth="145" Margin="0,0,4,0"
+                    Service="{Binding DataContext.Tasks, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
                 <Button x:Name="DeleteButton"
-                        Grid.Column="1"
+                        Grid.Column="1" HorizontalAlignment="Right"
                         Style="{StaticResource DeleteButtonStyle}"
-                        AutomationProperties.Name="{loc:Localize '删除备忘录'}"
-                        ToolTip="{loc:Localize '删除'}"
                         Click="OnDeleteClick"
                         PreviewMouseLeftButtonDown="OnDeleteButtonPreviewMouseLeftButtonDown">
                   <Path Width="12" Height="12" Stretch="Uniform" Data="{DynamicResource DeleteXIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                 </Button>
+                </Grid>
               </Grid>
               <Grid Grid.Row="1" Margin="0,5,0,0">
                 <Grid.ColumnDefinitions>
@@ -85,7 +97,7 @@
                            Foreground="{DynamicResource TextSecondaryBrush}"
                            TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Column="1"
-                           Text="{Binding RelativeTime}"
+                           Text="{Binding RelativeTime}" ToolTip="{Binding FullTime}"
                            FontSize="10.5"
                            Foreground="{DynamicResource TextTertiaryBrush}"
                            Margin="10,0,0,0" />
@@ -95,6 +107,23 @@
           <Border x:Name="MemoCardBorderLayer" Style="{StaticResource MemoCardBorderLayerStyle}" />
         </Grid>
       </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding IsDeleted}" Value="False">
+          <Setter TargetName="DeleteButton" Property="ToolTip" Value="{loc:Localize '删除'}"/>
+          <Setter TargetName="DeleteButton" Property="AutomationProperties.Name" Value="{loc:Localize '删除备忘录'}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+          <Setter TargetName="CardTaskSelector" Property="CardPresentation" Value="False"/>
+          <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible"/>
+          <Setter TargetName="DeleteButton" Property="ToolTip" Value="{loc:Localize '彻底删除'}"/>
+          <Setter TargetName="DeleteButton" Property="AutomationProperties.Name" Value="{loc:Localize '彻底删除'}"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsLifecyclePending}" Value="True">
+          <Setter TargetName="RestoreButton" Property="IsEnabled" Value="False"/>
+          <Setter TargetName="DeleteButton" Property="IsEnabled" Value="False"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding IsTaskClosed}" Value="True"><Setter TargetName="MemoTitle" Property="Opacity" Value="0.65" /></DataTrigger>
+      </DataTemplate.Triggers>
     </DataTemplate>
   </windows:BorderlessWindow.Resources>
 
@@ -125,15 +154,24 @@
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
           <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-            <Image Width="22" Height="22" Source="/MemeMomo;component/Assets/appicon.png" />
+            <components:ListPaneToggleButton x:Name="ListPaneToggle" Margin="-5,0,-5,0" Click="OnListPaneToggleClick" />
             <TextBlock Margin="10,0,0,0" Text="MemeMomo" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-            <Border Margin="10,0,0,0" Style="{StaticResource CountBadgeStyle}" Visibility="{Binding Memos.Count, Converter={StaticResource PositiveCountVisibility}}">
-              <TextBlock Text="{Binding Memos.Count}" Style="{StaticResource CountBadgeTextStyle}" />
-            </Border>
           </StackPanel>
-          <Border Grid.Column="1" Background="Transparent" />
-          <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-            <Button x:Name="SettingsButton" Style="{StaticResource TitleBarButtonStyle}" AutomationProperties.Name="{loc:Localize '设置'}" ToolTip="{loc:Localize '设置'}" Click="OnSettingsClick">
+          <components:HeaderFilterBadge x:Name="FilterBadge" Grid.Column="1" Margin="10,0,4,0" VerticalAlignment="Center" Click="OnFilterBadgeClick" />
+          <StackPanel x:Name="WindowControls" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="SettingsButton" Click="OnSettingsClick">
+              <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+                  <Setter Property="AutomationProperties.Name" Value="{loc:Localize '设置'}" />
+                  <Setter Property="ToolTip" Value="{loc:Localize '设置'}" />
+                  <Style.Triggers>
+                    <Trigger Property="ui:InteractionState.IsPinActive" Value="True">
+                      <Setter Property="AutomationProperties.Name" Value="{loc:Localize '返回上一页'}" />
+                      <Setter Property="ToolTip" Value="{loc:Localize '返回上一页'}" />
+                    </Trigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
               <Path Width="17" Height="17" Stretch="Uniform" Data="{DynamicResource SettingsIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
             </Button>
             <Button x:Name="PinButton" Style="{StaticResource TitleBarButtonStyle}" AutomationProperties.Name="{loc:Localize '置顶'}" ToolTip="{loc:Localize '置顶'}" Click="OnPinClick">
@@ -152,62 +190,99 @@
       </Border>
 
       <Border Grid.Row="1" Background="{DynamicResource BgPrimaryBrush}" CornerRadius="0">
-      <Grid Margin="16,14,16,12">
+      <Grid x:Name="PageViewport" Background="{DynamicResource BgPrimaryBrush}" ClipToBounds="True">
+      <Grid x:Name="PageSurface">
+      <Grid x:Name="PageContent" Margin="16,14,16,12" KeyboardNavigation.TabNavigation="Local">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
           <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <components:MarkdownEditor x:Name="MarkdownEditor"
-                                   Grid.Row="0"
                                    MinHeight="110"
                                    MaxHeight="230"
                                    Margin="0,0,0,10"
-                                   ShowNewAction="True" />
-        <Grid Grid.Row="1">
-          <Border Style="{StaticResource EmptyStateCardStyle}"
-                  Visibility="{Binding Memos.Count, Converter={StaticResource ZeroCountVisibility}}"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Top"
-                  Margin="20,40">
-            <StackPanel HorizontalAlignment="Center">
-              <Border Width="48" Height="48" CornerRadius="14" Background="{DynamicResource AccentSubtleBrush}" HorizontalAlignment="Center">
-                <Path Width="24" Height="24" Stretch="Uniform" Data="{DynamicResource ChevronDownIcon}" Fill="{DynamicResource AccentMutedBrush}" />
-              </Border>
-              <TextBlock Margin="0,12,0,0" Text="{loc:Localize '还没有备忘录'}" Style="{StaticResource EmptyHintTitleStyle}" />
-              <TextBlock Margin="0,4,0,0" Text="{loc:Localize '在上方写下第一条 Markdown 备忘录&#x0a;按 Ctrl+Enter 新增'}" Style="{StaticResource EmptyHintSubtitleStyle}" />
+                                   BlendBordersInPreview="True"
+                                   ShowNewAction="True">
+          <components:MarkdownEditor.ToolbarLeadingContent>
+            <components:MemoTaskStatusSelector Service="{Binding Tasks}" VerticalAlignment="Center" MaxWidth="128" Margin="0,0,4,0"/>
+          </components:MarkdownEditor.ToolbarLeadingContent>
+        </components:MarkdownEditor>
+        <layout:PaneViewport x:Name="ListPaneViewport" Grid.Row="1" ClipToBounds="True" KeyboardNavigation.TabNavigation="Local">
+        <Grid x:Name="ListPane" KeyboardNavigation.TabNavigation="Local">
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <Grid x:Name="RecycleListTools" Height="44" Margin="0,0,0,6" Visibility="Collapsed">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <Button x:Name="ReturnMemosButton" Width="32" Height="32" Padding="0" Style="{StaticResource TitleBarButtonStyle}" FocusVisualStyle="{StaticResource MemoFocusVisualStyle}" Click="OnReturnMemosClick" ToolTip="{loc:Localize '返回备忘录'}" AutomationProperties.Name="{loc:Localize '返回备忘录'}">
+                <ui:TaskStatusIcon Width="20" Height="20" IconKey="Back" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+              </Button>
+              <TextBlock x:Name="RecycleTitle" Grid.Column="1" Margin="8,0" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" Foreground="{DynamicResource TextPrimaryBrush}"/>
+              <components:RecycleBinClearButton x:Name="ClearRecycleBinButton" Grid.Column="2"
+                                               Label="{loc:Localize '全部清空'}" Click="OnClearRecycleBinClick" />
+            </Grid>
+          <Grid Grid.Row="1">
+            <StackPanel x:Name="NoFilterResults" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="8,25">
+              <TextBlock Text="{loc:Localize '没有符合条件的备忘录'}" TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+              <Button Content="{loc:Localize '清除筛选'}" Click="OnClearFilters" Margin="0,10,0,0"/>
             </StackPanel>
-          </Border>
-          <ScrollViewer x:Name="MemoScrollViewer"
-                        Visibility="{Binding Memos.Count, Converter={StaticResource PositiveCountVisibility}}"
-                        VerticalScrollBarVisibility="Hidden"
-                        HorizontalScrollBarVisibility="Disabled"
-                        ScrollChanged="OnMemoScrollViewerScrollChanged">
-            <ItemsControl x:Name="MemoList" ItemsSource="{Binding Memos}" ItemTemplate="{StaticResource MemoItemTemplate}" Padding="6">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <!-- Drag preview needs every card realized so insertion stays
-                       deterministic while the list auto-scrolls. -->
-                  <StackPanel />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-            </ItemsControl>
-          </ScrollViewer>
-          <ScrollBar x:Name="MemoOverlayScrollBar"
-                     Panel.ZIndex="25"
-                     HorizontalAlignment="Right"
-                     VerticalAlignment="Stretch"
-                     Orientation="Vertical"
-                     Style="{StaticResource EditorOverlayScrollBarStyle}"
-                     Visibility="Collapsed"
-                     ValueChanged="OnMemoOverlayScrollBarValueChanged"
-                     PreviewMouseLeftButtonDown="OnMemoOverlayScrollBarPreviewMouseLeftButtonDown"
-                     PreviewMouseLeftButtonUp="OnMemoOverlayScrollBarPreviewMouseLeftButtonUp"
-                     LostMouseCapture="OnMemoOverlayScrollBarLostMouseCapture"
-                     Loaded="OnMemoOverlayScrollBarLoaded" />
-          <Canvas x:Name="DeleteOverlay" IsHitTestVisible="False" Panel.ZIndex="20" ClipToBounds="True" />
+            <Border x:Name="NormalEmptyState" Style="{StaticResource EmptyStateCardStyle}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Padding="20,16"
+                    Margin="16,20">
+              <StackPanel HorizontalAlignment="Center">
+                <Border Width="48" Height="48" CornerRadius="14" Background="{DynamicResource AccentSubtleBrush}" HorizontalAlignment="Center">
+                  <Path Width="24" Height="24" Stretch="Uniform" Data="{DynamicResource ChevronDownIcon}" Fill="{DynamicResource AccentMutedBrush}" RenderTransformOrigin="0.5,0.5">
+                    <Path.RenderTransform><RotateTransform x:Name="EmptyHintArrow" Angle="180"/></Path.RenderTransform>
+                  </Path>
+                </Border>
+                <TextBlock Margin="0,12,0,0" Text="{loc:Localize '还没有备忘录'}" Style="{StaticResource EmptyHintTitleStyle}" />
+                <TextBlock x:Name="NormalEmptyHint" Margin="0,4,0,0" TextWrapping="Wrap" Text="{loc:Localize '在上方写下第一条 Markdown 备忘录&#x0a;按 Ctrl+Enter 新增'}" Style="{StaticResource EmptyHintSubtitleStyle}" />
+              </StackPanel>
+            </Border>
+            <TextBlock x:Name="RecycleEmptyState" Text="{loc:Localize '回收站为空'}" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="20,40" Style="{StaticResource EmptyHintTitleStyle}"/>
+            <ScrollViewer x:Name="MemoScrollViewer"
+                          VerticalScrollBarVisibility="Hidden"
+                          HorizontalScrollBarVisibility="Disabled"
+                          ScrollChanged="OnMemoScrollViewerScrollChanged">
+              <ItemsControl x:Name="MemoList" ItemsSource="{Binding TaskView.Items}" ItemTemplate="{StaticResource MemoItemTemplate}" Padding="6">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <!-- Drag preview needs every card realized so insertion stays
+                         deterministic while the list auto-scrolls. -->
+                    <StackPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+            </ScrollViewer>
+            <ScrollBar x:Name="MemoOverlayScrollBar"
+                       Panel.ZIndex="25"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Stretch"
+                       Orientation="Vertical"
+                       Style="{StaticResource EditorOverlayScrollBarStyle}"
+                       Visibility="Collapsed"
+                       ValueChanged="OnMemoOverlayScrollBarValueChanged"
+                       PreviewMouseLeftButtonDown="OnMemoOverlayScrollBarPreviewMouseLeftButtonDown"
+                       PreviewMouseLeftButtonUp="OnMemoOverlayScrollBarPreviewMouseLeftButtonUp"
+                       LostMouseCapture="OnMemoOverlayScrollBarLostMouseCapture"
+                       Loaded="OnMemoOverlayScrollBarLoaded" />
+            <Canvas x:Name="DeleteOverlay" IsHitTestVisible="False" Panel.ZIndex="20" ClipToBounds="True" />
+          </Grid>
         </Grid>
+        </layout:PaneViewport>
+      </Grid>
+        <Canvas IsHitTestVisible="False" Focusable="False" Panel.ZIndex="29">
+          <Image x:Name="LayoutTransitionSnapshot" Visibility="Collapsed" IsHitTestVisible="False"
+                 Focusable="False" Stretch="None" />
+        </Canvas>
+        <ContentControl x:Name="SettingsHost" Visibility="Collapsed" Focusable="False"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Panel.ZIndex="30" />
+      </Grid>
+        <Image x:Name="PageTransitionSnapshot" Visibility="Collapsed" IsHitTestVisible="False"
+               Focusable="False" Stretch="Fill" Panel.ZIndex="30" />
       </Grid>
       </Border>
+      <components:NotificationHost x:Name="Notifications" Grid.RowSpan="2" Panel.ZIndex="40"/>
     </Grid>
 
     <Grid x:Name="DockLayer"

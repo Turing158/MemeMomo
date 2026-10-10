@@ -25,11 +25,15 @@ internal class MarkdownVisualTransformer(Func<IReadOnlyList<MarkdownVisualSpan>>
                 continue;
             }
 
-            ChangeLinePart(start, end, element => ApplyStyle(element, span.Kind));
+            ChangeLinePart(start, end, element =>
+            {
+                ApplyStyle(element, span.Kind);
+                HtmlTextStyle.Apply(element, span.Presentation);
+            });
         }
     }
 
-    private static void ApplyStyle(VisualLineElement element, MarkdownVisualKind kind)
+    private void ApplyStyle(VisualLineElement element, MarkdownVisualKind kind)
     {
         switch (kind)
         {
@@ -83,8 +87,8 @@ internal class MarkdownVisualTransformer(Func<IReadOnlyList<MarkdownVisualSpan>>
         }
     }
 
-    private static Brush FindBrush(string key, Brush fallback) =>
-        Application.Current?.TryFindResource(key) as Brush ?? fallback;
+    private Brush FindBrush(string key, Brush fallback) =>
+        CurrentContext.TextView.TryFindResource(key) as Brush ?? fallback;
 
     private static void ApplyTypeface(
         VisualLineElement element,

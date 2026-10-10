@@ -5,9 +5,10 @@
                           xmlns:windows="clr-namespace:MemeMomo.UI.Windows"
                           xmlns:components="clr-namespace:MemeMomo.Components"
                           xmlns:ui="clr-namespace:MemeMomo.UI"
+                          xmlns:services="clr-namespace:MemeMomo.Services"
                           Title="MemeMomo"
-                          Width="360"
-                          Height="280"
+                          Width="{x:Static services:MemoWindowPlacement.DefaultWidthDip}"
+                          Height="{x:Static services:MemoWindowPlacement.DefaultHeightDip}"
                           MinWidth="280"
                           MinHeight="180"
                           WindowStartupLocation="Manual"
@@ -61,7 +62,10 @@
                     AutomationProperties.Name="{loc:Localize '设置提醒'}"
                     ToolTip="{loc:Localize '设置提醒'}"
                     Click="OnReminderClick">
-              <Path Width="13" Height="13" Stretch="Uniform" Data="{DynamicResource ReminderIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+              <Grid Width="19" Height="19">
+                <Path Width="13" Height="13" Stretch="Uniform" Data="{DynamicResource ReminderIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                <Ellipse x:Name="ReminderIndicator" Width="7" Height="7" HorizontalAlignment="Right" VerticalAlignment="Top" Fill="{DynamicResource AccentPrimaryBrush}" Stroke="{DynamicResource BgPrimaryBrush}" StrokeThickness="1.5" Visibility="Collapsed" IsHitTestVisible="False" />
+              </Grid>
             </Button>
             <Button x:Name="ToolbarButton"
                     Width="25" Height="25" Padding="0"
@@ -103,43 +107,52 @@
         </Grid>
       </Border>
 
-      <Border x:Name="EditorHost"
-              Grid.Row="1"
-              Background="{DynamicResource BgPrimaryBrush}"
-              CornerRadius="0,0,14,14"
-              Padding="8,1,8,8">
-        <Grid>
-          <components:MarkdownEditor x:Name="MarkdownEditor"
-                                     UseBorderlessChrome="True"
-                                     BlendBordersInPreview="True"
-                                     HideToolbarInPreview="True"
-                                     ShowNewAction="False"
-                                     MinHeight="90" />
-          <Grid x:Name="TimeTextHost"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="0,0,8,4"
-                Background="Transparent"
-                Cursor="Hand"
-                ui:InteractionAnimations.Profile="Button"
-                ui:InteractionAnimations.HoverScale="1.04"
-                ui:InteractionAnimations.PressedScale="0.95"
-                MouseLeftButtonUp="OnTimeClick">
-            <!-- 容器宽度由更宽的 FullTimeText 撑开，两个文本需各自右对齐，
-                 否则简短日期会顶在容器左缘、与右边界脱开。 -->
-            <TextBlock x:Name="RelativeTimeText"
-                       HorizontalAlignment="Right"
-                       Foreground="{DynamicResource TextTertiaryBrush}"
-                       FontSize="10.5"
-                       Text=""
-                       Opacity="1" />
-            <TextBlock x:Name="FullTimeText"
-                       HorizontalAlignment="Right"
-                       Foreground="{DynamicResource TextTertiaryBrush}"
-                       FontSize="10.5"
-                       Text=""
-                       Opacity="0" />
+      <Border x:Name="BodyHost" Grid.Row="1" Background="{DynamicResource BgPrimaryBrush}" CornerRadius="0,0,14,14">
+        <Grid x:Name="PageViewport" ClipToBounds="True">
+          <Grid x:Name="PageSurface">
+            <Border x:Name="EditorHost" Background="{DynamicResource BgPrimaryBrush}" CornerRadius="0,0,14,14" Padding="8,1,8,8">
+              <Grid>
+                <components:MarkdownEditor x:Name="MarkdownEditor"
+                                           UseBorderlessChrome="True"
+                                           BlendBordersInPreview="True"
+                                           HideToolbarInPreview="True"
+                                           ShowNewAction="False"
+                                           MinHeight="90"
+                                           SizeChanged="OnEditorSizeChanged">
+                  <components:MarkdownEditor.ToolbarLeadingContent>
+                    <components:MemoTaskStatusSelector VerticalAlignment="Center" MaxWidth="128" Margin="0,0,4,0" />
+                  </components:MarkdownEditor.ToolbarLeadingContent>
+                </components:MarkdownEditor>
+                <Grid x:Name="TimeTextHost"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,8,4"
+                      Background="Transparent"
+                      Cursor="Hand"
+                      ui:InteractionAnimations.Profile="Button"
+                      ui:InteractionAnimations.HoverScale="1.04"
+                      ui:InteractionAnimations.PressedScale="0.95"
+                      MouseLeftButtonUp="OnTimeClick">
+                  <!-- 容器宽度由更宽的 FullTimeText 撑开，两个文本需各自右对齐，
+                       否则简短日期会顶在容器左缘、与右边界脱开。 -->
+                  <TextBlock x:Name="RelativeTimeText"
+                             HorizontalAlignment="Right"
+                             Foreground="{DynamicResource TextTertiaryBrush}"
+                             FontSize="10.5"
+                             Text=""
+                             Opacity="1" />
+                  <TextBlock x:Name="FullTimeText"
+                             HorizontalAlignment="Right"
+                             Foreground="{DynamicResource TextTertiaryBrush}"
+                             FontSize="10.5"
+                             Text=""
+                             Opacity="0" />
+                </Grid>
+              </Grid>
+            </Border>
+            <ContentControl x:Name="ReminderHost" Visibility="Collapsed" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Focusable="False" />
           </Grid>
+          <Image x:Name="PageTransitionSnapshot" Visibility="Collapsed" IsHitTestVisible="False" Stretch="Fill" />
         </Grid>
       </Border>
     </Grid>

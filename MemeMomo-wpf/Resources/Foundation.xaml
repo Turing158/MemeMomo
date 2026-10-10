@@ -6,6 +6,6 @@
     <ResourceDictionary Source="/MemeMomo;component/Resources/Metrics.xaml" />
     <ResourceDictionary Source="/MemeMomo;component/Resources/Icons.xaml" />
     <ResourceDictionary Source="/MemeMomo;component/Resources/Controls.xaml" />
-    <ResourceDictionary Source="/MemeMomo;component/Resources/Markdown.xaml" />
+    <ResourceDictionary Source="/MemeMomo;component/Resources/TaskMenus.xaml" />
   </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

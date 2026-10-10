@@ -28,7 +28,6 @@ internal sealed class BorderlessWindowBehavior : IDisposable
         _window = window;
         _resizeBorder = resizeBorder;
         _resizeCorner = resizeCorner;
-        _window.SourceInitialized += OnSourceInitialized;
         _window.Closed += OnWindowClosed;
     }
 
@@ -47,7 +46,6 @@ internal sealed class BorderlessWindowBehavior : IDisposable
             return;
         }
 
-        _window.SourceInitialized -= OnSourceInitialized;
         _window.Closed -= OnWindowClosed;
         if (_source is not null)
         {
@@ -59,10 +57,22 @@ internal sealed class BorderlessWindowBehavior : IDisposable
         _hookLease = null;
     }
 
-    private void OnSourceInitialized(object? sender, EventArgs e)
+    // HwndSource invokes the most recently added hook first. Attach after
+    // WindowChrome so its narrow edge regions cannot override our corners.
+    internal void Attach()
     {
+        if (_source is not null || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         _source = HwndSource.FromHwnd(new WindowInteropHelper(_window).Handle);
-        _source?.AddHook(WndProc);
+        if (_source is null)
+        {
+            return;
+        }
+
+        _source.AddHook(WndProc);
         _hookLease = UiResourceTracker.Acquire(UiResourceKind.NativeWindow);
     }
 
@@ -77,7 +87,8 @@ internal sealed class BorderlessWindowBehavior : IDisposable
 
         if (_window is BorderlessWindow borderless && borderless.SuppressResizeHitTest)
         {
-            return 0;
+            handled = true;
+            return 1;
         }
 
         int screenX = unchecked((short)(long)lParam);
@@ -85,11 +96,6 @@ internal sealed class BorderlessWindowBehavior : IDisposable
         NativeMethods.GetWindowRect(hwnd, out NativeRect windowRect);
         WpfPoint positionPixels = new(screenX - windowRect.Left, screenY - windowRect.Top);
         WpfPoint positionDip = DpiCoordinateModel.FromVisual(_window).PixelsToDip(positionPixels);
-        if (IsOverButton(positionDip))
-        {
-            return 0;
-        }
-
         ResizeEdge edge = ResizeHitTest.Resolve(
             positionDip,
             new WpfSize(_window.ActualWidth, _window.ActualHeight),
@@ -101,6 +107,12 @@ internal sealed class BorderlessWindowBehavior : IDisposable
         }
 
         handled = true;
+        if (_window.ResizeMode is not (ResizeMode.CanResize or ResizeMode.CanResizeWithGrip)
+            || IsOverButton(positionDip))
+        {
+            return 1;
+        }
+
         return edge switch
         {
             ResizeEdge.Left => 10,

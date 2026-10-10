@@ -10,6 +10,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using ICSharpCode.AvalonEdit.Rendering;
 using MemeMomo.Markdown;
+using MemeMomo.Components.Dialogs;
 using MemeMomo.UI;
 using Application = System.Windows.Application;
 using Brush = System.Windows.Media.Brush;
@@ -89,6 +90,8 @@ internal sealed class MarkdownImageControl : Border
     private Shape? _spinner;
     private CancellationTokenSource? _cancellation;
     private bool _loading;
+    private readonly long _session;
+    private bool CanWrite => !_adapter.IsReadOnly && _session == _adapter.SessionVersion;
     private int _loadGeneration;
     private DispatcherOperation? _sizeImageOperation;
     private bool _sizeImageQueued;
@@ -103,14 +106,17 @@ internal sealed class MarkdownImageControl : Border
         _textView = textView;
         _span = span;
         _adapter = adapter;
+        _session = adapter.SessionVersion;
+        ContextMenu = adapter.CreateImageContextMenu(EditImage, DeleteImage);
+        ContextMenu.Opened += (_, _) => CloseToolbarNow();
+        MouseRightButtonDown += OnImageRightButtonDown;
         ImageUri = span.ImageUri ?? string.Empty;
+        ToolTip = span.Presentation?.Title;
         Margin = new Thickness(2);
         CornerRadius = new CornerRadius(4);
         BorderThickness = new Thickness(1);
-        BorderBrush = Application.Current?.TryFindResource("BorderDefaultBrush") as Brush
-            ?? Brushes.LightGray;
-        Background = Application.Current?.TryFindResource("BgTertiaryBrush") as Brush
-            ?? Brushes.WhiteSmoke;
+        SetResourceReference(BorderBrushProperty, "BorderDefaultBrush");
+        SetResourceReference(BackgroundProperty, "BgTertiaryBrush");
         MemeMomo.UI.Text.LocalizeExtension.Set(this, AutomationProperties.NameProperty, "图片：{0}", span.AltText ?? string.Empty);
         _toolbarCloseTimer.Tick += (_, _) => CloseToolbar();
         MouseEnter += OnImageMouseEnter;
@@ -310,7 +316,8 @@ internal sealed class MarkdownImageControl : Border
         {
             _image = new Image
             {
-                Stretch = Stretch.Uniform,
+                Stretch = _span.Presentation is { Height: not null } html &&
+                    (html.Width is not null || html.WidthPercent is not null) ? Stretch.Fill : Stretch.Uniform,
                 Margin = new Thickness(ImageMargin)
             };
         }
@@ -404,20 +411,33 @@ internal sealed class MarkdownImageControl : Border
         {
             available = Math.Min(naturalWidth, PlaceholderWidth);
         }
-        double scale;
-        if (_span.ImageWidthPercent is { } percent && double.IsFinite(available) && available > 0)
+        double width;
+        double height;
+        if (_span.Presentation is { } html && (html.Width is not null || html.Height is not null || html.WidthPercent is not null))
+        {
+            width = html.WidthPercent is { } ratio ? available * ratio / 100 : html.Width ??
+                (html.Height is { } specifiedHeight ? specifiedHeight * naturalWidth / naturalHeight : naturalWidth);
+            height = html.Height ?? width * naturalHeight / naturalWidth;
+            double fit = Math.Min(1, available / width);
+            width *= fit;
+            height *= fit;
+        }
+        else if (_span.ImageWidthPercent is { } percent && double.IsFinite(available) && available > 0)
         {
             double targetWidth = Math.Clamp(available * percent / 100.0, 1, available);
-            scale = targetWidth / naturalWidth;
+            width = targetWidth;
+            height = naturalHeight * targetWidth / naturalWidth;
         }
         else
         {
-            scale = double.IsFinite(available) && available > 0 && available < naturalWidth
+            double scale = double.IsFinite(available) && available > 0 && available < naturalWidth
                 ? available / naturalWidth
                 : 1;
+            width = naturalWidth * scale;
+            height = naturalHeight * scale;
         }
-        double width = Math.Max(1, Math.Round(naturalWidth * scale));
-        double height = Math.Max(1, Math.Round(naturalHeight * scale));
+        width = Math.Max(1, Math.Round(width));
+        height = Math.Max(1, Math.Round(height));
         if (_image.Width != width)
         {
             _image.Width = width;
@@ -446,6 +466,7 @@ internal sealed class MarkdownImageControl : Border
 
     private void OpenToolbar()
     {
+        if (!CanWrite) return;
         if (_toolbar is null)
         {
             _toolbar = BuildToolbar();
@@ -574,6 +595,7 @@ internal sealed class MarkdownImageControl : Border
         MemeMomo.UI.Text.LocalizeExtension.Set(surface, AutomationProperties.NameProperty, "图片宽度选项");
         surface.MouseEnter += (_, _) => _toolbarCloseTimer.IsEnabled = false;
         surface.MouseLeave += (_, _) => StartToolbarCloseTimer();
+        surface.PreviewMouseWheel += OnToolbarPreviewMouseWheel;
 
         return new Popup
         {
@@ -587,6 +609,17 @@ internal sealed class MarkdownImageControl : Border
             AllowsTransparency = true,
             Focusable = false
         };
+    }
+
+    private void OnToolbarPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        // The popup has its own input route. Forward the wheel once to the document
+        // so hovering width options keeps normal scrolling without moving focus.
+        e.Handled = true;
+        _textView.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = Mouse.MouseWheelEvent
+        });
     }
 
     /// <summary>
@@ -804,11 +837,55 @@ internal sealed class MarkdownImageControl : Border
         }
     }
 
-    private MarkdownVisualSpan? FindCurrentSpan() => _adapter.Model.Spans.FirstOrDefault(span =>
+    private MarkdownVisualSpan? FindCurrentSpan() => _adapter.Model.Spans.Where(span =>
         span.Kind == MarkdownVisualKind.Image &&
         span.SourceStart == _span.SourceStart &&
         span.SourceLength == _span.SourceLength &&
-        string.Equals(span.ImageUri, _span.ImageUri, StringComparison.Ordinal));
+        string.Equals(span.ImageUri, _span.ImageUri, StringComparison.Ordinal))
+        .Select(span => (MarkdownVisualSpan?)span).FirstOrDefault();
+
+    private void OnImageRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindCurrentSpan() is not { } image) return;
+        _adapter.Editor.Select(image.Start, image.Length);
+        e.Handled = true;
+    }
+
+    private void DeleteImage()
+    {
+        if (!CanWrite) return;
+        if (FindCurrentSpan() is not { } image) return;
+        CloseToolbarNow();
+        string updated = _adapter.Model.Markdown.Remove(image.SourceStart, image.SourceLength);
+        _adapter.ApplyEdit(new MarkdownEditResult(updated, image.SourceStart, image.SourceStart));
+        _adapter.FocusEditor();
+    }
+
+    private void EditImage()
+    {
+        if (!CanWrite) return;
+        if (FindCurrentSpan() is not { } image || Window.GetWindow(_adapter.Editor) is not { } owner) return;
+        CloseToolbarNow();
+        string markdown = _adapter.Model.Markdown;
+        string source = markdown.Substring(image.SourceStart, image.SourceLength);
+        if (!ImageSourceSyntax.TryParse(source, out _)) return;
+        int selectionStart = _adapter.SelectionStart;
+        int selectionEnd = _adapter.SelectionEnd;
+        string? result = new ImageEditDialog(source).ShowDialog(owner);
+        if (!CanWrite || !_adapter.Editor.IsLoaded) return;
+        // A projection rebuild can replace this control while the dialog is open. Validate
+        // against the live document, so an external update never edits a different image.
+        if (_adapter.Model.Markdown == markdown)
+        {
+            if (result is not null && result != source)
+            {
+                string updated = markdown[..image.SourceStart] + result + markdown[(image.SourceStart + image.SourceLength)..];
+                _adapter.ApplyEdit(new MarkdownEditResult(updated, image.SourceStart, image.SourceStart + result.Length));
+            }
+            else _adapter.SelectSourceRange(selectionStart, selectionEnd);
+        }
+        _adapter.FocusEditor();
+    }
 
     /// <summary>
     /// Rewrites the image's Markdown source so it carries (or drops) the ",NN%" width
@@ -818,6 +895,7 @@ internal sealed class MarkdownImageControl : Border
     /// </summary>
     private void ApplyWidthPercent(double? percent)
     {
+        if (!CanWrite) return;
         if (FindCurrentSpan() is not { } image || image.ImageUri is null)
         {
             return;

@@ -1,71 +1,31 @@
 using MemeMomo.Models;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace MemeMomo.Services;
 
-/// <summary>
-/// JSON 文件持久化：%AppData%\MemeMomo\memos.json。
-/// 每次增/改/删/移后异步保存，失败时静默吞错并记录。
-/// </summary>
 public class JsonMemoStorage
 {
-    private readonly string _filePath;
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-
+    private readonly AtomicJsonFile _file;
     public JsonMemoStorage() : this(null) { }
-
-    internal JsonMemoStorage(string? filePath)
+    internal JsonMemoStorage(string? filePath) => _file = new(filePath ?? Path.Combine(MemoDataPaths.RootDirectory, "memos.json"));
+    public string? LoadDiagnostic => _file.ReadError;
+    public async Task<List<MemoItem>> LoadAsync() => await _file.ReadAsync(Parse) ?? [];
+    private static List<MemoItem> Parse(string json)
     {
-        if (!string.IsNullOrWhiteSpace(filePath))
-        {
-            var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
-            if (directory != null) Directory.CreateDirectory(directory);
-            _filePath = Path.GetFullPath(filePath);
-            return;
-        }
-        var dir = MemoDataPaths.RootDirectory;
-        Directory.CreateDirectory(dir);
-        _filePath = Path.Combine(dir, "memos.json");
+        var items = JsonSerializer.Deserialize<List<MemoItem>>(json, AtomicJsonFile.Options)
+            ?? throw new JsonException("Expected a memo array.");
+        if (items.Any(item => item is null) || items.Select(item => item.Id).Distinct().Count() != items.Count)
+            throw new JsonException("Duplicate memo IDs or null records require data recovery.");
+        return items;
     }
-
-    public async Task<List<MemoItem>> LoadAsync()
-    {
-        try
+    public virtual Task<StorageResult> TrySaveAsync(IEnumerable<MemoItem> items) =>
+        _file.WriteAsync(() =>
         {
-            if (!File.Exists(_filePath)) return new List<MemoItem>();
-            var json = await File.ReadAllTextAsync(_filePath);
-            var list = JsonSerializer.Deserialize<List<MemoItem>>(json, JsonOptions);
-            return list ?? new List<MemoItem>();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[MemoStorage] Load failed: {ex.Message}");
-            return new List<MemoItem>();
-        }
-    }
-
-    public async Task SaveAsync(IEnumerable<MemoItem> items)
-    {
-        await _semaphore.WaitAsync();
-        try
-        {
-            var json = JsonSerializer.Serialize(items.ToList(), JsonOptions);
-            await File.WriteAllTextAsync(_filePath, json);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[MemoStorage] Save failed: {ex.Message}");
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
-    }
+            var snapshot = items.ToList();
+            if (snapshot.Select(item => item.Id).Distinct().Count() != snapshot.Count)
+                throw new JsonException("Duplicate memo IDs require data recovery.");
+            return JsonSerializer.Serialize(snapshot, AtomicJsonFile.Options);
+        }, ".pre-recycle-bin.bak");
+    public async Task SaveAsync(IEnumerable<MemoItem> items) => (await TrySaveAsync(items)).ThrowIfFailed();
 }

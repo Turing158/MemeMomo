@@ -1,0 +1,476 @@
+<UserControl x:Class="MemeMomo.Views.SettingsView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="clr-namespace:MemeMomo.UI.Text" xmlns:components="clr-namespace:MemeMomo.Components" xmlns:layout="clr-namespace:MemeMomo.UI.Layout" xmlns:ui="clr-namespace:MemeMomo.UI" Focusable="False" KeyboardNavigation.TabNavigation="Local">
+  <UserControl.Resources>
+    <Style TargetType="TextBlock">
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- Keep the settings panel scrollbar visually consistent with the memo editor. -->
+    <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource EditorOverlayScrollBarStyle}" />
+    <Style x:Key="SettingsCardStyle" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource SurfacePrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="14" />
+    </Style>
+    <Style x:Key="HotkeyButtonStyle" TargetType="Button" BasedOn="{StaticResource MemoBaseButtonStyle}">
+      <Setter Property="MinWidth" Value="126" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="ContentTemplate">
+        <Setter.Value>
+          <DataTemplate>
+            <TextBlock Text="{Binding}" TextAlignment="Center" TextWrapping="Wrap" />
+          </DataTemplate>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="Background" Value="{DynamicResource BgSecondaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderDefaultBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Path=(ui:InteractionState.IsInvalid), RelativeSource={RelativeSource Self}}" Value="True">
+          <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource DangerPrimaryBrush}" />
+        </DataTrigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.48" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="SemanticGroupStyle" TargetType="GroupBox">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GroupBox">
+            <ContentPresenter />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="AboutGitHubButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogIconButtonStyle}">
+      <Setter Property="Margin" Value="{StaticResource SettingsAboutGitHubMargin}" />
+      <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TransparentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource IconDefaultBrush}" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style x:Key="AboutActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogSecondaryActionButtonStyle}">
+      <Setter Property="MinWidth" Value="{StaticResource SettingsAboutUpdateMinWidth}" />
+      <Setter Property="Height" Value="{StaticResource SettingsAboutButtonHeight}" />
+      <Setter Property="Padding" Value="{StaticResource SettingsAboutUpdatePadding}" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="AboutDangerActionButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogDangerActionButtonStyle}">
+      <Setter Property="MinWidth" Value="{StaticResource SettingsAboutUpdateMinWidth}" />
+      <Setter Property="Height" Value="{StaticResource SettingsAboutButtonHeight}" />
+      <Setter Property="Padding" Value="{StaticResource SettingsAboutUpdatePadding}" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style x:Key="DescriptionStyle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{DynamicResource TextTertiaryBrush}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style TargetType="components:SegmentedSelector">
+      <Setter Property="WrapLabels" Value="True" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource MemoFocusVisualStyle}" />
+    </Style>
+    <Style x:Key="SettingsNavigationItemStyle" TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="10,10" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource MemoFocusVisualStyle}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="ui:InteractionAnimations.Profile" Value="Surface" />
+      <Setter Property="ui:InteractionAnimations.TargetName" Value="NavigationItemContent" />
+      <Setter Property="ui:InteractionAnimations.HoverScale" Value="1" />
+      <Setter Property="ui:InteractionAnimations.PressedScale" Value="1" />
+      <Setter Property="ui:InteractionAnimations.HoverOffsetX" Value="2" />
+      <Setter Property="ui:InteractionAnimations.PressedOffsetX" Value="2" />
+      <Setter Property="ui:InteractionAnimations.SurfaceHoverLayerName" Value="NavigationHoverLayer" />
+      <Setter Property="ui:InteractionAnimations.SurfacePressedLayerName" Value="NavigationPressedLayer" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border Background="{TemplateBinding Background}" CornerRadius="8">
+              <Grid>
+                <Border x:Name="NavigationHoverLayer" Background="{DynamicResource BgHoverBrush}" CornerRadius="8" Opacity="0" IsHitTestVisible="False" />
+                <Border x:Name="NavigationPressedLayer" Background="{DynamicResource AccentSubtlePressedBrush}" CornerRadius="8" Opacity="0" IsHitTestVisible="False" />
+                <Border x:Name="NavigationItemContent" Padding="{TemplateBinding Padding}">
+                  <ContentPresenter />
+                </Border>
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="NavigationHoverLayer" Property="Background" Value="{DynamicResource AccentSubtlePressedBrush}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+      <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+          <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+          <Setter Property="FontWeight" Value="SemiBold" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+    <Style x:Key="SettingsCategorySelectorStyle" TargetType="ComboBox">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource MemoFocusVisualStyle}" />
+      <Setter Property="ItemContainerStyle">
+        <Setter.Value>
+          <Style TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                  <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="6">
+                    <ContentPresenter />
+                  </Border>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
+              </Trigger>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+              </Trigger>
+            </Style.Triggers>
+          </Style>
+        </Setter.Value>
+      </Setter>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton Foreground="{TemplateBinding Foreground}" Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="{DynamicResource SurfacePrimaryBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="12,9">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding SelectedItem.Label, RelativeSource={RelativeSource AncestorType=ComboBox}}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Path Grid.Column="1" Data="{DynamicResource ChevronDownIcon}" Width="12" Height="12" Margin="12,0,0,0" Stretch="Uniform" Fill="{DynamicResource IconDefaultBrush}" />
+                      </Grid>
+                    </Border>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+              <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False" IsOpen="{TemplateBinding IsDropDownOpen}">
+                <Border Background="{DynamicResource SurfacePrimaryBrush}" BorderBrush="{DynamicResource BorderDefaultBrush}" BorderThickness="1" CornerRadius="10" Padding="4" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                  <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
+  <Grid x:Name="SettingsViewport" Background="{DynamicResource BgPrimaryBrush}" ClipToBounds="True">
+   <Grid x:Name="SettingsSurface">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <Grid x:Name="ReturnRow" Height="44" Margin="16,0" KeyboardNavigation.TabIndex="0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Button x:Name="ReturnButton" Width="32" Height="32" Padding="0" Style="{StaticResource TitleBarButtonStyle}" FocusVisualStyle="{StaticResource MemoFocusVisualStyle}" ToolTip="{loc:Localize '返回上一页'}" AutomationProperties.Name="{loc:Localize '返回上一页'}" Click="OnReturnClick">
+        <ui:TaskStatusIcon Width="20" Height="20" IconKey="Back" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+      </Button>
+      <TextBlock x:Name="SettingsTitle" Grid.Column="1" Margin="8,0,0,0" Text="{loc:Localize '设置'}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+      <TextBlock x:Name="TaskStatusManagerTitle" Grid.Column="1" Margin="8,0,0,0" Text="{loc:Localize '管理状态'}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
+    </Grid>
+    <Grid x:Name="SettingsBody" Grid.Row="1" Margin="16,4,16,12" KeyboardNavigation.TabIndex="1" KeyboardNavigation.TabNavigation="Local">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+      <ComboBox x:Name="CategorySelector" Margin="0,0,0,12" MinHeight="38" Style="{StaticResource SettingsCategorySelectorStyle}" SelectedValuePath="Id" DisplayMemberPath="Label" SelectionChanged="OnCategorySelectionChanged" AutomationProperties.Name="{loc:Localize '设置分类'}" KeyboardNavigation.TabIndex="0" />
+      <ListBox x:Name="CategoryNavigation" Visibility="Collapsed" Background="Transparent" BorderThickness="0" Padding="0" SelectedValuePath="Id" DisplayMemberPath="Label" ItemContainerStyle="{StaticResource SettingsNavigationItemStyle}" SelectionChanged="OnCategorySelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="{loc:Localize '设置分类'}" KeyboardNavigation.TabIndex="0" KeyboardNavigation.TabNavigation="Once" />
+      <Border x:Name="CategoryContentHost" Grid.Row="1" KeyboardNavigation.TabIndex="1">
+        <Grid x:Name="CategoryViewport" ClipToBounds="True">
+          <ScrollViewer x:Name="SettingsScrollViewer" Padding="0,0,8,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" HorizontalContentAlignment="Stretch" KeyboardNavigation.TabIndex="1" Focusable="False" ScrollChanged="OnSettingsScrollChanged">
+            <Grid x:Name="CategoryForms" MaxWidth="800" VerticalAlignment="Top">
+              <StackPanel x:Name="GeneralCategory" Visibility="Visible" KeyboardNavigation.TabNavigation="Local">
+                <Border x:Name="LanguageCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                    <TextBlock Text="{loc:Localize '语言'}" Style="{StaticResource SectionTitleStyle}" />
+                    <components:SegmentedSelector x:Name="LanguageSelector" AutomationProperties.Name="{loc:Localize '语言'}" />
+                  </layout:SettingsRow>
+                </Border>
+                <Border x:Name="CloseActionCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                    <TextBlock Text="{loc:Localize '关闭按钮操作'}" Style="{StaticResource SectionTitleStyle}" />
+                    <components:SegmentedSelector x:Name="CloseActionSelector" AutomationProperties.Name="{loc:Localize '关闭按钮操作'}" />
+                  </layout:SettingsRow>
+                </Border>
+                <Border x:Name="QuickMemoCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <components:AnimatedCheckBox x:Name="QuickMemoEnabledCheckBox" Margin="0,8,0,0" Checked="OnQuickMemoEnabledChanged" Unchecked="OnQuickMemoEnabledChanged" AutomationProperties.Name="{loc:Localize '快速添加剪贴板内容'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '快速添加剪贴板内容'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '通过快捷键将剪贴板内容快速添加为备忘录'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                    <components:CollapsibleSection x:Name="QuickMemoPopoutSection" SpacingCompensation="10">
+                      <components:AnimatedCheckBox x:Name="QuickMemoShowPopoutCheckBox" Checked="OnQuickMemoShowPopoutChanged" Unchecked="OnQuickMemoShowPopoutChanged" AutomationProperties.Name="{loc:Localize '快速添加后自动显示便签'}">
+                        <StackPanel>
+                          <TextBlock Text="{loc:Localize '快速添加后自动显示便签'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                          <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '快速添加后在鼠标位置弹出便签窗口'}" />
+                        </StackPanel>
+                      </components:AnimatedCheckBox>
+                    </components:CollapsibleSection>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="TrayClickCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="160" Margin="0,8,0,0">
+                    <TextBlock Text="{loc:Localize '托盘图标点击习惯'}" Style="{StaticResource SectionTitleStyle}" />
+                    <components:LabeledToggleSwitch x:Name="TrayClickToggle" MinWidth="108" LeftLabel="{loc:Localize '单击'}" RightLabel="{loc:Localize '双击'}" VerticalAlignment="Center" />
+                  </layout:SettingsRow>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="AppearanceCategory" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local">
+                <Border x:Name="ThemeCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                    <TextBlock Text="{loc:Localize '主题颜色'}" Style="{StaticResource SectionTitleStyle}" />
+                    <components:SegmentedSelector x:Name="ThemeSelector" AutomationProperties.Name="{loc:Localize '主题颜色'}" />
+                  </layout:SettingsRow>
+                </Border>
+                <Border x:Name="MemoColorsCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="{loc:Localize '便签配色'}" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="{loc:Localize '标题栏与便签背景保持同色，边框自动搭配。'}" Style="{StaticResource DescriptionStyle}" />
+                    <components:MemoColorSelector x:Name="MemoBackgroundSelector" Margin="0,10,0,0" AutomationProperties.Name="{loc:Localize '便签背景'}" />
+                  </StackPanel>
+                </Border>
+                <Border x:Name="MotionCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '界面动效'}" Style="{StaticResource SectionTitleStyle}" />
+                      <components:SegmentedSelector x:Name="MotionSelector" AutomationProperties.Name="{loc:Localize '界面动效'}" />
+                    </layout:SettingsRow>
+                    <TextBlock Text="{loc:Localize '控制窗口和界面微交互动画'}" Style="{StaticResource DescriptionStyle}" />
+                    <components:CollapsibleSection x:Name="MotionSystemStatusSection" SpacingCompensation="10" IsExpanded="False">
+                      <TextBlock x:Name="MotionSystemStatusText" Margin="0,10,0,0" Style="{StaticResource DescriptionStyle}" />
+                    </components:CollapsibleSection>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="WindowsCategory" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local">
+                <Border x:Name="DuplicateCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <components:AnimatedCheckBox x:Name="DuplicateMemoCheckBox" Checked="OnDuplicateMemoChanged" Unchecked="OnDuplicateMemoChanged" AutomationProperties.Name="{loc:Localize '重复便签'}">
+                    <StackPanel>
+                      <TextBlock Text="{loc:Localize '重复便签'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                      <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '关闭时移动已有窗体，开启时总是创建新窗体'}" />
+                    </StackPanel>
+                  </components:AnimatedCheckBox>
+                </Border>
+                <Border x:Name="DockCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <components:AnimatedCheckBox x:Name="DockEnabledCheckBox" Checked="OnDockEnabledChanged" Unchecked="OnDockEnabledChanged" AutomationProperties.Name="{loc:Localize '启用贴边'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '启用贴边'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '拖动主窗口到屏幕边缘时收起为方块'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                    <components:CollapsibleSection x:Name="DockSizeSection" SpacingCompensation="8">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '贴边方块大小'}" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="{loc:Localize '调整主窗口贴边收起后的方块尺寸'}" Style="{StaticResource DescriptionStyle}" />
+                        <components:AnimatedSlider x:Name="DockSizeSlider" Minimum="30" Maximum="75" Step="1" ValueSuffix="px" AutomationProperties.Name="{loc:Localize '贴边方块大小'}" />
+                      </StackPanel>
+                    </components:CollapsibleSection>
+                    <components:AnimatedCheckBox x:Name="PopoutDockEnabledCheckBox" Checked="OnPopoutDockEnabledChanged" Unchecked="OnPopoutDockEnabledChanged" AutomationProperties.Name="{loc:Localize '便签贴边'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '便签贴边'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '拖动便签到屏幕左右边缘时收起为半圆标签'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                  </StackPanel>
+                </Border>
+                <Border x:Name="TaskbarCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <components:AnimatedCheckBox x:Name="ShowMainWindowTaskbarCheckBox" Checked="OnShowMainWindowTaskbarChanged" Unchecked="OnShowMainWindowTaskbarChanged" AutomationProperties.Name="{loc:Localize '显示主界面任务栏图标'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '主界面任务栏图标'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '主界面显示时在 Windows 任务栏中显示图标'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                    <components:AnimatedCheckBox x:Name="ShowMemoWindowTaskbarCheckBox" Checked="OnShowMemoWindowTaskbarChanged" Unchecked="OnShowMemoWindowTaskbarChanged" AutomationProperties.Name="{loc:Localize '显示便签窗口任务栏图标'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '便签窗口任务栏图标'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '在标题栏显示按钮，可单独控制每个便签的任务栏图标'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                    <components:AnimatedCheckBox x:Name="MemoWindowTopmostCheckBox" Checked="OnMemoWindowTopmostChanged" Unchecked="OnMemoWindowTopmostChanged" AutomationProperties.Name="{loc:Localize '新建便签默认置顶'}">
+                      <StackPanel>
+                        <TextBlock Text="{loc:Localize '新建便签默认置顶'}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '新弹出的便签窗口自动置顶，可在标题栏用图钉单独关闭'}" />
+                      </StackPanel>
+                    </components:AnimatedCheckBox>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="TasksCategory" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local">
+                <Border x:Name="TaskSettingsCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="{loc:Localize '任务与状态'}" Style="{StaticResource SectionTitleStyle}" />
+                    <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '默认新建类型'}" Style="{StaticResource SectionTitleStyle}" />
+                      <components:SegmentedSelector x:Name="DefaultKindSelector" AutomationProperties.Name="{loc:Localize '默认新建类型'}" />
+                    </layout:SettingsRow>
+                    <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '新任务默认状态'}" Style="{StaticResource SectionTitleStyle}" />
+                      <components:MemoTaskStatusSelector x:Name="DefaultStatusSelector" DefaultStatusOnly="True" SelectionChanged="OnDefaultStatusChanged" AutomationProperties.Name="{loc:Localize '新任务默认状态'}" />
+                    </layout:SettingsRow>
+                    <Button x:Name="ManageStatusesButton" Style="{StaticResource DialogSecondaryActionButtonStyle}" Content="{loc:Localize '管理状态'}" Click="OnManageStatusesClick" Margin="0,12,0,0" Padding="14,7" HorizontalAlignment="Left" />
+                  </StackPanel>
+                </Border>
+                <Border x:Name="ReminderCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <layout:SettingsRow ControlWidth="280" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '提醒方式'}" Style="{StaticResource SectionTitleStyle}" />
+                      <components:SegmentedSelector x:Name="ReminderNotificationSelector" AutomationProperties.Name="{loc:Localize '提醒方式'}" />
+                    </layout:SettingsRow>
+                    <TextBlock Text="{loc:Localize '系统通知会遵循 Windows 的免打扰设置'}" Style="{StaticResource DescriptionStyle}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="HotkeysCategory" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local">
+                <Border x:Name="HotkeysCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <StackPanel>
+                    <TextBlock Text="{loc:Localize '快捷键设置'}" Style="{StaticResource SectionTitleStyle}" />
+                    <TextBlock Text="{loc:Localize '点击后按快捷键，按 Esc 留空，右键取消'}" Style="{StaticResource DescriptionStyle}" />
+                    <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '置顶'}" Style="{StaticResource SectionTitleStyle}" />
+                      <Button AutomationProperties.Name="{loc:Localize '置顶'}" x:Name="ToggleTopmostHotkeyButton" Tag="ToggleTopmost" Style="{StaticResource HotkeyButtonStyle}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                    </layout:SettingsRow>
+                    <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '最小化'}" Style="{StaticResource SectionTitleStyle}" />
+                      <Button AutomationProperties.Name="{loc:Localize '最小化'}" x:Name="MinimizeHotkeyButton" Tag="Minimize" Style="{StaticResource HotkeyButtonStyle}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                    </layout:SettingsRow>
+                    <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '显示软件'}" Style="{StaticResource SectionTitleStyle}" />
+                      <Button AutomationProperties.Name="{loc:Localize '显示软件'}" x:Name="ShowWindowHotkeyButton" Tag="ShowWindow" Style="{StaticResource HotkeyButtonStyle}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                    </layout:SettingsRow>
+                    <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '快速添加（剪贴板）'}" Style="{StaticResource SectionTitleStyle}" />
+                      <Button AutomationProperties.Name="{loc:Localize '快速添加（剪贴板）'}" x:Name="QuickMemoHotkeyButton" Tag="QuickMemo" Style="{StaticResource HotkeyButtonStyle}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                    </layout:SettingsRow>
+                    <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                      <TextBlock Text="{loc:Localize '快速添加'}" Style="{StaticResource SectionTitleStyle}" />
+                      <Button AutomationProperties.Name="{loc:Localize '快速添加'}" x:Name="QuickAddHotkeyButton" Tag="QuickAdd" Style="{StaticResource HotkeyButtonStyle}" ToolTip="{loc:Localize '在鼠标位置打开空白便签，保存后添加'}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                    </layout:SettingsRow>
+                    <components:CollapsibleSection x:Name="MemoTaskbarHotkeySection" IsExpanded="False">
+                      <layout:SettingsRow ControlWidth="220" Margin="0,8,0,0">
+                        <TextBlock Text="{loc:Localize '切换便签任务栏图标'}" Style="{StaticResource SectionTitleStyle}" />
+                        <Button AutomationProperties.Name="{loc:Localize '切换便签任务栏图标'}" x:Name="ToggleMemoTaskbarHotkeyButton" Tag="ToggleMemoTaskbar" Style="{StaticResource HotkeyButtonStyle}" Click="OnHotkeyButtonClick" PreviewMouseRightButtonDown="OnHotkeyButtonRightClick" />
+                      </layout:SettingsRow>
+                    </components:CollapsibleSection>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <StackPanel x:Name="AboutCategory" Visibility="Collapsed" KeyboardNavigation.TabNavigation="Local">
+                <GroupBox Style="{StaticResource SemanticGroupStyle}" AutomationProperties.Name="{loc:Localize '关于 MemeMomo'}" AutomationProperties.HelpText="{loc:Localize '查看软件版本和 GitHub 仓库'}">
+                  <Border x:Name="AboutCard" Margin="0,0,0,12" Style="{StaticResource SettingsCardStyle}">
+                    <StackPanel>
+                      <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{loc:Localize '关于'}" />
+                      <Grid Margin="{StaticResource SettingsAboutIdentityMargin}">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="AboutIcon" Width="{StaticResource SettingsAboutIconSize}" Height="{StaticResource SettingsAboutIconSize}" Margin="{StaticResource SettingsAboutIconMargin}">
+                          <Border.Background>
+                            <ImageBrush ImageSource="/MemeMomo;component/Assets/appicon.png" Stretch="Uniform" />
+                          </Border.Background>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="MemeMomo" VerticalAlignment="Center" FontSize="{StaticResource SettingsAboutProductFontSize}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <Button x:Name="GitHubButton" Style="{StaticResource AboutGitHubButtonStyle}" Tag="https://github.com/Turing158/MemeMomo" ToolTip="{loc:Localize '打开 GitHub 仓库'}" AutomationProperties.Name="{loc:Localize '打开 GitHub 仓库'}" Click="OnProjectLinkClick">
+                              <Path Width="{StaticResource SettingsAboutGitHubIconSize}" Height="{StaticResource SettingsAboutGitHubIconSize}" Data="{DynamicResource GitHubIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" />
+                            </Button>
+                          </StackPanel>
+                          <TextBlock Margin="{StaticResource SettingsAboutDescriptionMargin}" Style="{StaticResource DescriptionStyle}" Text="{loc:Localize '贴在桌面上的轻量 Markdown 备忘录，让每条想法都随手可见。'}" />
+                        </StackPanel>
+                      </Grid>
+                      <layout:SettingsRow ControlWidth="150" Margin="0,12,0,0">
+                        <Border x:Name="CurrentVersionBadge" Margin="{StaticResource SettingsAboutVersionMargin}" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{DynamicResource TransparentBrush}" Cursor="Arrow" ui:InteractionAnimations.Profile="Surface" ui:InteractionAnimations.TargetName="CurrentVersionBadgeMotionSurface" ui:InteractionAnimations.HoverScale="1" ui:InteractionAnimations.HoverOffsetX="2" ui:InteractionAnimations.PressedScale="1" ui:InteractionAnimations.PressedOffsetX="2" ui:InteractionAnimations.SurfaceHoverLayerName="CurrentVersionBadgeHoverLayer">
+                          <Grid x:Name="CurrentVersionBadgeMotionSurface">
+                            <Border Background="{DynamicResource BgSecondaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusLg}" />
+                            <Border x:Name="CurrentVersionBadgeHoverLayer" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource AccentMutedBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusMd}" IsHitTestVisible="False" Opacity="0" />
+                            <Border Padding="{StaticResource SettingsAboutVersionBadgePadding}" Background="{DynamicResource TransparentBrush}">
+                              <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="5" Height="5" Margin="{StaticResource SettingsAboutVersionBadgeDotMargin}" VerticalAlignment="Center" Fill="{DynamicResource AccentPrimaryBrush}" />
+                                <TextBlock Margin="{StaticResource SettingsAboutVersionBadgeLabelMargin}" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource TextTertiaryBrush}" Text="{loc:Localize '版本'}" TextWrapping="NoWrap" />
+                                <TextBlock x:Name="CurrentVersionText" VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="NoWrap" />
+                              </StackPanel>
+                            </Border>
+                          </Grid>
+                        </Border>
+                        <Button x:Name="UpdateStatusButton" Style="{StaticResource AboutActionButtonStyle}" Click="OnUpdateStatusClick">
+                          <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="UpdateStatusLabel" TextWrapping="NoWrap" />
+                          </StackPanel>
+                        </Button>
+                      </layout:SettingsRow>
+                      <TextBlock Margin="{StaticResource SettingsAboutFooterMargin}" HorizontalAlignment="Center" FontSize="{StaticResource SettingsAboutFooterFontSize}" Foreground="{DynamicResource TextTertiaryBrush}" Text="© StarFall · MIT License" />
+                    </StackPanel>
+                  </Border>
+                </GroupBox>
+                <Border x:Name="TutorialCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="150">
+                    <TextBlock Text="{loc:Localize '教程'}" Style="{StaticResource SectionTitleStyle}" VerticalAlignment="Center" />
+                    <Button x:Name="TutorialButton" Style="{StaticResource AboutActionButtonStyle}" Content="{loc:Localize '教程'}" ToolTip="{loc:Localize '查看使用教程'}" Click="OnTutorialClick" />
+                  </layout:SettingsRow>
+                </Border>
+                <Border x:Name="ResetCard" Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,12">
+                  <layout:SettingsRow ControlWidth="150">
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="{loc:Localize '重置设置'}" Style="{StaticResource SectionTitleStyle}" />
+                      <TextBlock Text="{loc:Localize '恢复关闭行为、快捷键和其它偏好默认值'}" Style="{StaticResource DescriptionStyle}" />
+                    </StackPanel>
+                    <Button x:Name="ResetButton" Style="{StaticResource AboutDangerActionButtonStyle}" Content="{loc:Localize '重置'}" Click="OnResetClick" />
+                  </layout:SettingsRow>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </ScrollViewer>
+          <Image x:Name="CategoryTransitionSnapshot" Visibility="Collapsed" IsHitTestVisible="False" Focusable="False" Stretch="Fill" />
+        </Grid>
+      </Border>
+    </Grid>
+    <ContentControl x:Name="TaskStatusManagerHost" Grid.Row="1" Visibility="Collapsed" Focusable="False" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" KeyboardNavigation.TabIndex="1" />
+   </Grid>
+   <Image x:Name="SettingsTransitionSnapshot" Visibility="Collapsed" IsHitTestVisible="False" Stretch="Fill" />
+  </Grid>
+</UserControl>

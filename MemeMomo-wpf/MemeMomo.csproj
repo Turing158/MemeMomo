@@ -12,7 +12,7 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AssemblyName>MemeMomo</AssemblyName>
     <RootNamespace>MemeMomo</RootNamespace>
-    <Version>0.0.1</Version>
+    <Version>1.0.0</Version>
     <Title>MemeMomo</Title>
     <Product>MemeMomo</Product>
     <Authors>StarFall</Authors>
@@ -32,6 +32,7 @@
     <EmbeddedResource Include="Resources\Strings.json" />
     <Resource Include="Assets\appicon.ico" />
     <Resource Include="Assets\appicon.png" />
+    <Resource Include="Assets\TaskIcons\*.svg" />
     <None Include="THIRD-PARTY-NOTICES.md"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest" />

@@ -27,6 +27,7 @@
             <ColumnDefinition Width="Auto" />
           </Grid.ColumnDefinitions>
           <StackPanel x:Name="FormatToolbar" Orientation="Horizontal">
+            <ContentPresenter x:Name="ToolbarLeadingContentHost" Content="{Binding ToolbarLeadingContent, RelativeSource={RelativeSource AncestorType=UserControl}}" VerticalAlignment="Center" />
             <Button x:Name="BoldButton" Tag="Bold" AutomationProperties.Name="{loc:Localize '粗体'}" ToolTip="{loc:Localize '粗体 (Ctrl+B)'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><TextBlock FontSize="16" FontWeight="Bold" Text="B" /></Button>
             <Button x:Name="ItalicButton" Tag="Italic" AutomationProperties.Name="{loc:Localize '斜体'}" ToolTip="{loc:Localize '斜体 (Ctrl+I)'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><TextBlock FontSize="16" FontStyle="Italic" Text="I" /></Button>
             <Button x:Name="HeadingButton" AutomationProperties.Name="{loc:Localize '标题'}" ToolTip="{loc:Localize '标题'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnHeadingClick" MouseLeave="OnToolbarMenuAnchorMouseLeave">
@@ -41,6 +42,7 @@
               </Button.ContextMenu>
             </Button>
             <Button x:Name="StrikeButton" Tag="Strikethrough" AutomationProperties.Name="{loc:Localize '删除线'}" ToolTip="{loc:Localize '删除线'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><TextBlock FontSize="14" Text="S" TextDecorations="Strikethrough" /></Button>
+            <Button x:Name="UnderlineButton" Tag="Underline" AutomationProperties.Name="{loc:Localize '下划线'}" ToolTip="{loc:Localize '下划线'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><TextBlock FontSize="14" Text="U" TextDecorations="Underline" /></Button>
             <Button x:Name="TableButton" AutomationProperties.Name="{loc:Localize '表格'}" ToolTip="{loc:Localize '表格'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnTableClick"><Path Width="16" Height="16" Data="{DynamicResource MdTableIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" /></Button>
             <Button x:Name="BulletListButton" Tag="BulletList" AutomationProperties.Name="{loc:Localize '无序列表'}" ToolTip="{loc:Localize '无序列表'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><Path Width="15" Height="15" Data="{DynamicResource MdListIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" /></Button>
             <Button x:Name="OrderedListButton" Tag="OrderedList" AutomationProperties.Name="{loc:Localize '有序列表'}" ToolTip="{loc:Localize '有序列表'}" Style="{StaticResource MarkdownToolButtonStyle}" Click="OnToolbarClick"><TextBlock FontFamily="Cascadia Mono, Consolas" FontSize="11.5" FontWeight="SemiBold" Text="1." /></Button>
@@ -59,6 +61,8 @@
               <Path Width="16" Height="16" Data="{DynamicResource MdMoreIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" />
               <Button.ContextMenu>
                 <ContextMenu x:Name="MoreMenu" popup:ContextMenuAnimations.IsEnabled="True" Style="{StaticResource MarkdownToolbarMenuPresenterTheme}" Opened="OnToolbarMenuOpened" Closed="OnToolbarMenuClosed" MouseEnter="OnToolbarMenuMouseEnter" MouseLeave="OnToolbarMenuMouseLeave">
+                  <MenuItem x:Name="StrikeMenuItem" Tag="Strikethrough" Header="{loc:Localize '删除线'}" Style="{StaticResource MarkdownToolbarMenuItemTheme}" Click="OnMenuCommandClick" />
+                  <MenuItem x:Name="UnderlineMenuItem" Tag="Underline" Header="{loc:Localize '下划线'}" Style="{StaticResource MarkdownToolbarMenuItemTheme}" Click="OnMenuCommandClick" />
                   <MenuItem x:Name="TableMenuItem" Tag="Table" AutomationProperties.Name="{loc:Localize '表格'}" Style="{StaticResource MarkdownToolbarMenuItemTheme}" Click="OnMenuCommandClick">
                     <MenuItem.Header><StackPanel Orientation="Horizontal"><Path Width="16" Height="16" Margin="4,0,12,0" Data="{DynamicResource MdTableIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" Stretch="Uniform" /><TextBlock Text="{loc:Localize '表格'}" /></StackPanel></MenuItem.Header>
                   </MenuItem>
@@ -108,11 +112,11 @@
         <ContentPresenter Content="{Binding EditorContent, RelativeSource={RelativeSource AncestorType=UserControl}}" />
         <Button x:Name="CodeCopyButton" HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.Name="{loc:Localize '复制代码'}" ToolTip="{loc:Localize '复制代码'}" Style="{StaticResource CodeBlockCopyButtonStyle}" Visibility="Collapsed" Click="OnCodeCopyClick"><Path Width="12" Height="12" Data="{DynamicResource MdCopyIcon}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform" /></Button>
         <TextBlock x:Name="WatermarkText" Margin="13,11" Foreground="{DynamicResource TextDisabledBrush}" IsHitTestVisible="False" Text="{loc:Localize '写点什么…'}" />
-        <Border x:Name="StatusBadge" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="7" Padding="7,3" CornerRadius="6" Background="{DynamicResource BgTertiaryBrush}" IsHitTestVisible="False" Opacity="0">
-          <TextBlock x:Name="StatusText" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" />
-        </Border>
-        <Border x:Name="DropCue" Background="{DynamicResource AccentSubtleBrush}" BorderBrush="{DynamicResource BorderFocusBrush}" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
-          <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource AccentPrimaryBrush}" FontWeight="SemiBold" Text="{loc:Localize '放开以插入图片'}" />
+        <Border x:Name="UnsavedBadge" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="7" Padding="7,3" CornerRadius="6" Background="{DynamicResource BgTertiaryBrush}"
+                IsHitTestVisible="False" Visibility="Collapsed">
+          <TextBlock x:Name="UnsavedStatusText" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}"
+                     Text="{loc:Localize '未保存'}" />
         </Border>
       </Grid>
       <Popup x:Name="TablePickerPopup" popup:PopupAnimations.IsEnabled="True" Placement="Bottom" PlacementTarget="{Binding ElementName=TableButton}" AllowsTransparency="True" Closed="OnTablePickerClosed">
