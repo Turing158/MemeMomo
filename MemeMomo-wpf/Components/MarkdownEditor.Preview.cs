@@ -37,7 +37,8 @@ public partial class MarkdownEditor
     private void ResetSession(bool preview)
     {
         ++_sessionVersion;
-        _autoSave.Cancel();
+        CancelAutoSave();
+        _savedMarkdown = null;
         _lifecycleSuspended = false;
         Toolbar.IsEnabled = true;
         _adapter.Editor.IsHitTestVisible = true;
@@ -69,7 +70,7 @@ public partial class MarkdownEditor
         ThrowIfDisposed();
         // Moving focus commits the current IME composition before freezing input.
         Keyboard.ClearFocus();
-        _autoSave.Cancel();
+        CancelAutoSave();
         _lifecycleSuspended = true;
         _adapter.IsReadOnly = true;
         Toolbar.IsEnabled = false;

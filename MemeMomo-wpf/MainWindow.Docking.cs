@@ -724,7 +724,7 @@ public partial class MainWindow : IDockHandleInputSink
 
         _finalizeDockWhenAnimationCompletes = false;
         _dockHandleController?.BeginSession();
-        UpdateTaskbarIconVisibility(IsVisible);
+        UpdateTaskbarIconVisibility();
         AnimateDockVisualScale(DockActiveScale);
         MinWidth = _dockSize;
         MinHeight = _dockSize;
@@ -1230,7 +1230,7 @@ public partial class MainWindow : IDockHandleInputSink
         bool allowHitTesting = true,
         bool preserveActiveDrag = false)
     {
-        UpdateTaskbarIconVisibility(IsVisible);
+        UpdateTaskbarIconVisibility();
         if (DockRenderBackend == DockHandleRenderBackend.Layered)
         {
             Background = System.Windows.Media.Brushes.Transparent;
@@ -1276,7 +1276,7 @@ public partial class MainWindow : IDockHandleInputSink
 
     private void ApplyExpandedVisualState()
     {
-        UpdateTaskbarIconVisibility(IsVisible);
+        UpdateTaskbarIconVisibility();
         _dockWindowAdapter?.Unpark();
         Opacity = 1;
         Background = System.Windows.Media.Brushes.Transparent;

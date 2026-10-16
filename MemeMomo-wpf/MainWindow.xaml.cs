@@ -58,7 +58,7 @@ public partial class MainWindow : BorderlessWindow
     {
         public void OpenSettings(WindowContext context) => ((MainWindow)context.Window).ShowSettingsAsync().Observe();
         public void MinimizeToTray(WindowContext context) => ((Window)context.Window).Hide();
-        public void SetTaskbarIconVisible(WindowContext context, bool visible) => ((Window)context.Window).ShowInTaskbar = visible;
+        public void SetTaskbarIconVisible(WindowContext context, bool visible) => TaskbarIconVisibility.SetVisible((Window)context.Window, visible);
         public Task<CloseButtonAction?> AskCloseButtonAction(WindowContext context) => Task.FromResult<CloseButtonAction?>(CloseButtonAction.MinimizeToTray);
         public void ExitApplication(WindowContext context) => WpfApplication.Current?.Shutdown();
     }
@@ -111,7 +111,7 @@ public partial class MainWindow : BorderlessWindow
             (memo, screenPoint) => MemoPopoutRequested?.Invoke(memo, screenPoint));
         _dragManager.Attach();
         Topmost = settings.MainWindowTopmost;
-        ShowInTaskbar = settings.ShowMainWindowTaskbarIcon;
+        UpdateTaskbarIconVisibility();
         _viewModel.MemoDeleted += OnMemoDeleted;
         _viewModel.MemosLoaded += OnMemosLoaded;
         MarkdownEditor.SaveRequestedAsync = SaveMarkdownAsync;
@@ -182,7 +182,7 @@ public partial class MainWindow : BorderlessWindow
         if (DockState != DockState.Expanded)
         {
             WindowState = WindowState.Normal;
-            UpdateTaskbarIconVisibility(windowWillBeVisible: true);
+            UpdateTaskbarIconVisibility();
             ResetWindowTransition();
             if (!IsVisible)
             {
@@ -199,7 +199,7 @@ public partial class MainWindow : BorderlessWindow
         }
 
         WindowState = WindowState.Normal;
-        UpdateTaskbarIconVisibility(windowWillBeVisible: true);
+        UpdateTaskbarIconVisibility();
         if (!IsVisible)
         {
             Show();
@@ -229,7 +229,7 @@ public partial class MainWindow : BorderlessWindow
         HideWithTransition(() =>
         {
             WindowState = WindowState.Normal;
-            UpdateTaskbarIconVisibility(windowWillBeVisible: false);
+            UpdateTaskbarIconVisibility();
         });
     }
 
@@ -262,7 +262,7 @@ public partial class MainWindow : BorderlessWindow
         ArgumentNullException.ThrowIfNull(settings);
         settings.CopyTo(_settings);
         Topmost = _settings.MainWindowTopmost;
-        UpdateTaskbarIconVisibility(IsVisible);
+        UpdateTaskbarIconVisibility();
         ApplyDockEnabledSetting(_settings.MainWindowDockEnabled);
         ApplyDockSizeSetting(_settings.MainWindowDockSize, persist: false);
         InteractionState.SetIsPinActive(PinButton, Topmost);
@@ -276,17 +276,16 @@ public partial class MainWindow : BorderlessWindow
         }
 
         _loadedOnce = true;
-        UpdateTaskbarIconVisibility(windowWillBeVisible: true);
+        UpdateTaskbarIconVisibility();
         await _viewModel.LoadAsync();
         MarkdownEditor.BeginNew(_newMemoDraft);
         UpdateEditVisual();
     }
 
-    private void UpdateTaskbarIconVisibility(bool windowWillBeVisible) =>
+    private void UpdateTaskbarIconVisibility() =>
         TaskbarIconVisibility.SetVisible(
             this,
-            windowWillBeVisible
-                && DockState == DockState.Expanded
+            DockState == DockState.Expanded
                 && _settings.ShowMainWindowTaskbarIcon);
 
     private void OnMemosLoaded() => Dispatcher.BeginInvoke(

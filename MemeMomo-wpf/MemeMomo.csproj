@@ -12,7 +12,7 @@
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <AssemblyName>MemeMomo</AssemblyName>
     <RootNamespace>MemeMomo</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Title>MemeMomo</Title>
     <Product>MemeMomo</Product>
     <Authors>StarFall</Authors>

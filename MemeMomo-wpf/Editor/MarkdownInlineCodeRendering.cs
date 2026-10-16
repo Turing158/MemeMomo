@@ -25,7 +25,8 @@ internal static class MarkdownInlineCodeStyle
         // only to its text content, just like the normal selection highlight.
         foreach (VisualLine line in textView.VisualLines)
         {
-            if (!line.Elements.OfType<QuotePaddingElement>().Any())
+            if (!line.Elements.OfType<QuotePaddingElement>().Any() &&
+                !textView.LineTransformers.OfType<MarkdownLineSpacing>().Any())
             {
                 continue;
             }

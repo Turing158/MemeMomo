@@ -181,7 +181,7 @@ internal sealed class MemoCardTaskVisualController : IDisposable
         UpdateAccentOpacity();
         if ((_menuOpen || _pressed) && _target?.IsTask == true) return;
         bool cardHover = _card.IsMouseOver;
-        Point pointer = Mouse.GetPosition(_actions);
+        Point pointer = Mouse.GetPosition(_card);
         bool buttonHover = _quick.IsMouseOver ||
             (!_hoverBridge.IsEmpty && (_position.IsRunning || _width.IsRunning) && _hoverBridge.Contains(pointer));
         SetInteraction(cardHover || _card.IsKeyboardFocusWithin, buttonHover || _quick.IsKeyboardFocusWithin, animate);
@@ -206,6 +206,7 @@ internal sealed class MemoCardTaskVisualController : IDisposable
             {
                 _selector.QuickOffset.X = Lerp(from, reveal ? -RevealDistance : 0, t);
                 if (_taskLayout) _delete.Opacity = Lerp(opacity, reveal ? 1 : 0, t);
+                UpdateTitleSpace();
                 UpdateDeleteHit();
             }, SchedulePointerUpdate);
         }
@@ -288,7 +289,11 @@ internal sealed class MemoCardTaskVisualController : IDisposable
         _widthTarget = target;
         double from = _quick.Width;
         Animate(_width, animate, milliseconds, MotionEasing.CubicEaseOut,
-            t => _quick.Width = Lerp(from, target, t), SchedulePointerUpdate);
+            t =>
+            {
+                _quick.Width = Lerp(from, target, t);
+                UpdateTitleSpace();
+            }, SchedulePointerUpdate);
     }
 
     private double LabelWidth(string label)
@@ -342,8 +347,15 @@ internal sealed class MemoCardTaskVisualController : IDisposable
         // Measured title-row width already excludes card padding, list margins and
         // scrollbar. Keep at least 80 DIP for title plus its existing 8 DIP margin.
         _maxWidth = Math.Clamp(_row.ActualWidth - 80 - 8 - RevealDistance, IconWidth, 128);
-        _actions.Width = _maxWidth + RevealDistance;
         SetWidth(_expanded ? LabelWidth(_text.Text) : IconWidth, true, 150);
+        UpdateTitleSpace();
+    }
+
+    private void UpdateTitleSpace()
+    {
+        // Reserve only the currently visible controls. The title stays on one
+        // line and gives space back as the button contracts toward its right anchor.
+        if (_taskLayout) _actions.Width = Math.Max(IconWidth, _quick.Width - Offset);
     }
 
     private void UpdateDeleteHit()
@@ -362,7 +374,7 @@ internal sealed class MemoCardTaskVisualController : IDisposable
         if (!_quick.IsVisible || _quick.ActualWidth <= 0) return;
         // Only hover continuity uses this range. WPF still hits the visible button
         // itself; empty reserved space never turns into an invisible click target.
-        _hoverBridge = _quick.TransformToAncestor(_actions).TransformBounds(new Rect(_quick.RenderSize));
+        _hoverBridge = _quick.TransformToAncestor(_card).TransformBounds(new Rect(_quick.RenderSize));
     }
 
     private void SchedulePointerUpdate()

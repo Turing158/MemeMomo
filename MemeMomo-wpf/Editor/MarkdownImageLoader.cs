@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging;
 
 namespace MemeMomo.Editor;
 
-internal sealed record MarkdownImageLoadResult(BitmapSource? Bitmap, string? Error)
+internal sealed record MarkdownImageLoadResult(BitmapSource? Bitmap, string? Error, ReadOnlyMemory<byte> SourceBytes = default)
 {
     public bool IsSuccess => Bitmap is not null;
 }
@@ -120,7 +120,7 @@ internal sealed class MarkdownImageLoader : IDisposable
 
             BitmapSource bitmap = await Task.Run(() => Decode(bytes), cancellationToken).ConfigureAwait(false);
             Interlocked.Increment(ref _successCount);
-            return new MarkdownImageLoadResult(bitmap, null);
+            return new MarkdownImageLoadResult(bitmap, null, bytes);
         }
         catch (OperationCanceledException)
         {

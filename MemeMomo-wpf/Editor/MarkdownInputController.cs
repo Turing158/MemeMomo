@@ -32,6 +32,7 @@ internal sealed partial class MarkdownInputController : IDisposable
 
     /// <summary>表格删除确认钩子；未设置时弹出默认确认框。</summary>
     internal Func<Task<bool>>? TableDeleteConfirmationAsync { get; set; }
+    internal bool IsSourceMode { get; set; }
 
     internal MarkdownInputController(
         TextEditor editor,
@@ -114,6 +115,8 @@ internal sealed partial class MarkdownInputController : IDisposable
             e.Handled = true;
             return;
         }
+        // Source mode uses ordinary text navigation, indentation and deletion.
+        if (IsSourceMode) return;
         if (e.Key == Key.Tab && TryIndentList(modifiers.HasFlag(ModifierKeys.Shift)))
         {
             e.Handled = true;

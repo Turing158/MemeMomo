@@ -6,6 +6,7 @@ using System.Windows.Input;
 using ICSharpCode.AvalonEdit.Editing;
 using MemeMomo.UI.Popup;
 using MemeMomo.UI.Text;
+using MemeMomo.Infrastructure;
 using Application = System.Windows.Application;
 using Clipboard = System.Windows.Clipboard;
 using TextBox = System.Windows.Controls.TextBox;
@@ -37,6 +38,25 @@ internal static class EditorClipboardMenu
     internal const string CutHeader = "剪切";
     internal const string CopyHeader = "复制";
     internal const string PasteHeader = "粘贴";
+
+    internal static void InsertImageTransferItems(ContextMenu menu, FrameworkElement target, int index,
+        Func<Task> copyImage, Func<Task> saveImage, Func<bool> canTransfer)
+    {
+        bool needsSeparator = index == 0;
+        MenuItem copy = CreateItem("复制图片", target);
+        MenuItem save = CreateItem("保存图片", target);
+        copy.Click += (_, _) => copyImage().Observe();
+        save.Click += (_, _) => saveImage().Observe();
+        menu.Items.Insert(index++, copy);
+        menu.Items.Insert(index, save);
+        if (needsSeparator)
+            menu.Items.Insert(index + 1, new Separator
+            {
+                Style = Application.Current?.TryFindResource("MarkdownToolbarMenuSeparatorTheme") as Style
+            });
+        menu.Opened += (_, _) => copy.IsEnabled = save.IsEnabled = canTransfer();
+        copy.IsEnabled = save.IsEnabled = canTransfer();
+    }
 
     /// <summary>
     /// 为主编辑区创建右键菜单。剪贴板是图片/文件列表时粘贴走 <paramref name="pasteImages"/>

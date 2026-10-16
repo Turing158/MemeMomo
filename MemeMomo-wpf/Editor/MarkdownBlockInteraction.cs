@@ -15,6 +15,7 @@ internal sealed class MarkdownBlockInteraction(AvalonEditMarkdownAdapter adapter
     internal ContextMenu CreateMenu(Point? pointToEditor)
     {
         if (adapter.IsReadOnly) return EditorClipboardMenu.CreateReadOnly(adapter.Editor.TextArea);
+        if (adapter.IsSourceMode) return EditorClipboardMenu.CreateForTextArea(adapter.Editor.TextArea, pasteImages);
         long session = adapter.SessionVersion;
         TextView view = adapter.Editor.TextArea.TextView;
         MarkdownVisualSpan? target = null;

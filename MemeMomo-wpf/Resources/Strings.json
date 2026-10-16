@@ -544,6 +544,10 @@
     "Edit source",
     "編輯原始碼"
   ],
+  "返回格式化编辑": [
+    "Return to formatted editing",
+    "返回格式化編輯"
+  ],
   "更多格式": [
     "More formatting",
     "更多格式"
@@ -1200,17 +1204,17 @@
     "The editor supports headings, emphasis, strikethrough, numbered and bulleted lists, tasks, quotes, links, code, tables, horizontal rules, and images.",
     "頂部的 Markdown 編輯器可直接排版與編輯，支援標題、強調、刪除線、編號與無序清單、工作項目、引用、連結、程式碼、表格、分隔線及圖片。"
   ],
-  "新建时按 Ctrl+Enter 新增，Enter 换行；工具栏可直接插入常用格式，「更多」菜单也可打开 Markdown 源码编辑器。": [
-    "Press Ctrl+Enter to add a new memo, or Enter for a new line. Use the toolbar for formatting and the More menu to edit Markdown source.",
-    "新建時按 Ctrl+Enter 新增，Enter 換行；工具列可插入常用格式，「更多」選單也可開啟 Markdown 原始碼編輯器。"
+  "新建时按 Ctrl+Enter 新增，Enter 换行；工具栏可直接插入常用格式，点击「编辑源码」可在当前编辑框中切换源码与格式化编辑。": [
+    "Press Ctrl+Enter to add a new memo, or Enter for a new line. Use the toolbar for formatting, or click Edit source to switch between source and formatted editing in the same editor.",
+    "新建時按 Ctrl+Enter 新增，Enter 換行；工具列可插入常用格式，點擊「編輯原始碼」可在目前編輯框中切換原始碼與格式化編輯。"
   ],
   "二、所见即所得编辑": [
     "2. WYSIWYG editing",
     "二、所見即所得編輯"
   ],
-  "双击卡片进入编辑；停止输入 500ms 后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。": [
-    "Double-click a memo to edit it. Changes save 500 ms after typing stops. Press Ctrl+Enter to save immediately, or Esc to restore the content loaded for this edit.",
-    "雙擊卡片進入編輯；停止輸入 500ms 後自動儲存。編輯現有內容時按 Ctrl+Enter 立即儲存，Esc 恢復本次載入的內容。"
+  "双击卡片进入编辑；停止输入 2 秒后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。": [
+    "Double-click a memo to edit it. Changes save 2 seconds after typing stops. Press Ctrl+Enter to save immediately, or Esc to restore the content loaded for this edit.",
+    "雙擊卡片進入編輯；停止輸入 2 秒後自動儲存。編輯現有內容時按 Ctrl+Enter 立即儲存，Esc 恢復本次載入的內容。"
   ],
   "编辑时可用 Ctrl+B / Ctrl+I / Ctrl+K 快速插入粗体、斜体、链接。": [
     "Use Ctrl+B, Ctrl+I, or Ctrl+K for bold, italic, or links.",
@@ -1358,6 +1362,13 @@
   ],
   "编辑图片": ["Edit image", "編輯圖片"],
   "删除图片": ["Delete image", "刪除圖片"],
+  "复制图片": ["Copy image", "複製圖片"],
+  "保存图片": ["Save image", "儲存圖片"],
+  "已复制图片": ["Image copied", "已複製圖片"],
+  "已保存图片": ["Image saved", "已儲存圖片"],
+  "复制图片失败：{0}": ["Could not copy image: {0}", "複製圖片失敗：{0}"],
+  "保存图片失败：{0}": ["Could not save image: {0}", "儲存圖片失敗：{0}"],
+  "图片文件 (*{0})|*{0}": ["Image file (*{0})|*{0}", "圖片檔案 (*{0})|*{0}"],
   "图片源码": ["Image source", "圖片原始碼"],
   "替代文本（alt）": ["Alternative text (alt)", "替代文字（alt）"],
   "链接或路径（src）": ["URL or path (src)", "連結或路徑（src）"],

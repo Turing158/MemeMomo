@@ -39,6 +39,9 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     private readonly HtmlAlignmentLayout _htmlAlignment;
     private readonly MarkdownSelectionRenderer _selectionRenderer;
     private readonly MarkdownColorizer _colorizer;
+    private readonly MarkdownLineSpacing _lineSpacing;
+    private readonly MarkdownParagraphSpacing _paragraphSpacing;
+    private readonly MarkdownListIndentation _listIndentation;
     private readonly MarkdownImageLoader _imageLoader;
     private readonly string _imageRoot;
     private readonly MarkdownInputController _inputController;
@@ -94,6 +97,8 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.ElementGenerators.Add(_codeBlockPaddingGenerator);
         _inlineCodePaddingGenerator = new MarkdownInlineCodePaddingGenerator(_model);
         Editor.TextArea.TextView.ElementGenerators.Add(_inlineCodePaddingGenerator);
+        _listIndentation = new MarkdownListIndentation(_model);
+        Editor.TextArea.TextView.ElementGenerators.Add(_listIndentation);
         _objectGenerator = new MarkdownElementGenerator(() => _model.Spans, CreateElement);
         Editor.TextArea.TextView.ElementGenerators.Add(_objectGenerator);
         _quoteRenderer = new MarkdownQuoteRenderer(() => _model.Spans);
@@ -111,6 +116,13 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         _htmlAlignment = new HtmlAlignmentLayout(() => _model.Spans);
         Editor.TextArea.TextView.ElementGenerators.Insert(0, _htmlAlignment);
         Editor.TextArea.TextView.LineTransformers.Add(_htmlAlignment);
+        _lineSpacing = new MarkdownLineSpacing(() => _model.Spans);
+        Editor.TextArea.TextView.ElementGenerators.Add(_lineSpacing);
+        Editor.TextArea.TextView.LineTransformers.Add(_lineSpacing);
+        _paragraphSpacing = new MarkdownParagraphSpacing(() => _model.Spans);
+        // Keep alignment first, but add paragraph padding before images/tasks consume their source range.
+        Editor.TextArea.TextView.ElementGenerators.Insert(1, _paragraphSpacing);
+        Editor.TextArea.TextView.LineTransformers.Add(_paragraphSpacing);
         Editor.TextArea.TextView.SizeChanged += _htmlAlignment.OnViewportChanged;
         Editor.Document.Changed += OnDocumentChanged;
         Editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
@@ -142,6 +154,10 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     internal System.Windows.Controls.ContextMenu CreateImageContextMenu(Action edit, Action delete) =>
         IsReadOnly ? EditorClipboardMenu.CreateReadOnly(Editor.TextArea) : EditorClipboardMenu.CreateForTextArea(Editor.TextArea,
             () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), edit, delete);
+    internal Func<System.Windows.Media.Imaging.BitmapSource, Task> ImageClipboardWriter { get; set; } =
+        Platform.Windows.ImageClipboard.CopyAsync;
+    internal Func<Window, Microsoft.Win32.SaveFileDialog, bool?> ImageSaveDialog { get; set; } =
+        static (owner, dialog) => dialog.ShowDialog(owner);
     internal MarkdownCodeBlockRenderer CodeBlockRenderer => _codeBlockRenderer;
     internal MarkdownRuleRenderer RuleRenderer => _ruleRenderer;
     internal MarkdownRuleInteraction RuleInteraction => _ruleInteraction;
@@ -165,6 +181,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     internal MarkdownVisualSpan? LinkAtPoint(Point point)
     {
+        if (IsSourceMode) return null;
         for (DependencyObject? element = Editor.InputHitTest(point) as DependencyObject;
              element is not null; element = System.Windows.Media.VisualTreeHelper.GetParent(element))
         {
@@ -186,21 +203,21 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     public string Markdown
     {
-        get => _model.Markdown;
+        get => IsSourceMode ? Editor.Text : _model.Markdown;
         set => SetMarkdown(value, clearUndo: true, preserveViewState: false);
     }
 
-    public string VisibleText => _model.VisibleText;
+    public string VisibleText => IsSourceMode ? Editor.Text : _model.VisibleText;
 
-    public int SelectionStart => _model.SourceOffsetFromVisible(
+    public int SelectionStart => IsSourceMode ? Editor.SelectionStart : _model.SourceOffsetFromVisible(
         Editor.SelectionStart,
         trailingAffinity: true);
 
-    public int SelectionEnd => _model.SourceOffsetFromVisible(
+    public int SelectionEnd => IsSourceMode ? Editor.SelectionStart + Editor.SelectionLength : _model.SourceOffsetFromVisible(
         Editor.SelectionStart + Editor.SelectionLength,
         trailingAffinity: false);
 
-    public int CaretSourceOffset => _model.SourceOffsetForInsertion(Editor.CaretOffset);
+    public int CaretSourceOffset => IsSourceMode ? Editor.CaretOffset : _model.SourceOffsetForInsertion(Editor.CaretOffset);
 
     public event EventHandler? MarkdownChanged;
 
@@ -223,11 +240,24 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
                 cell.ApplyFormat(command);
             return;
         }
+        (int start, int end) = FormattingSelection;
         MarkdownEditResult result = MarkdownFormatter.Apply(
-            _model.Markdown,
-            SelectionStart,
-            SelectionEnd,
+            Markdown,
+            start,
+            end,
             command);
+        if (IsSourceMode && start != end && command is MarkdownFormatCommand.Bold or MarkdownFormatCommand.Italic or
+            MarkdownFormatCommand.Strikethrough or MarkdownFormatCommand.Underline or MarkdownFormatCommand.InlineCode)
+        {
+            // Inline formatter ranges can include hidden closing markers. Keep the same
+            // selected content when those markers are visible in the source document.
+            MarkdownDocumentModel projection = new(result.Text);
+            int contentStart = projection.SourceOffsetFromVisible(projection.VisibleOffsetFromSource(result.SelectionStart));
+            int contentEnd = projection.SourceOffsetFromVisible(
+                projection.VisibleOffsetFromSource(result.SelectionEnd), trailingAffinity: false);
+            if (contentEnd >= contentStart)
+                result = result with { SelectionStart = contentStart, SelectionEnd = contentEnd };
+        }
         ApplyEdit(result);
     }
 
@@ -235,6 +265,11 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     {
         if (IsReadOnly) return;
         ThrowIfDisposed();
+        if (IsSourceMode)
+        {
+            ApplySourceEdit(result, clearUndo);
+            return;
+        }
         string beforeMarkdown = _model.Markdown;
         // UndoCaret 覆盖撤销时的光标位置：占位符这类整体结构删除后，撤销要把光标放回
         // 结构所在行的行首，而不是编辑前的内容位置。
@@ -282,6 +317,11 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     public void SetMarkdown(string? markdown, bool clearUndo, bool preserveViewState)
     {
         ThrowIfDisposed();
+        if (IsSourceMode)
+        {
+            SetSourceMarkdown(markdown, clearUndo, preserveViewState);
+            return;
+        }
         if (!preserveViewState) ResetInteractionSession();
         int sourceStart = preserveViewState ? SelectionStart : 0;
         int sourceEnd = preserveViewState ? SelectionEnd : 0;
@@ -296,6 +336,13 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     public void SelectSourceRange(int start, int end)
     {
         ThrowIfDisposed();
+        if (IsSourceMode)
+        {
+            start = Math.Clamp(start, 0, Editor.Document.TextLength);
+            end = Math.Clamp(end, 0, Editor.Document.TextLength);
+            Editor.Select(Math.Min(start, end), Math.Abs(end - start));
+            return;
+        }
         int visibleStart = _model.VisibleOffsetFromSource(Math.Clamp(start, 0, _model.Markdown.Length));
         int visibleEnd = _model.VisibleOffsetFromSource(Math.Clamp(end, 0, _model.Markdown.Length));
         Editor.Select(Math.Min(visibleStart, visibleEnd), Math.Abs(visibleEnd - visibleStart));
@@ -362,12 +409,15 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.BackgroundRenderers.Remove(_quoteRenderer);
         Editor.TextArea.TextView.BackgroundRenderers.Remove(_ruleRenderer);
         Editor.TextArea.TextView.ElementGenerators.Remove(_inlineCodePaddingGenerator);
+        Editor.TextArea.TextView.ElementGenerators.Remove(_listIndentation);
         Editor.TextArea.TextView.ElementGenerators.Remove(_codeBlockPaddingGenerator);
         Editor.TextArea.TextView.ElementGenerators.Remove(_quotePaddingGenerator);
         Editor.TextArea.TextView.ElementGenerators.Remove(_objectGenerator);
         Editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
         Editor.TextArea.TextView.ElementGenerators.Remove(_htmlAlignment);
         Editor.TextArea.TextView.LineTransformers.Remove(_htmlAlignment);
+        Editor.TextArea.TextView.ElementGenerators.Remove(_lineSpacing);
+        Editor.TextArea.TextView.LineTransformers.Remove(_lineSpacing);
         Editor.TextArea.TextView.SizeChanged -= _htmlAlignment.OnViewportChanged;
     }
 
@@ -441,10 +491,11 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     /// offset restore exact; edits that leave the visible text unchanged (image width
     /// suffixes, bold markers, …) skip the replace entirely.
     /// </summary>
-    private void ReplaceProjectionText()
+    private void ReplaceProjectionText() => ReplaceDocumentText(_model.VisibleText);
+
+    private void ReplaceDocumentText(string target)
     {
         string current = Editor.Document.Text;
-        string target = _model.VisibleText;
         int start = 0;
         int sharedLength = Math.Min(current.Length, target.Length);
         while (start < sharedLength && current[start] == target[start])
@@ -518,6 +569,12 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             return;
         }
 
+        if (IsSourceMode)
+        {
+            MarkdownChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
         int caret = Editor.CaretOffset;
         (int Start, int End) selection = _model.ApplyVisibleText(
             Editor.Text,
@@ -567,7 +624,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     /// </summary>
     private bool RedirectCaretOutOfTable()
     {
-        if (Editor.SelectionLength != 0 || IsAnyTableCellFocused())
+        if (IsSourceMode || Editor.SelectionLength != 0 || IsAnyTableCellFocused())
         {
             return false;
         }
@@ -613,7 +670,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     /// </summary>
     private bool RedirectCaretOutOfRule()
     {
-        if (Editor.SelectionLength != 0)
+        if (IsSourceMode || Editor.SelectionLength != 0)
         {
             return false;
         }
@@ -651,7 +708,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     private void OnTextAreaPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (Volatile.Read(ref _disposed) != 0 || !Editor.TextArea.TextView.VisualLinesValid)
+        if (IsSourceMode || Volatile.Read(ref _disposed) != 0 || !Editor.TextArea.TextView.VisualLinesValid)
         {
             return;
         }
@@ -692,7 +749,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     /// </summary>
     private void OnClipboardCopy(object sender, DataObjectCopyingEventArgs e)
     {
-        if (_updatingProjection || Volatile.Read(ref _disposed) != 0 ||
+        if (IsSourceMode || _updatingProjection || Volatile.Read(ref _disposed) != 0 ||
             !ReferenceEquals(e.OriginalSource, Editor.TextArea))
         {
             return;
@@ -807,7 +864,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         {
             return false;
         }
-        if (_model.Spans
+        if (!IsSourceMode && _model.Spans
                 .Where(span => span.Kind == MarkdownVisualKind.Image &&
                     span.Start <= offset && offset <= span.End)
                 .Select(span => (MarkdownVisualSpan?)span)
@@ -860,11 +917,12 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
         _projectionRefreshPending = true;
         long session = SessionVersion;
+        long sourceModeVersion = _sourceModeVersion;
         Editor.Dispatcher.BeginInvoke(
             DispatcherPriority.DataBind,
             new Action(() =>
             {
-                if (session != SessionVersion) return;
+                if (session != SessionVersion || sourceModeVersion != _sourceModeVersion) return;
                 _projectionRefreshPending = false;
                 if (Volatile.Read(ref _disposed) != 0)
                 {
@@ -964,7 +1022,9 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     {
         if (span.Kind != MarkdownVisualKind.Table)
         {
-            return new InlineObjectElement(span.Length, CreateControl(span));
+            return span.Kind == MarkdownVisualKind.Task
+                ? new MarkdownTaskMarkerElement(span.Length, CreateControl(span))
+                : new InlineObjectElement(span.Length, CreateControl(span));
         }
         int tableCount = _model.Spans.Count(value => value.Kind == MarkdownVisualKind.Table);
         foreach (int stale in _tableElements.Keys.Where(key => key >= tableCount).ToList())

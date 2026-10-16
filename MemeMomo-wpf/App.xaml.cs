@@ -68,7 +68,6 @@ public partial class App : System.Windows.Application
             MainWindow mainWindow = new(viewModel, _settings, new AppHostActions(this));
             ConfigureMainWindow(mainWindow, _settings);
             mainWindow.ConfigureWindowStatePersistence(SaveWindowStateAsync);
-            mainWindow.ShowInTaskbar = false;
             if (Volatile.Read(ref _exitRequested) != 0)
             {
                 return;

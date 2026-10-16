@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace MemeMomo.Platform.Windows;
 
@@ -12,9 +13,7 @@ namespace MemeMomo.Platform.Windows;
 /// </summary>
 public static class TaskbarIconVisibility
 {
-    private const int GwOwner = 4;
     private const int GwlExStyle = -20;
-    private const int GwlpHwndParent = -8;
     private const long WsExToolWindow = 0x00000080L;
     private const long WsExAppWindow = 0x00040000L;
     private const uint SwpNoSize = 0x0001;
@@ -23,6 +22,8 @@ public static class TaskbarIconVisibility
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
     private const uint SwpNoOwnerZOrder = 0x0200;
+    private static readonly int TaskbarCreated = RegisterWindowMessage("TaskbarCreated");
+    private static readonly int TaskbarButtonCreated = RegisterWindowMessage("TaskbarButtonCreated");
     private static readonly ConditionalWeakTable<Window, NativeState> States = new();
     [ThreadStatic]
     private static ITaskbarList? _taskbarList;
@@ -30,24 +31,14 @@ public static class TaskbarIconVisibility
     public static void SetVisible(Window window, bool visible)
     {
         ArgumentNullException.ThrowIfNull(window);
-        NativeState state = States.GetValue(window, static _ => new NativeState());
-        if (OperatingSystem.IsWindows() && TryGetWindowHandle(window, out nint hwnd))
-        {
-            _ = TrySetNativeVisibility(hwnd, state, visible);
-            state.IsVisible = visible;
-            state.HasVisibility = true;
-            return;
-        }
-
-        window.ShowInTaskbar = visible;
-        state.IsVisible = visible;
-        state.HasVisibility = true;
+        window.Dispatcher.VerifyAccess();
+        States.GetValue(window, static value => new NativeState(value)).SetVisible(visible);
     }
 
     public static bool IsVisible(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
-        return States.TryGetValue(window, out NativeState? state) && state.HasVisibility
+        return States.TryGetValue(window, out NativeState? state)
             ? state.IsVisible
             : window.ShowInTaskbar;
     }
@@ -58,57 +49,27 @@ public static class TaskbarIconVisibility
         return handle != nint.Zero;
     }
 
-    private static bool TrySetNativeVisibility(nint hwnd, NativeState state, bool visible)
+    private static void ApplyNativeVisibility(nint hwnd, bool visible)
     {
         try
         {
-            nint owner = GetWindow(hwnd, GwOwner);
-            if (owner != nint.Zero && !state.HasOwner)
-            {
-                state.Owner = owner;
-                state.HasOwner = true;
-            }
-
-            if (!visible)
-            {
-                TryUpdateTaskbarList(hwnd, visible: false);
-            }
-            else if (owner != nint.Zero)
-            {
-                SetWindowLongPtrChecked(hwnd, GwlpHwndParent, nint.Zero);
-            }
-
+            // APPWINDOW keeps each window eligible for Alt+Tab, including WPF
+            // windows with a hidden owner. Taskbar buttons are controlled separately.
             long style = GetWindowLongPtr(hwnd, GwlExStyle).ToInt64();
-            long updated = visible
-                ? (style | WsExAppWindow) & ~WsExToolWindow
-                : (style & ~WsExAppWindow) | WsExToolWindow;
+            long updated = (style | WsExAppWindow) & ~WsExToolWindow;
             if (updated != style)
             {
                 SetWindowLongPtrChecked(hwnd, GwlExStyle, new nint(updated));
-            }
-
-            if (!visible && state.HasOwner && owner != state.Owner)
-            {
-                SetWindowLongPtrChecked(hwnd, GwlpHwndParent, state.Owner);
-            }
-
-            if (!SetWindowPos(hwnd, nint.Zero, 0, 0, 0, 0,
+                if (!SetWindowPos(hwnd, nint.Zero, 0, 0, 0, 0,
                     SwpNoSize | SwpNoMove | SwpNoZOrder | SwpNoActivate | SwpFrameChanged | SwpNoOwnerZOrder))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
             }
 
-            if (visible)
-            {
-                TryUpdateTaskbarList(hwnd, visible: true);
-            }
-
-            return true;
+            TryUpdateTaskbarList(hwnd, visible && IsWindowVisible(hwnd));
         }
         catch (Exception exception)
         {
             System.Diagnostics.Debug.WriteLine($"[Taskbar] native visibility failed: {exception}");
-            return false;
         }
     }
 
@@ -119,14 +80,13 @@ public static class TaskbarIconVisibility
             int result = visible
                 ? GetTaskbarList().AddTab(hwnd)
                 : GetTaskbarList().DeleteTab(hwnd);
-            if (result < 0)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"[Taskbar] shell list update failed: 0x{result:X8}");
-            }
+            Marshal.ThrowExceptionForHR(result);
         }
         catch (Exception exception)
         {
+            // Explorer can restart independently of the application. Reconnect on
+            // the next lifecycle notification instead of retaining a broken proxy.
+            _taskbarList = null;
             System.Diagnostics.Debug.WriteLine($"[Taskbar] shell list unavailable: {exception}");
         }
     }
@@ -153,10 +113,98 @@ public static class TaskbarIconVisibility
 
     private sealed class NativeState
     {
-        internal bool HasOwner { get; set; }
-        internal nint Owner { get; set; }
-        internal bool HasVisibility { get; set; }
-        internal bool IsVisible { get; set; }
+        private readonly Window _window;
+        private HwndSource? _source;
+        private DispatcherOperation? _pending;
+        private bool _applying;
+        private bool _closed;
+
+        internal NativeState(Window window)
+        {
+            _window = window;
+            window.SourceInitialized += OnSourceInitialized;
+            window.IsVisibleChanged += OnVisibilityChanged;
+            window.StateChanged += OnStateChanged;
+            window.Activated += OnStateChanged;
+            window.Closed += OnClosed;
+        }
+
+        internal bool IsVisible { get; private set; }
+
+        internal void SetVisible(bool visible)
+        {
+            IsVisible = visible;
+            Apply();
+            QueueApply();
+        }
+
+        private void Apply()
+        {
+            if (_closed || _applying || !TryGetWindowHandle(_window, out nint hwnd)) return;
+            HwndSource? source = HwndSource.FromHwnd(hwnd);
+            if (_source != source)
+            {
+                if (_source is { IsDisposed: false }) _source.RemoveHook(WndProc);
+                _source = source;
+                _source?.AddHook(WndProc);
+            }
+            _applying = true;
+            try { ApplyNativeVisibility(hwnd, IsVisible); }
+            finally { _applying = false; }
+        }
+
+        private void QueueApply()
+        {
+            if (_closed || _pending is not null) return;
+            // Coalesce native/WPF notifications, then run after their own show,
+            // style and taskbar registration work has finished. Read the latest
+            // preference here so rapid toggles cannot replay a stale value.
+            _pending = _window.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                _pending = null;
+                Apply();
+            }));
+        }
+
+        private nint WndProc(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+        {
+            if (message == TaskbarCreated)
+            {
+                _taskbarList = null;
+                QueueApply();
+            }
+            else if (message == TaskbarButtonCreated)
+            {
+                // AddTab may itself cause this notification. Only a hidden
+                // button needs correction, avoiding a registration loop.
+                if (!IsVisible) QueueApply();
+            }
+            else if (!_applying && (message == 0x0018 || // WM_SHOWWINDOW
+                message == 0x007D && wParam.ToInt64() == GwlExStyle)) // WM_STYLECHANGED
+                QueueApply();
+            return nint.Zero;
+        }
+
+        private void OnSourceInitialized(object? sender, EventArgs e)
+        {
+            Apply();
+            QueueApply();
+        }
+        private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) => QueueApply();
+        private void OnStateChanged(object? sender, EventArgs e) => QueueApply();
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            _closed = true;
+            _pending?.Abort();
+            _pending = null;
+            if (_source is { IsDisposed: false }) _source.RemoveHook(WndProc);
+            _source = null;
+            _window.SourceInitialized -= OnSourceInitialized;
+            _window.IsVisibleChanged -= OnVisibilityChanged;
+            _window.StateChanged -= OnStateChanged;
+            _window.Activated -= OnStateChanged;
+            _window.Closed -= OnClosed;
+        }
     }
 
     [ComImport, Guid("56FDF344-FD6D-11D0-958A-006097C9A090")]
@@ -172,7 +220,10 @@ public static class TaskbarIconVisibility
         [PreserveSig] int SetActiveAlt(nint hwnd);
     }
 
-    [DllImport("user32.dll", SetLastError = true)] private static extern nint GetWindow(nint hwnd, int command);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int RegisterWindowMessage(string message);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(nint hwnd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)] private static extern int GetWindowLong32(nint hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)] private static extern nint GetWindowLongPtr64(nint hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)] private static extern int SetWindowLong32(nint hwnd, int index, int value);

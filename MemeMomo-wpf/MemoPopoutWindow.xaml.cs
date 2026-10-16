@@ -117,6 +117,8 @@ public partial class MemoPopoutWindow : BorderlessWindow
         ArgumentNullException.ThrowIfNull(settings);
         _backgroundColor = MemoWindowPalette.Normalize(settings.MemoBackgroundColor);
         ApplyColors();
+        if (!_taskbarButtonEnabled && settings.ShowMemoWindowTaskbarIcon)
+            _showTaskbarIcon = true;
         _taskbarButtonEnabled = settings.ShowMemoWindowTaskbarIcon;
         UpdateTaskbarButtonVisual();
         // 控制器在 Loaded 时才创建，开关先落字段，加载时再同步。

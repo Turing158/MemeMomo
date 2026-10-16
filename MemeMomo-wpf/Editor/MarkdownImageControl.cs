@@ -51,7 +51,7 @@ namespace MemeMomo.Editor;
 /// single rebuild it causes.
 /// </para>
 /// </summary>
-internal sealed class MarkdownImageControl : Border
+internal sealed partial class MarkdownImageControl : Border
 {
     private const double PlaceholderWidth = 132;
     private const double PlaceholderHeight = 72;
@@ -111,6 +111,7 @@ internal sealed class MarkdownImageControl : Border
         ContextMenu.Opened += (_, _) => CloseToolbarNow();
         MouseRightButtonDown += OnImageRightButtonDown;
         ImageUri = span.ImageUri ?? string.Empty;
+        InitializeImageTransferMenu();
         ToolTip = span.Presentation?.Title;
         Margin = new Thickness(2);
         CornerRadius = new CornerRadius(4);

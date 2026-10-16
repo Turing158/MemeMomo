@@ -98,7 +98,7 @@
                   </MenuItem>
                   <Separator x:Name="ResponsiveMenuSeparator" Style="{StaticResource MarkdownToolbarMenuSeparatorTheme}" />
                   <MenuItem x:Name="EditSourceMenuItem" Tag="EditSource" AutomationProperties.Name="{loc:Localize '编辑源码'}" Style="{StaticResource MarkdownToolbarMenuItemTheme}" Click="OnMenuCommandClick">
-                    <MenuItem.Header><StackPanel Orientation="Horizontal"><TextBlock Width="24" Margin="0,0,8,0" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" FontWeight="SemiBold" Text="MD" TextAlignment="Center" /><TextBlock Text="{loc:Localize '编辑源码'}" /></StackPanel></MenuItem.Header>
+                    <MenuItem.Header><StackPanel Orientation="Horizontal"><TextBlock Width="24" Margin="0,0,8,0" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" FontWeight="SemiBold" Text="MD" TextAlignment="Center" /><TextBlock x:Name="EditSourceMenuLabel" Text="{loc:Localize '编辑源码'}" /></StackPanel></MenuItem.Header>
                   </MenuItem>
                 </ContextMenu>
               </Button.ContextMenu>
