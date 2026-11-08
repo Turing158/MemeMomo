@@ -4,10 +4,10 @@
              xmlns:loc="clr-namespace:MemeMomo.UI.Text"
              xmlns:popup="clr-namespace:MemeMomo.UI.Popup"
              AllowDrop="True"
-             DragEnter="OnDragEnter"
-             DragOver="OnDragOver"
+             PreviewDragEnter="OnDragEnter"
+             PreviewDragOver="OnDragOver"
              DragLeave="OnDragLeave"
-             Drop="OnDrop">
+             PreviewDrop="OnDrop">
   <UserControl.Resources>
     <!-- AvalonEdit renders the editor scrollbar (main window and popout memo)
          with the system chrome; scope the overlay hairline style to this

@@ -90,7 +90,7 @@ public partial class TutorialWindow : BorderlessWindow
             "新建时按 Ctrl+Enter 新增，Enter 换行；工具栏可直接插入常用格式，点击「编辑源码」可在当前编辑框中切换源码与格式化编辑。",
             "",
             "二、所见即所得编辑",
-            "双击卡片进入编辑；停止输入 2 秒后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。",
+            "单击卡片进入编辑；停止输入 2 秒后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。",
             "编辑时可用 Ctrl+B / Ctrl+I / Ctrl+K 快速插入粗体、斜体、链接。",
             "",
             "三、插入图片",

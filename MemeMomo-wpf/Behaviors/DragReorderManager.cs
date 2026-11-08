@@ -143,6 +143,7 @@ public sealed class DragReorderManager : IDisposable
     public MemoItem? DraggedItem => _draggedItem;
     public int StartIndex => _startIndex;
     public int InsertIndex => _insertIndex;
+    internal event Action<MemoItem>? ItemClicked;
 
     internal static int ResolveInsertIndex(int rawIndex, int startIndex, int itemCount)
     {
@@ -311,7 +312,17 @@ public sealed class DragReorderManager : IDisposable
 
         if (State == DragReorderState.Pressed)
         {
+            MemoItem item = _draggedItem;
+            Point point = e.GetPosition(_items);
+            bool clicked = ReferenceEquals(item, FindMemoItem(e.OriginalSource as DependencyObject)) &&
+                !IsDeleteButton(e.OriginalSource as DependencyObject) &&
+                Math.Abs(point.X - _downPoint.X) <= DragThreshold && Math.Abs(point.Y - _downPoint.Y) <= DragThreshold;
             CancelDrag();
+            if (clicked)
+            {
+                e.Handled = true;
+                ItemClicked?.Invoke(item);
+            }
             return;
         }
 

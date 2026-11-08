@@ -52,6 +52,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     private int _pendingSelectionEnd;
     private System.Windows.Media.Brush? _normalCaretBrush;
     private bool _redirectingAtomicCaret;
+    private bool _normalizingListSelection;
     private long _projectionVersion;
     private readonly Dictionary<int, InlineObjectElement> _tableElements = new();
     private int _disposed;
@@ -97,7 +98,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.ElementGenerators.Add(_codeBlockPaddingGenerator);
         _inlineCodePaddingGenerator = new MarkdownInlineCodePaddingGenerator(_model);
         Editor.TextArea.TextView.ElementGenerators.Add(_inlineCodePaddingGenerator);
-        _listIndentation = new MarkdownListIndentation(_model);
+        _listIndentation = new MarkdownListIndentation(_model, CreateTaskControl);
         Editor.TextArea.TextView.ElementGenerators.Add(_listIndentation);
         _objectGenerator = new MarkdownElementGenerator(() => _model.Spans, CreateElement);
         Editor.TextArea.TextView.ElementGenerators.Add(_objectGenerator);
@@ -126,6 +127,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.TextView.SizeChanged += _htmlAlignment.OnViewportChanged;
         Editor.Document.Changed += OnDocumentChanged;
         Editor.TextArea.Caret.PositionChanged += OnCaretPositionChanged;
+        Editor.TextArea.SelectionChanged += OnListSelectionChanged;
         Editor.TextArea.PreviewMouseLeftButtonDown += OnTextAreaPreviewMouseLeftButtonDown;
         Editor.TextArea.PreviewTextInput += OnTextAreaPreviewTextInput;
         Editor.Unloaded += OnUnloaded;
@@ -393,6 +395,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.GotKeyboardFocus -= OnEditorGotKeyboardFocus;
         ActiveTableCell = null;
         Editor.TextArea.Caret.PositionChanged -= OnCaretPositionChanged;
+        Editor.TextArea.SelectionChanged -= OnListSelectionChanged;
         Editor.TextArea.PreviewMouseLeftButtonDown -= OnTextAreaPreviewMouseLeftButtonDown;
         Editor.TextArea.PreviewTextInput -= OnTextAreaPreviewTextInput;
         Editor.TextArea.MouseRightButtonDown -= OnTextAreaMouseRightButtonDown;
@@ -476,6 +479,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         _ruleInteraction.Clear();
         RedirectCaretOutOfRule();
         RedirectCaretOutOfTable();
+        RedirectCaretOutOfListPrefix();
     }
 
     /// <summary>
@@ -612,6 +616,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         }
 
         RedirectCaretOutOfTable();
+        RedirectCaretOutOfListPrefix();
     }
 
     /// <summary>
@@ -1023,7 +1028,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         if (span.Kind != MarkdownVisualKind.Table)
         {
             return span.Kind == MarkdownVisualKind.Task
-                ? new MarkdownTaskMarkerElement(span.Length, CreateControl(span))
+                ? new MarkdownListPrefixElement(span.Length, CreateControl(span))
                 : new InlineObjectElement(span.Length, CreateControl(span));
         }
         int tableCount = _model.Spans.Count(value => value.Kind == MarkdownVisualKind.Table);

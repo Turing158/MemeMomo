@@ -13,6 +13,11 @@ namespace MemeMomo.UI;
 /// </summary>
 public static class TaskCheckBoxFactory
 {
+    internal const double IndicatorWidth = 18;
+    internal const double LeadingMargin = 1;
+    internal const double TrailingMargin = 3;
+    internal const double InlineWidth = IndicatorWidth + LeadingMargin + TrailingMargin;
+
     private const double CheckedPressedScale = 0.7;
     private const double DefaultPressedScale = 0.94;
 
@@ -159,12 +164,12 @@ public static class TaskCheckBoxFactory
         // does not apply VerticalAlignment to that arrange slot. Give the
         // checkbox the line's full height and expose the text baseline so the
         // visible 18px indicator can be anchored to the line bottom.
-        double height = Math.Max(18, lineHeight.GetValueOrDefault(18));
+        double height = Math.Max(IndicatorWidth, lineHeight.GetValueOrDefault(IndicatorWidth));
         CheckBox checkBox = new()
         {
-            Width = 18,
+            Width = IndicatorWidth,
             Height = height,
-            Margin = new Thickness(1, 0, 3, 0),
+            Margin = new Thickness(LeadingMargin, 0, TrailingMargin, 0),
             VerticalAlignment = VerticalAlignment.Bottom,
             Focusable = true,
             Template = Template

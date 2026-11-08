@@ -1212,9 +1212,9 @@
     "2. WYSIWYG editing",
     "二、所見即所得編輯"
   ],
-  "双击卡片进入编辑；停止输入 2 秒后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。": [
-    "Double-click a memo to edit it. Changes save 2 seconds after typing stops. Press Ctrl+Enter to save immediately, or Esc to restore the content loaded for this edit.",
-    "雙擊卡片進入編輯；停止輸入 2 秒後自動儲存。編輯現有內容時按 Ctrl+Enter 立即儲存，Esc 恢復本次載入的內容。"
+  "单击卡片进入编辑；停止输入 2 秒后自动保存。编辑已有内容时按 Ctrl+Enter 立即保存，Esc 恢复本次载入的内容。": [
+    "Click a memo to edit it. Changes save 2 seconds after typing stops. Press Ctrl+Enter to save immediately, or Esc to restore the content loaded for this edit.",
+    "單擊卡片進入編輯；停止輸入 2 秒後自動儲存。編輯現有內容時按 Ctrl+Enter 立即儲存，Esc 恢復本次載入的內容。"
   ],
   "编辑时可用 Ctrl+B / Ctrl+I / Ctrl+K 快速插入粗体、斜体、链接。": [
     "Use Ctrl+B, Ctrl+I, or Ctrl+K for bold, italic, or links.",

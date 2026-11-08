@@ -13,6 +13,7 @@ using MemeMomo.Components.Dialogs;
 using MemeMomo.Editor;
 using MemeMomo.Infrastructure;
 using MemeMomo.Markdown;
+using MemeMomo.Platform.Windows;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Popup;
@@ -1057,7 +1058,15 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private void UpdateDragEffects(DragEventArgs e)
     {
         string[] files = GetDroppedFiles(e.Data);
-        bool accepted = !IsReadOnlyPreview && !_lifecycleSuspended && !_dropInProgress && ValidateImageFiles(files, out _);
+        ImageDropData? image = files.Length == 0 ? ImageDropData.Read(e.Data) : null;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop) && image is null)
+        {
+            _dropStatus.Clear();
+            return;
+        }
+        bool supported = files.Length > 0 ? ValidateImageFiles(files, out _) : image?.TryGetFormat(out _, out _, out _) == true;
+        bool accepted = CanWriteSession(_sessionVersion) && !_dropInProgress && supported &&
+            (e.AllowedEffects & DragDropEffects.Copy) != 0;
         e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
         if (accepted) _dropStatus.Show(LocalizationService.Get("放开以插入图片"), persistent: true);
@@ -1069,23 +1078,53 @@ public partial class MarkdownEditor : UserControl, IDisposable
     private async void OnDrop(object sender, DragEventArgs e)
     {
         string[] files = GetDroppedFiles(e.Data);
-        bool accepted = !IsReadOnlyPreview && !_lifecycleSuspended && ValidateImageFiles(files, out _);
-        e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        ImageDropData? image = files.Length == 0 ? ImageDropData.Read(e.Data) : null;
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop) && image is null) return;
+        long version = _sessionVersion;
+        e.Effects = DragDropEffects.None;
         e.Handled = true;
         _dropStatus.Clear();
-        if (!accepted || _dropInProgress)
+        if (!CanWriteSession(version) || _dropInProgress || (e.AllowedEffects & DragDropEffects.Copy) == 0)
         {
             return;
         }
         _dropInProgress = true;
         try
         {
-            await InsertFilePathsAsync(files);
+            if (files.Length > 0)
+            {
+                if (!ValidateImageFiles(files, out _)) return;
+                MoveCaretToDropPosition(e);
+                e.Effects = DragDropEffects.Copy;
+                await InsertFilePathsAsync(files);
+            }
+            else if (image is not null)
+            {
+                // Materialize OLE data before awaiting; then reuse the existing asset
+                // store, session guard and single source edit used by image insertion.
+                var (bytes, extension) = image.Decode();
+                MoveCaretToDropPosition(e);
+                e.Effects = DragDropEffects.Copy;
+                using MemoryStream stream = new(bytes, writable: false);
+                string stored = await _imageStore.StoreAsync(stream, extension);
+                if (CanWriteSession(version)) InsertStoredImages([(LocalizationService.Get("图片"), stored)]);
+            }
+        }
+        catch (Exception exception)
+        {
+            e.Effects = DragDropEffects.None;
+            if (IsCurrentSession(version)) ShowStatus(exception.Message, isError: true, autoHide: false);
         }
         finally
         {
             _dropInProgress = false;
         }
+    }
+
+    private void MoveCaretToDropPosition(DragEventArgs e)
+    {
+        if (_adapter.TryGetVisibleOffset(e.GetPosition(_adapter.Editor), out int offset))
+            _adapter.Editor.Select(offset, 0);
     }
 
     private static string[] GetDroppedFiles(IDataObject data) =>

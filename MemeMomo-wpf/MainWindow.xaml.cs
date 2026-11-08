@@ -50,6 +50,7 @@ public partial class MainWindow : BorderlessWindow
     private int _deleteGeneration;
     private FrameAnimation? _deleteSlideAnimation;
     private DragReorderManager? _dragManager;
+    private readonly SemaphoreSlim _memoClickGate = new(1, 1);
     private Thumb? _memoOverlayScrollBarThumb;
     private readonly DispatcherTimer _memoOverlayScrollBarCollapseTimer;
     private readonly IDisposable _memoOverlayScrollBarTimerLease;
@@ -109,6 +110,7 @@ public partial class MainWindow : BorderlessWindow
             MemoScrollViewer,
             _viewModel,
             (memo, screenPoint) => MemoPopoutRequested?.Invoke(memo, screenPoint));
+        _dragManager.ItemClicked += OnMemoCardClicked;
         _dragManager.Attach();
         Topmost = settings.MainWindowTopmost;
         UpdateTaskbarIconVisibility();
@@ -462,20 +464,26 @@ public partial class MainWindow : BorderlessWindow
         UpdateEditVisual();
     }
 
-    private async void OnMemoDoubleClick(object sender, MouseButtonEventArgs e)
+    private void OnMemoCardClicked(MemoItem item) => SelectMemoForEditingAsync(item).Observe();
+
+    private async Task SelectMemoForEditingAsync(MemoItem item)
     {
-        if (e.OriginalSource is DependencyObject source && FindParent<WpfButton>(source) is not null)
+        await _memoClickGate.WaitAsync();
+        try
         {
-            return;
+            if (_disposed || _modeChanging || _settingsNavigating || IsSettingsPageVisible || IsRecycleBinMode ||
+                item.IsDeleted || item.IsLifecyclePending) return;
+            // A second click (including the second half of a double-click) only
+            // restores focus; it must not end the session or discard undo/selection.
+            if (ReferenceEquals(_displayedMemo, item) && !MarkdownEditor.IsNewMemo)
+                MarkdownEditor.Adapter.FocusEditor();
+            else
+                await ToggleMemoEditAsync(item);
         }
-
-        if (sender is not FrameworkElement { DataContext: MemoItem item })
+        finally
         {
-            return;
+            _memoClickGate.Release();
         }
-
-        e.Handled = true;
-        await ToggleMemoEditAsync(item);
     }
 
     internal async Task ToggleMemoEditAsync(MemoItem item)
@@ -588,21 +596,10 @@ public partial class MainWindow : BorderlessWindow
             e.Handled = true;
             return;
         }
-        // Single click is selection/input only. It never transfers editor ownership.
+        // Editing starts after release, once the drag manager recognizes a click.
         if (sender is FrameworkElement element)
         {
             InteractionState.SetIsSelected(element, true);
-        }
-
-        if (e.ClickCount == 2 && sender is FrameworkElement { DataContext: MemoItem item })
-        {
-            if (e.OriginalSource is DependencyObject source && FindParent<WpfButton>(source) is not null)
-            {
-                return;
-            }
-
-            e.Handled = true;
-            _ = ToggleMemoEditAsync(item);
         }
     }
 
@@ -1020,7 +1017,11 @@ public partial class MainWindow : BorderlessWindow
         _viewModel.TaskView.Changed -= RefreshTaskView;
         _viewModel.RecycleView.Changed -= RefreshRecycleView;
         _viewModel.SaveFailed -= OnMemoSaveFailed;
-        _dragManager?.Dispose();
+        if (_dragManager is not null)
+        {
+            _dragManager.ItemClicked -= OnMemoCardClicked;
+            _dragManager.Dispose();
+        }
         _dragManager = null;
         MarkdownEditor.NewRequested -= OnNewRequested;
         if (_displayedMemo is not null)

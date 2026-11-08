@@ -936,7 +936,8 @@ internal sealed partial class MarkdownInputController : IDisposable
                 return true;
             }
             int removeStart = context.Start > 0 ? context.Start - 1 : context.Start;
-            int removeEnd = lineEnd < markdown.Length && markdown[lineEnd] == '\n'
+            // 只删除一侧换行，保留上下列表项的边界；仅文档首行删除其后的换行。
+            int removeEnd = context.Start == 0 && lineEnd < markdown.Length && markdown[lineEnd] == '\n'
                 ? lineEnd + 1
                 : lineEnd;
             ApplySource(markdown, removeStart, removeEnd, string.Empty, removeStart, lineStart);
@@ -1001,27 +1002,7 @@ internal sealed partial class MarkdownInputController : IDisposable
     /// 上方不是列表项内容时返回 null。与 IsInsideListItemContent 的向上遍历一致。
     /// </summary>
     private static int? ListContentColumn(string markdown, int lineStart)
-    {
-        var previousLine = MarkdownListLine.Read(markdown, lineStart);
-        while (previousLine.TryPrevious(markdown, out previousLine))
-        {
-            string previous = previousLine.Text;
-            if (string.IsNullOrWhiteSpace(previous))
-            {
-                return null;
-            }
-            Match match = ListItemLine().Match(previous);
-            if (match.Success)
-            {
-                return match.Groups[4].Index;
-            }
-            if (previous[0] is not (' ' or '\t'))
-            {
-                return null;
-            }
-        }
-        return null;
-    }
+        => MarkdownListLine.Read(markdown, lineStart).ContinuationContentColumn(markdown);
 
     private static bool IsInsideCodeBlock(MarkdownDocumentModel model, int visibleOffset) =>
         model.Spans.Any(span => span.Kind == MarkdownVisualKind.CodeBlock &&

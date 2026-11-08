@@ -27,6 +27,25 @@ internal readonly partial record struct MarkdownListLine(int Start, int End, int
 
     public static int QuotePrefixLength(string line) => QuotePrefixSyntax().Match(line).Length;
 
+    public int? ContinuationContentColumn(string source)
+        => ContinuationOwner(source)?.ContentColumn;
+
+    public (MarkdownListLine Line, int ContentColumn)? ContinuationOwner(string source)
+    {
+        var previous = this;
+        while (previous.TryPrevious(source, out previous))
+        {
+            if (string.IsNullOrWhiteSpace(previous.Text)) return null;
+            Match prefix = ListPrefixSyntax().Match(previous.Text);
+            if (prefix.Success) return (previous, prefix.Length);
+            if (previous.Text[0] is not (' ' or '\t')) return null;
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"^[ \t]*(?:[-+*]|\d+[.)])[ \t](?:\[[ xX]\][ \t])?")]
+    private static partial Regex ListPrefixSyntax();
+
     [GeneratedRegex(@"^(?:[ \t]*>[ \t]?)+")]
     private static partial Regex QuotePrefixSyntax();
 }

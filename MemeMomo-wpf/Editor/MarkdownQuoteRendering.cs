@@ -267,6 +267,8 @@ internal sealed class MarkdownSelectionRenderer(
                 textArea.Selection.EnableVirtualSpace))
             {
                 Rect rect = HtmlAlignmentLayout.ClipSelectionRect(textView, selectionRect);
+                rect = MarkdownListPrefixElement.ClipSelectionRect(textView, rect);
+                if (rect.Width <= 0) continue;
                 if (!TryGetQuoteContentBounds(
                     textView,
                     rect.Top,
