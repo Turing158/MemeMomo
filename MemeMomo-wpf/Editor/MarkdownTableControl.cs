@@ -224,6 +224,12 @@ internal sealed class MarkdownTableControl : Border
         textBox.GotKeyboardFocus += OnCellGotKeyboardFocus;
         textBox.LostKeyboardFocus += OnCellLostKeyboardFocus;
         textBox.ContextMenu = CreateCellContextMenu(cell, textBox);
+        textBox.TextArea.MouseRightButtonDown += (_, args) =>
+            textBox.ContextMenu = CreateCellContextMenu(cell, textBox, args.GetPosition(textBox));
+        textBox.ContextMenuOpening += (_, args) =>
+        {
+            if (args.CursorLeft < 0) textBox.ContextMenu = CreateCellContextMenu(cell, textBox);
+        };
         textBox.TextArea.CommandBindings.Insert(0, new CommandBinding(ApplicationCommands.Undo,
             (_, args) => { _adapter.Editor.Document.UndoStack.Undo(); args.Handled = true; },
             (_, args) => { args.CanExecute = _adapter.Editor.Document.UndoStack.CanUndo; args.Handled = true; }));
@@ -350,9 +356,15 @@ internal sealed class MarkdownTableControl : Border
             + cell.BorderThickness.Left + cell.BorderThickness.Right;
     }
 
-    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell, MarkdownTableCell targetCell)
+    private ContextMenu CreateCellContextMenu(MarkdownTableEditor.Cell cell, MarkdownTableCell targetCell,
+        System.Windows.Point? point = null)
     {
-        if (!CanWrite) return EditorClipboardMenu.CreateReadOnly(targetCell.TextArea);
+        if (!CanWrite)
+        {
+            ContextMenu readOnlyMenu = EditorClipboardMenu.CreateReadOnly(targetCell.TextArea);
+            _adapter.LinkInteraction.PrependItems(readOnlyMenu, targetCell, targetCell.Model, point);
+            return readOnlyMenu;
+        }
         ContextMenu menu = new()
         {
             Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuPresenterTheme") as Style
@@ -368,6 +380,7 @@ internal sealed class MarkdownTableControl : Border
         AddMenu("左侧插入列", () => MutateTable(cell, rowInsertBefore: false, rowInsertAfter: false, rowDelete: false, columnInsertBefore: true, columnInsertAfter: false, columnDelete: false));
         AddMenu("右侧插入列", () => MutateTable(cell, rowInsertBefore: false, rowInsertAfter: false, rowDelete: false, columnInsertBefore: false, columnInsertAfter: true, columnDelete: false));
         AddMenu("删除列", () => MutateTable(cell, rowInsertBefore: false, rowInsertAfter: false, rowDelete: false, columnInsertBefore: false, columnInsertAfter: false, columnDelete: true));
+        _adapter.LinkInteraction.PrependItems(menu, targetCell, targetCell.Model, point);
         return menu;
 
         void AddMenu(string header, Action action)

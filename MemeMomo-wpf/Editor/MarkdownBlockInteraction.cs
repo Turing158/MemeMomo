@@ -14,8 +14,10 @@ internal sealed class MarkdownBlockInteraction(AvalonEditMarkdownAdapter adapter
 
     internal ContextMenu CreateMenu(Point? pointToEditor)
     {
-        if (adapter.IsReadOnly) return EditorClipboardMenu.CreateReadOnly(adapter.Editor.TextArea);
-        if (adapter.IsSourceMode) return EditorClipboardMenu.CreateForTextArea(adapter.Editor.TextArea, pasteImages);
+        ContextMenu menu = adapter.IsReadOnly ? EditorClipboardMenu.CreateReadOnly(adapter.Editor.TextArea) :
+            EditorClipboardMenu.CreateForTextArea(adapter.Editor.TextArea, pasteImages);
+        if (adapter.LinkInteraction.PrependItems(menu, adapter.Editor, adapter.Model, pointToEditor)) return menu;
+        if (adapter.IsReadOnly || adapter.IsSourceMode) return menu;
         long session = adapter.SessionVersion;
         TextView view = adapter.Editor.TextArea.TextView;
         MarkdownVisualSpan? target = null;
@@ -34,7 +36,6 @@ internal sealed class MarkdownBlockInteraction(AvalonEditMarkdownAdapter adapter
                 .OrderByDescending(span => span.Kind == MarkdownVisualKind.CodeBlock)
                 .ThenBy(span => span.Length).Select(span => (MarkdownVisualSpan?)span).FirstOrDefault();
         }
-        ContextMenu menu = EditorClipboardMenu.CreateForTextArea(adapter.Editor.TextArea, pasteImages);
         if (target is not { } block) return menu;
         string source = adapter.Markdown;
         EditorClipboardMenu.PrependBlockItems(menu, adapter.Editor.TextArea,

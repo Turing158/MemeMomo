@@ -380,6 +380,8 @@
     "Edit link",
     "編輯連結"
   ],
+  "取消链接": ["Remove link", "取消連結"],
+  "复制链接": ["Copy link", "複製連結"],
   "保存修改": [
     "Save changes",
     "儲存變更"

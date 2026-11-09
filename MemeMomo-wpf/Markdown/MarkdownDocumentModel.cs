@@ -409,6 +409,34 @@ internal sealed partial class MarkdownDocumentModel
         return null;
     }
 
+    internal bool TryGetLinkSourceRange(MarkdownVisualSpan link, out int start, out int end)
+    {
+        start = end = 0;
+        if (link.Kind != MarkdownVisualKind.Link || !Spans.Contains(link)) return false;
+        Match? match = LinkSyntax().Matches(Markdown).FirstOrDefault(candidate =>
+            candidate.Groups[1].Index == link.SourceStart && candidate.Groups[1].Length == link.SourceLength);
+        if (match is not null)
+        {
+            start = match.Index;
+            end = start + match.Length;
+            return true;
+        }
+        Match? opening = HtmlTagSyntax().Matches(Markdown).FirstOrDefault(candidate =>
+            candidate.Index + candidate.Length == link.SourceStart && !candidate.Groups[1].Success &&
+            string.Equals(candidate.Groups[2].Value, "a", StringComparison.OrdinalIgnoreCase));
+        if (opening is null) return false;
+        int contentEnd = link.SourceStart + link.SourceLength;
+        Match closing = HtmlTagSyntax().Match(Markdown, contentEnd);
+        if (closing.Success && closing.Index == contentEnd && closing.Groups[1].Success &&
+            string.Equals(closing.Groups[2].Value, "a", StringComparison.OrdinalIgnoreCase))
+            end = closing.Index + closing.Length;
+        else if (contentEnd == Markdown.Length)
+            end = contentEnd;
+        else return false;
+        start = opening.Index;
+        return true;
+    }
+
     private bool IsExactChangeValid(string next, VisibleTextChange? change)
     {
         if (change is not { } exact ||
@@ -459,6 +487,14 @@ internal sealed partial class MarkdownDocumentModel
         foreach (SourceRange range in QuotePrefixRangesAfterRemovedLineBreaks(visibleRanges))
         {
             yield return range;
+        }
+
+        foreach (var link in Spans.Where(span => span.Kind == MarkdownVisualKind.Link &&
+                     span.Start >= visibleStart && span.End <= visibleEnd))
+        {
+            if (!TryGetLinkSourceRange(link, out int start, out int end)) continue;
+            yield return new SourceRange(start, link.SourceStart);
+            yield return new SourceRange(link.SourceStart + link.SourceLength, end);
         }
 
         foreach (var span in Spans.Where(span =>

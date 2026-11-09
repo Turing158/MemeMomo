@@ -119,6 +119,38 @@ internal static class EditorClipboardMenu
         });
     }
 
+    internal static void PrependLinkItems(ContextMenu menu, TextArea target, Action? edit, Action? unlink,
+        Action copyAddress, Action copyText, Action cutText)
+    {
+        MenuItem previousCopy = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, CopyHeader));
+        MenuItem copy = CreateItem(CopyHeader, target);
+        menu.Items[menu.Items.IndexOf(previousCopy)] = copy;
+        copy.Click += (_, _) => copyText();
+        MenuItem? previousCut = menu.Items.OfType<MenuItem>().SingleOrDefault(item => Equals(item.Tag, CutHeader));
+        if (previousCut is not null)
+        {
+            MenuItem cut = CreateItem(CutHeader, target);
+            menu.Items[menu.Items.IndexOf(previousCut)] = cut;
+            cut.Click += (_, _) => cutText();
+        }
+        int index = 0;
+        Add("编辑链接", edit);
+        Add("取消链接", unlink);
+        Add("复制链接", copyAddress);
+        menu.Items.Insert(index, new Separator
+        {
+            Style = Application.Current?.TryFindResource("MarkdownToolbarMenuSeparatorTheme") as Style
+        });
+
+        void Add(string header, Action? action)
+        {
+            if (action is null) return;
+            MenuItem item = CreateItem(header, target);
+            item.Click += (_, _) => action();
+            menu.Items.Insert(index++, item);
+        }
+    }
+
     internal static void PrependToCellMenu(ContextMenu menu, MarkdownTableCell cell)
     {
         AppendClipboardItems(menu, cell.TextArea, pasteImages: null, includeImageContent: false,
@@ -237,6 +269,7 @@ internal static class EditorClipboardMenu
         MenuItem item = new()
         {
             Header = header,
+            Tag = header,
             CommandTarget = target,
             Style = Application.Current?.TryFindResource("MarkdownTableEdgeMenuItemTheme") as Style
         };

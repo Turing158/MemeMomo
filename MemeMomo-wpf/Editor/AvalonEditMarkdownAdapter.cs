@@ -1,6 +1,5 @@
 using System.IO;
 using System.Net.Http;
-using System.Text;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Input;
@@ -12,6 +11,7 @@ using ICSharpCode.AvalonEdit.Editing;
 using ICSharpCode.AvalonEdit.Rendering;
 using ICSharpCode.AvalonEdit.Utils;
 using MemeMomo.Markdown;
+using MemeMomo.Infrastructure;
 using MemeMomo.Services;
 using MemeMomo.UI;
 using MemeMomo.UI.Popup;
@@ -46,6 +46,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     private readonly string _imageRoot;
     private readonly MarkdownInputController _inputController;
     private readonly MarkdownBlockInteraction _blockInteraction;
+    private readonly MarkdownLinkInteraction _linkInteraction;
     private bool _updatingProjection;
     private bool _projectionRefreshPending;
     private int _pendingSelectionStart;
@@ -56,6 +57,8 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
     private long _projectionVersion;
     private readonly Dictionary<int, InlineObjectElement> _tableElements = new();
     private int _disposed;
+    private CancellationTokenSource? _clipboardCopyCancellation;
+    private Task<bool> _listClipboardCopyTask = Task.FromResult(false);
 
     internal AvalonEditMarkdownAdapter(string? imageRoot = null, HttpMessageHandler? imageHttpHandler = null)
     {
@@ -141,9 +144,10 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             () => SaveRequested?.Invoke(this, EventArgs.Empty),
             () => CancelRequested?.Invoke(this, EventArgs.Empty),
             () => LinkEditRequested?.Invoke(this, EventArgs.Empty),
-            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), () => SessionVersion);
+            () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), CopyListClipboardAsync, () => SessionVersion);
         _blockInteraction = new MarkdownBlockInteraction(this,
             () => PasteImagesRequested?.Invoke(this, EventArgs.Empty));
+        _linkInteraction = new MarkdownLinkInteraction(this);
         Editor.TextArea.ContextMenu = _blockInteraction.CreateMenu(null);
         Editor.TextArea.MouseRightButtonDown += OnTextAreaMouseRightButtonDown;
         Editor.TextArea.ContextMenuOpening += OnTextAreaContextMenuOpening;
@@ -158,11 +162,14 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             () => PasteImagesRequested?.Invoke(this, EventArgs.Empty), edit, delete);
     internal Func<System.Windows.Media.Imaging.BitmapSource, Task> ImageClipboardWriter { get; set; } =
         Platform.Windows.ImageClipboard.CopyAsync;
+    internal Func<DataObject, CancellationToken, Task<bool>> ListClipboardWriter { get; set; } =
+        Platform.Windows.TextClipboard.CopyAsync;
     internal Func<Window, Microsoft.Win32.SaveFileDialog, bool?> ImageSaveDialog { get; set; } =
         static (owner, dialog) => dialog.ShowDialog(owner);
     internal MarkdownCodeBlockRenderer CodeBlockRenderer => _codeBlockRenderer;
     internal MarkdownRuleRenderer RuleRenderer => _ruleRenderer;
     internal MarkdownRuleInteraction RuleInteraction => _ruleInteraction;
+    internal MarkdownLinkInteraction LinkInteraction => _linkInteraction;
     internal int ImageLoadRequestCount => _imageLoader.RequestCount;
     internal int SuccessfulImageLoadCount => _imageLoader.SuccessCount;
     internal int FailedImageLoadCount => _imageLoader.FailureCount;
@@ -391,6 +398,8 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             return;
         }
 
+        _clipboardCopyCancellation?.Cancel();
+        _clipboardCopyCancellation?.Dispose();
         Editor.Document.Changed -= OnDocumentChanged;
         Editor.TextArea.GotKeyboardFocus -= OnEditorGotKeyboardFocus;
         ActiveTableCell = null;
@@ -401,6 +410,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
         Editor.TextArea.MouseRightButtonDown -= OnTextAreaMouseRightButtonDown;
         Editor.TextArea.ContextMenuOpening -= OnTextAreaContextMenuOpening;
         _blockInteraction.Dispose();
+        _linkInteraction.Dispose();
         Editor.TextArea.RemoveHandler(DataObject.CopyingEvent, new DataObjectCopyingEventHandler(OnClipboardCopy));
         Editor.TextArea.ContextMenu = null;
         Editor.Unloaded -= OnUnloaded;
@@ -746,14 +756,16 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     /// <summary>
     /// 复制/剪切（AvalonEdit 的剪切内部走同一条复制路径）写剪贴板前在此事件里改写文本：
-    /// 图片在投影里只是单个 U+FFFC 占位符，不改写就会把"￼"复制出去。占位符按投影 span
-    /// 还原成完整图片源码（"![名称](路径)"），其余字符保持原样。空选区复制对应 AvalonEdit
-    /// 的 CutCopyWholeLine 整行复制，同样参与还原。表格单元格的复制由 TextBox 自己发起，
+    /// 图片占位符、链接与无序/任务列表前缀按投影 span 还原成源码，部分链接选区仅保留选中文字及链接地址。
+    /// 空选区复制对应 AvalonEdit 的 CutCopyWholeLine 整行复制，同样参与还原。
+    /// 表格单元格的复制由单元格自己发起，
     /// 事件只冒泡路过本 TextArea，按 OriginalSource 区分跳过；矩形选择每行一段、文本
     /// 拼接顺序特殊，不做还原。
     /// </summary>
     private void OnClipboardCopy(object sender, DataObjectCopyingEventArgs e)
     {
+        if (!e.IsDragDrop) Platform.Windows.TextClipboard.CancelPendingCopy();
+        if (!e.IsDragDrop) _clipboardCopyCancellation?.Cancel();
         if (IsSourceMode || _updatingProjection || Volatile.Read(ref _disposed) != 0 ||
             !ReferenceEquals(e.OriginalSource, Editor.TextArea))
         {
@@ -788,43 +800,30 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
             visibleEnd = value.EndOffset;
         }
 
-        string? mapped = RestoreImageSources(visibleStart, visibleEnd);
+        string? mapped = MarkdownClipboardText.RestoreSources(_model, visibleStart, visibleEnd, out bool containsListPrefix);
         if (mapped is null || e.DataObject is not DataObject dataObject)
         {
             return;
         }
+        mapped = TextUtilities.NormalizeNewLines(mapped, Environment.NewLine);
         dataObject.SetText(mapped);
         dataObject.SetData(typeof(string).FullName!, mapped);
+        if (containsListPrefix && !e.IsDragDrop && !e.CommandCancelled)
+        {
+            _clipboardCopyCancellation?.Dispose();
+            _clipboardCopyCancellation = new();
+            _listClipboardCopyTask = ListClipboardWriter(dataObject, _clipboardCopyCancellation.Token);
+            e.CancelCommand();
+            _listClipboardCopyTask.Observe();
+        }
     }
 
-    /// <summary>把 [visibleStart, visibleEnd) 内的图片占位符还原成完整图片源码；无占位符时返回 null。</summary>
-    private string? RestoreImageSources(int visibleStart, int visibleEnd)
+    private async Task<bool> CopyListClipboardAsync()
     {
-        string visible = _model.VisibleText;
-        int start = Math.Clamp(Math.Min(visibleStart, visibleEnd), 0, visible.Length);
-        int end = Math.Clamp(Math.Max(visibleStart, visibleEnd), 0, visible.Length);
-        // 占位符恒为单字符，图片 span 互不重叠且按位置有序，逐个消费即可。
-        MarkdownVisualSpan[] images = _model.Spans
-            .Where(span => span.Kind == MarkdownVisualKind.Image && span.Start < end && span.End > start)
-            .OrderBy(span => span.Start)
-            .ToArray();
-        if (images.Length == 0)
-        {
-            return null;
-        }
-        StringBuilder mapped = new(end - start);
-        int imageIndex = 0;
-        for (int index = start; index < end; index++)
-        {
-            if (imageIndex < images.Length && images[imageIndex].Start == index)
-            {
-                mapped.Append(_model.Markdown, images[imageIndex].SourceStart, images[imageIndex].SourceLength);
-                imageIndex++;
-                continue;
-            }
-            mapped.Append(visible[index]);
-        }
-        return TextUtilities.NormalizeNewLines(mapped.ToString(), Environment.NewLine);
+        _listClipboardCopyTask = Task.FromResult(false);
+        ApplicationCommands.Copy.Execute(null, Editor.TextArea);
+        CancellationToken cancellation = _clipboardCopyCancellation?.Token ?? new CancellationToken(canceled: true);
+        return await _listClipboardCopyTask && !cancellation.IsCancellationRequested && Volatile.Read(ref _disposed) == 0;
     }
 
     private void OnTextAreaMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -900,6 +899,7 @@ internal sealed partial class AvalonEditMarkdownAdapter : IMarkdownEditorAdapter
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _clipboardCopyCancellation?.Cancel();
         Editor.TextArea.ClearSelection();
         SetTableCellFocusVisual(false);
         Keyboard.ClearFocus();

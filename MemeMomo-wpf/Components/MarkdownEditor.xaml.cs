@@ -820,16 +820,10 @@ public partial class MarkdownEditor : UserControl, IDisposable
         {
             label = model.VisibleText.Substring(link.Start, link.Length);
             url = target;
-            replaceStart = markdown.LastIndexOf('[', link.SourceStart);
-            int close = markdown.IndexOf(')', link.SourceStart + link.SourceLength);
-            if (replaceStart < 0 || close < replaceStart)
+            if (model.TryGetLinkSourceRange(link, out int linkStart, out int linkEnd))
             {
-                replaceStart = sourceStart;
-                replaceEnd = sourceEnd;
-            }
-            else
-            {
-                replaceEnd = close + 1;
+                replaceStart = linkStart;
+                replaceEnd = linkEnd;
             }
         }
         LinkEditValue? value = new LinkEditDialog(label, url).ShowDialog(owner);

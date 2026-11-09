@@ -11,6 +11,7 @@ using ICSharpCode.AvalonEdit.Rendering;
 using Markdig.Syntax;
 using MemeMomo.Components.Dialogs;
 using MemeMomo.Markdown;
+using DataObject = System.Windows.DataObject;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace MemeMomo.Editor;
@@ -26,6 +27,7 @@ internal sealed partial class MarkdownInputController : IDisposable
     private readonly Action _cancel;
     private readonly Action _editLink;
     private readonly Action _pasteImages;
+    private readonly Func<Task<bool>> _copyListClipboard;
     private bool _tableDeleteConfirmationPending;
     private int _disposed;
     private readonly Func<long> _sessionVersion;
@@ -43,7 +45,7 @@ internal sealed partial class MarkdownInputController : IDisposable
         Action save,
         Action cancel,
         Action editLink,
-        Action pasteImages, Func<long>? sessionVersion = null)
+        Action pasteImages, Func<Task<bool>> copyListClipboard, Func<long>? sessionVersion = null)
     {
         _editor = editor;
         _model = model;
@@ -54,8 +56,11 @@ internal sealed partial class MarkdownInputController : IDisposable
         _cancel = cancel;
         _editLink = editLink;
         _pasteImages = pasteImages;
+        _copyListClipboard = copyListClipboard;
         _sessionVersion = sessionVersion ?? (() => 0);
         _editor.PreviewKeyDown += OnPreviewKeyDown;
+        _editor.TextArea.AddHandler(DataObject.PastingEvent, new DataObjectPastingEventHandler(OnListClipboardPaste));
+        CommandManager.AddPreviewExecutedHandler(_editor, OnListClipboardCut);
     }
 
     public void Dispose()
@@ -63,6 +68,8 @@ internal sealed partial class MarkdownInputController : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             _editor.PreviewKeyDown -= OnPreviewKeyDown;
+            _editor.TextArea.RemoveHandler(DataObject.PastingEvent, new DataObjectPastingEventHandler(OnListClipboardPaste));
+            CommandManager.RemovePreviewExecutedHandler(_editor, OnListClipboardCut);
         }
     }
 
